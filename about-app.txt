@@ -1,0 +1,91 @@
+Chertt Product Direction 
+Confidential & Proprietary 
+This document contains confidential and proprietary information relating to Chertt and is 
+shared only for the purpose of evaluating a potential development engagement. It is not a 
+f
+inal specification and does not create any contractual obligation. All intellectual property 
+rights in the concepts, product structure, workflows, names, and materials described in this 
+document are reserved and remain with Chertt and/or its originator unless expressly 
+transferred by written agreement. Unauthorized use, disclosure, reproduction, or distribution 
+is prohibited. 
+Synopsis 
+Chertt is a chat-first conversational app designed to help organizations run important day-to
+day workflows through familiar channels such as WhatsApp, mobile app, and web. Rather 
+than functioning as one generic software product, Chertt is to be developed as a modular 
+platform with an initial plan for four focused solution areas: Chertt Business Toolkit for 
+internal business operations, Chertt ChurchBase for church administration and member
+facing workflows, Chertt Storefront for catalog, ordering, invoicing, payments, and stock
+linked transactions, and Chertt Events for invitations, RSVP, and access management for 
+events and controlled-entry environments. 
+At its core, Chertt is built for organizations that need simple, mobile-friendly systems without 
+the complexity of traditional enterprise tools. It is especially suited to environments where 
+chat is already the natural way people communicate and get things done. By combining 
+workflow automation, records, notifications, access control, and transaction support into one 
+shared platform, Chertt aims to make operational processes more accessible, trackable, and 
+efficient for businesses, churches, and community-driven organizations. 
+Chertt Business Toolkit 
+1. Smart documents – Able to draft a letter on the go and have Chertt put it on a 
+letterhead paper and signed. The drafting can either be done by AI or self written. Also 
+used to create instant invoices formatted and ready to be sent. That means there will 
+be limited templates for letterheads and invoices or the platform can take a PDF 
+letterhead or invoice and use as template. This might also be a two step process where 
+staff unauthorised to sign can start the process but an authorised staff, on approval of 
+the letter or invoice, has a signature applied. 
+2. Requests and approvals – this will kind of run through the entire system as 
+demonstrated in the point above and as will be required for when when staff requests 
+for an expense to be made, supplies for their office, repairs, etc. 
+3. Inventory management – Office store management. Store manager should be able to 
+check if what’s being requested is available, set minimum reorder levels, approve 
+release of a requested item, receive items into the store etc. 
+4. Issue/facility reporting – Staff should be able to report problems with the facility that 
+they notice or repair or replacement of things in their office space. Should be able to 
+accommodate pictures/short videos being taken and sent to better describe the 
+situation. This can also be applied in case of security reporting or incident reports on 
+the premises. 
+5. Polls, surveys and feedback – Self explanatory but will also be useful for approving 
+graphics, communications copy/scripts, guest/user feedback etc. 
+6. Petty cash/expense logging – This information is passed unto a spreadsheet that 
+Accounts unit can use in preparation of their books. It should also have ability to send 
+the pictures of receipts. 
+7. Simple forms – Should be able to create forms as this will vary from organisation to 
+organisation. 
+8. Create appointments – integrate with calendar to set appointments 
+9. FAQs 
+10. Recall process documents or other general operations documents – payment receipts, 
+vehicle documents etc. – be able to pull process documents to see how to handle a 
+task etc. 
+11. Staff onboarding – Basic HR staff onboarding with links and instructions to start off on 
+the new job. 
+12. Staff Directory – Ability to pull up details of other staff and initiate a call or chat from 
+there. 
+Chertt ChurchBase – This will include services from Business Toolkit and add the following 
+1. Sunday Child check-in 
+2. Giving 
+3. Registration – for conferences, events etc. 
+4. First timer capture and communications 
+5. Prayer requests 
+6. Special service/Pastoral Care requests 
+Chertt StoreFront 
+1. Catalog – Very limited catalogue of about 20 products 
+2. Order capture – able to take orders and process total costs 
+3. Invoicing & receipts – Issues invoices and/or receipts for transactions 
+4. Payment Collection – Generate a payment link or link to a payment platform. (It will 
+process payments directly once proper licensing is acquired) 
+5. Simple stock tracking – Keep track of stock on the StoreFront 
+6. Order management – Generate a code for delivery and keep customer abreast of order 
+status. 
+Chertt Events 
+1. Registration – for conferences, events etc. 
+2. Ticketing – paid and free ticket issuing 
+3. Sending out Invitations and reminders 
+4. Managing RSVP – manage reminders and other notifications for guest who will be 
+present e.g. Table name or number, venue details, parking etc. 
+5. QR/code Checkin of Guests – Access control at the venue 
+Other spin-offs using the foundation of products listed above are Chertt for Schools 
+(admission process, registrations, extra-curricular sign ups, Fees collection, student reports, 
+Basic HR & Facility management), Chertt for Registrations (Gyms, Clubs etc. for sign up, access 
+control, membership management, payments, FM, basic HR), Chertt for Communities (e.g. 
+Estates or gated communities for access control, guest management, dues and utility 
+payments, announcements, registrations and reports). 
+Platform will have both AI mode and Chat mode all of this will be done in natural language 
+models when in AI mode and voice. 
