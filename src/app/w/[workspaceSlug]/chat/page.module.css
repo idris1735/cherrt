@@ -203,6 +203,11 @@
   white-space: pre-wrap;
 }
 
+.messageText {
+  display: grid;
+  gap: 4px;
+}
+
 .messageAssistant {
   align-self: flex-start;
   background: var(--ch-surface);
@@ -230,6 +235,51 @@
   opacity: 1;
   transform: none;
   animation: none;
+}
+
+.inlineActionCard {
+  margin-top: 10px;
+  border: 1px solid var(--ch-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--ch-surface-soft) 82%, transparent);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.inlineActionCard:hover {
+  background: var(--ch-contrast);
+  border-color: var(--ch-contrast);
+  color: var(--ch-contrast-text);
+  transform: translateY(-1px);
+}
+
+.inlineActionKind {
+  width: fit-content;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid color-mix(in oklch, var(--ch-border) 84%, transparent);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.inlineActionTitle {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.inlineActionNote {
+  margin: 0;
+  font-size: 0.76rem;
+  opacity: 0.82;
+}
+
+.inlineActionCta {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 620;
 }
 
 @keyframes fadeInUp {

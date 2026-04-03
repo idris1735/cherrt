@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -28,6 +29,66 @@ const suggestionCards = [
     prompt: "Create onboarding steps for a new admin staff member.",
   },
 ];
+
+const ACTION_CARD_PREFIX = "[[cherrt-card:";
+const ACTION_CARD_SUFFIX = "]]";
+
+type ActionCard = {
+  kind: string;
+  title: string;
+  note: string;
+  href: string;
+  cta: string;
+};
+
+function encodeActionCard(card: ActionCard) {
+  return `${ACTION_CARD_PREFIX}${encodeURIComponent(JSON.stringify(card))}${ACTION_CARD_SUFFIX}`;
+}
+
+function appendActionCardToMessage(text: string, card?: ActionCard) {
+  if (!card) return text;
+  return `${text}\n${encodeActionCard(card)}`.trim();
+}
+
+function extractActionCardFromMessage(text: string): { body: string; card?: ActionCard } {
+  const markerStart = text.lastIndexOf(ACTION_CARD_PREFIX);
+  if (markerStart < 0) {
+    return { body: text };
+  }
+
+  const markerEnd = text.indexOf(ACTION_CARD_SUFFIX, markerStart);
+  if (markerEnd < 0) {
+    return { body: text };
+  }
+
+  const encoded = text.slice(markerStart + ACTION_CARD_PREFIX.length, markerEnd);
+
+  try {
+    const card = JSON.parse(decodeURIComponent(encoded)) as Partial<ActionCard>;
+    if (!card || typeof card !== "object") {
+      return { body: text };
+    }
+
+    const kind = typeof card.kind === "string" ? card.kind : "record";
+    const title = typeof card.title === "string" ? card.title.trim() : "";
+    const note = typeof card.note === "string" ? card.note.trim() : "";
+    const href = typeof card.href === "string" ? card.href.trim() : "";
+    const cta = typeof card.cta === "string" ? card.cta.trim() : "Open";
+
+    if (!title || !href || !href.startsWith("/")) {
+      return { body: text };
+    }
+
+    const body = `${text.slice(0, markerStart)}${text.slice(markerEnd + ACTION_CARD_SUFFIX.length)}`.trim();
+
+    return {
+      body,
+      card: { kind, title, note, href, cta },
+    };
+  } catch {
+    return { body: text };
+  }
+}
 
 export default function ChatPage() {
   const { snapshot, addMessage, applyAiResult, createConversation } = useAppState();
@@ -92,38 +153,120 @@ export default function ChatPage() {
     return () => clearTimeout(timeout);
   }, [greetingChars, greetingFrames, greetingIndex]);
 
-  function buildActionReceipt(payload: AiCommandResult) {
+  function buildActionCard(payload: AiCommandResult): ActionCard | undefined {
+    const base = `/w/${snapshot.workspace.slug}`;
+
     if (payload.generatedDocument) {
-      return `Saved document: "${payload.generatedDocument.title}" (${payload.generatedDocument.type}).`;
+      return {
+        kind: "document",
+        title: payload.generatedDocument.title,
+        note: `${payload.generatedDocument.type} draft ready for review and routing.`,
+        href: `${base}/modules/toolkit/documents/${payload.generatedDocument.id}`,
+        cta: "Open document",
+      };
     }
+
     if (payload.generatedRequest) {
-      return `Created request: "${payload.generatedRequest.title}" (${payload.generatedRequest.type}).`;
+      if (payload.generatedRequest.module === "toolkit") {
+        return {
+          kind: "request",
+          title: payload.generatedRequest.title,
+          note: `${payload.generatedRequest.type} request now in approval queue.`,
+          href: `${base}/modules/toolkit/requests/${payload.generatedRequest.id}`,
+          cta: "Open request",
+        };
+      }
+
+      return {
+        kind: "request",
+        title: payload.generatedRequest.title,
+        note: `Created under ${payload.generatedRequest.module} workflows.`,
+        href: `${base}/modules/${payload.generatedRequest.module}`,
+        cta: "Open module",
+      };
     }
+
     if (payload.generatedInventoryItem) {
-      return `Added inventory item: "${payload.generatedInventoryItem.name}" at ${payload.generatedInventoryItem.location}.`;
+      return {
+        kind: "inventory",
+        title: payload.generatedInventoryItem.name,
+        note: `Stock tracked at ${payload.generatedInventoryItem.location}.`,
+        href: `${base}/modules/toolkit/inventory/${payload.generatedInventoryItem.id}`,
+        cta: "Open item",
+      };
     }
+
     if (payload.generatedIssueReport) {
-      return `Logged issue: "${payload.generatedIssueReport.title}" (${payload.generatedIssueReport.severity}).`;
+      return {
+        kind: "issue",
+        title: payload.generatedIssueReport.title,
+        note: `${payload.generatedIssueReport.severity} severity issue logged.`,
+        href: `${base}/modules/toolkit/issues/${payload.generatedIssueReport.id}`,
+        cta: "Open issue",
+      };
     }
+
     if (payload.generatedExpenseEntry) {
-      return `Logged expense: "${payload.generatedExpenseEntry.title}" (${payload.generatedExpenseEntry.department}).`;
+      return {
+        kind: "expense",
+        title: payload.generatedExpenseEntry.title,
+        note: `${payload.generatedExpenseEntry.department} expense captured.`,
+        href: `${base}/modules/toolkit/expenses/${payload.generatedExpenseEntry.id}`,
+        cta: "Open expense",
+      };
     }
+
     if (payload.generatedPoll) {
-      return `Created poll: "${payload.generatedPoll.title}" for ${payload.generatedPoll.audience}.`;
+      return {
+        kind: "poll",
+        title: payload.generatedPoll.title,
+        note: `Audience: ${payload.generatedPoll.audience}.`,
+        href: `${base}/modules/toolkit/feedback/${payload.generatedPoll.id}`,
+        cta: "Open poll",
+      };
     }
+
     if (payload.generatedPerson) {
-      return `Added directory profile: "${payload.generatedPerson.name}" (${payload.generatedPerson.title}).`;
+      return {
+        kind: "directory",
+        title: payload.generatedPerson.name,
+        note: `${payload.generatedPerson.title} profile added.`,
+        href: `${base}/modules/toolkit/directory/${payload.generatedPerson.id}`,
+        cta: "Open profile",
+      };
     }
+
     if (payload.generatedAppointment) {
-      return `Created appointment: "${payload.generatedAppointment.title}" (${payload.generatedAppointment.when}).`;
+      return {
+        kind: "appointment",
+        title: payload.generatedAppointment.title,
+        note: payload.generatedAppointment.when,
+        href: `${base}/modules/toolkit/appointments`,
+        cta: "Open calendar",
+      };
     }
+
     if (payload.generatedForm) {
-      return `Created form: "${payload.generatedForm.name}".`;
+      return {
+        kind: "form",
+        title: payload.generatedForm.name,
+        note: "Form scaffold created and ready to publish.",
+        href: `${base}/modules/toolkit/forms`,
+        cta: "Open forms",
+      };
     }
+
     if (payload.generatedPaymentLink) {
-      return `Generated payment link: "${payload.generatedPaymentLink.label}".`;
+      return {
+        kind: "payment-link",
+        title: payload.generatedPaymentLink.label,
+        note: "Payment link generated and ready to share.",
+        href: `${base}/modules/toolkit/records`,
+        cta: "Open records",
+      };
     }
-    return "";
+
+    return undefined;
   }
 
   async function sendPrompt(nextPrompt: string) {
@@ -162,22 +305,15 @@ export default function ChatPage() {
       }
 
       const payload = (await response.json()) as AiCommandResult;
+      const actionCard = buildActionCard(payload);
+      const assistantText = appendActionCardToMessage(payload.reply, actionCard);
+
       addMessage(conversationId, {
         id: `assistant-${Date.now()}`,
         speaker: "assistant",
-        text: payload.reply,
+        text: assistantText,
         timeLabel: "Now",
       });
-
-      const receipt = buildActionReceipt(payload);
-      if (receipt) {
-        addMessage(conversationId, {
-          id: `assistant-receipt-${Date.now()}`,
-          speaker: "assistant",
-          text: receipt,
-          timeLabel: "Now",
-        });
-      }
 
       applyAiResult(payload);
     } catch {
@@ -320,7 +456,31 @@ export default function ChatPage() {
                   key={message.id}
                   style={{ animationDelay: `${Math.min(index * 35, 220)}ms` }}
                 >
-                  <p>{message.text}</p>
+                  {(() => {
+                    const parsed = extractActionCardFromMessage(message.text);
+                    const lines = parsed.body ? parsed.body.split("\n").filter((line) => line.trim().length > 0) : [];
+
+                    return (
+                      <>
+                        {lines.length ? (
+                          <div className={styles.messageText}>
+                            {lines.map((line, lineIndex) => (
+                              <p key={`${message.id}-line-${lineIndex}`}>{line}</p>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {parsed.card ? (
+                          <Link className={styles.inlineActionCard} href={parsed.card.href}>
+                            <span className={styles.inlineActionKind}>{parsed.card.kind}</span>
+                            <strong className={styles.inlineActionTitle}>{parsed.card.title}</strong>
+                            {parsed.card.note ? <p className={styles.inlineActionNote}>{parsed.card.note}</p> : null}
+                            <span className={styles.inlineActionCta}>{parsed.card.cta}</span>
+                          </Link>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                 </article>
               ))}
 
