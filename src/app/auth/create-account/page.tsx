@@ -23,8 +23,10 @@ export default function CreateAccountPage() {
           </div>
           <div className="auth-entry-visual__copy">
             <p className="auth-entry-visual__eyebrow">Get started</p>
-            <h1>Simple signup, then straight to chat.</h1>
-            <p className="auth-entry-visual__body">Tell Chertt your name and age. We’ll open your workspace immediately.</p>
+            <h1>Create your account.</h1>
+            <p className="auth-entry-visual__body">
+              Share your name, age, email, and password. We&apos;ll take you into workspace setup right after signup.
+            </p>
           </div>
         </div>
       </section>
@@ -33,7 +35,7 @@ export default function CreateAccountPage() {
         <div className="auth-panel auth-panel--tight auth-entry-panel">
           <p className="auth-panel__label">Create account</p>
           <h2>Quick setup</h2>
-          <p className="auth-entry-panel__body">Too simple on purpose: just two fields.</p>
+          <p className="auth-entry-panel__body">Create your Chertt login in one step.</p>
           <SimpleSignUpForm />
           <div className="auth-panel__actions auth-panel__actions--column">
             <Link className="button button--ghost button--full" href="/auth/onboarding">
@@ -45,3 +47,4 @@ export default function CreateAccountPage() {
     </main>
   );
 }
+

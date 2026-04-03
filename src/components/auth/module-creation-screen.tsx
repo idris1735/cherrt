@@ -6,8 +6,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { BrandMark } from "@/components/shared/brand-mark";
-import { bootstrapWorkspaceFromDraft, getOnboardingDraft, getLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
+import {
+  bootstrapWorkspaceFromDraft,
+  getOnboardingDraft,
+  getLastWorkspaceSlug,
+  rememberLastWorkspaceSlug,
+} from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
+import { getFirstWorkspaceSlugForCurrentUser } from "@/lib/services/supabase-workspace";
 import type { ModuleKey } from "@/lib/types";
 
 type CreationConfig = {
@@ -68,11 +74,11 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
   const router = useRouter();
   const config = creationConfigs[selectedModule];
   const [activeStep, setActiveStep] = useState(0);
-  const [destination, setDestination] = useState("/w/global-hub/chat");
+  const [destination, setDestination] = useState("/auth/modules");
   const [statusNote, setStatusNote] = useState("Checking your workspace setup.");
   const [creationError, setCreationError] = useState("");
 
-  const fallbackDestination = useMemo(() => "/w/global-hub/chat", []);
+  const fallbackDestination = useMemo(() => "/auth/modules", []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -103,8 +109,16 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
           setDestination(`/w/${existingSlug}/chat`);
           setStatusNote("Opening your last workspace.");
         } else if (!cancelled) {
+          const firstWorkspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
+          if (firstWorkspaceSlug) {
+            rememberLastWorkspaceSlug(firstWorkspaceSlug);
+            setDestination(`/w/${firstWorkspaceSlug}/chat`);
+            setStatusNote("Opening your workspace.");
+            return;
+          }
+
           setDestination(fallbackDestination);
-          setStatusNote("No setup draft found. Opening chat workspace.");
+          setStatusNote("No setup draft found. Opening workspace setup.");
         }
         return;
       }
@@ -112,8 +126,8 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
         if (!cancelled) {
-          setDestination(fallbackDestination);
-          setStatusNote("Supabase is unavailable. Opening fallback workspace.");
+          setDestination("/auth/sign-in");
+          setStatusNote("Supabase is unavailable. Returning to sign in.");
         }
         return;
       }
@@ -123,8 +137,8 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       } = await supabase.auth.getSession();
 
       if (!session) {
-        setDestination(fallbackDestination);
-        setStatusNote("No active session found. Opening demo workspace.");
+        setDestination("/auth/sign-in");
+        setStatusNote("No active session found. Returning to sign in.");
         return;
       }
 
@@ -145,26 +159,26 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       }
 
       if (bootstrap.status === "auth-required") {
-        setDestination(fallbackDestination);
-        setStatusNote("Session expired. Opening demo workspace.");
+        setDestination("/auth/sign-in");
+        setStatusNote("Session expired. Returning to sign in.");
         return;
       }
 
       if (bootstrap.status === "missing-draft") {
         setDestination(fallbackDestination);
-        setStatusNote("Setup draft missing. Opening fallback workspace.");
+        setStatusNote("Setup draft missing. Opening workspace setup.");
         return;
       }
 
       if (bootstrap.status === "unavailable") {
         setDestination(fallbackDestination);
-        setStatusNote("Setup service unavailable. Opening fallback workspace.");
+        setStatusNote("Setup service unavailable. Opening workspace setup.");
         return;
       }
 
       setCreationError(bootstrap.message || "Workspace setup had an issue.");
       setDestination(fallbackDestination);
-      setStatusNote("Could not finish setup. Opening fallback workspace.");
+      setStatusNote("Could not finish setup. Opening workspace setup.");
     }
 
     void prepareWorkspace();
@@ -172,7 +186,7 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
     return () => {
       cancelled = true;
     };
-  }, [fallbackDestination, router, selectedModule]);
+  }, [fallbackDestination]);
 
   useEffect(() => {
     if (activeStep < config.steps.length - 1) {

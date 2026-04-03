@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 import { BrandMark } from "@/components/shared/brand-mark";
+import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import type { ModuleKey } from "@/lib/types";
 
 const moduleOptions: Array<{
@@ -66,8 +68,37 @@ const moduleOptions: Array<{
 ];
 
 export default function ModulesPage() {
+  const router = useRouter();
   const [selectedModule, setSelectedModule] = useState<ModuleKey>("toolkit");
   const continueHref = useMemo(() => `/auth/setup?module=${selectedModule}`, [selectedModule]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function requireSession() {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        if (!cancelled) {
+          router.replace("/auth/sign-in");
+        }
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!cancelled && !session) {
+        router.replace("/auth/sign-in");
+      }
+    }
+
+    void requireSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <main className="modules-screen">

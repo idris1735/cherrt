@@ -2,24 +2,19 @@
 
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { getLastWorkspaceSlug, getOnboardingDraft } from "@/lib/services/onboarding-draft";
+import { getLastWorkspaceSlug, getOnboardingDraft, rememberLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
 import {
   buildUserProfile,
   deriveNameFromEmail,
-  getActiveUserProfile,
   getRememberedUserProfileForEmail,
   rememberUserProfileForEmail,
   setActiveUserProfile,
 } from "@/lib/services/profile";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
+import { getFirstWorkspaceSlugForCurrentUser } from "@/lib/services/supabase-workspace";
 import type { ModuleKey } from "@/lib/types";
-
-const DEMO_ACCOUNT_EMAIL = "demo@chertt.app";
-const DEMO_ACCOUNT_PASSWORD = "Demo@1234";
-const DEMO_SESSION_KEY = "chertt:demo-session";
-const LAST_WORKSPACE_KEY = "chertt:last-workspace-slug";
 
 export function SignInForm({
   selectedModule = "toolkit",
@@ -40,19 +35,6 @@ export function SignInForm({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const nextHref = useMemo(() => {
-    const module = onboardingDraft?.selectedModule || selectedModule;
-    if (onboardingDraft) {
-      return `/auth/creating?module=${module}`;
-    }
-
-    if (lastWorkspaceSlug) {
-      return `/w/${lastWorkspaceSlug}/chat`;
-    }
-
-    return "/w/global-hub/chat";
-  }, [lastWorkspaceSlug, onboardingDraft, selectedModule]);
-
   useEffect(() => {
     if (forcedMode && forcedMode !== mode) {
       setMode(forcedMode);
@@ -63,23 +45,6 @@ export function SignInForm({
     event.preventDefault();
 
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (
-      mode === "signin" &&
-      normalizedEmail === DEMO_ACCOUNT_EMAIL &&
-      password === DEMO_ACCOUNT_PASSWORD
-    ) {
-      const existing = getActiveUserProfile();
-      const remembered = getRememberedUserProfileForEmail(normalizedEmail);
-      const profile = remembered ?? existing ?? buildUserProfile({ fullName: "Demo User", email: normalizedEmail });
-      setActiveUserProfile(profile);
-      rememberUserProfileForEmail(normalizedEmail, profile);
-      window.localStorage.setItem(DEMO_SESSION_KEY, "true");
-      window.localStorage.setItem(LAST_WORKSPACE_KEY, "global-hub");
-      router.push("/w/global-hub/chat");
-      router.refresh();
-      return;
-    }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
@@ -94,11 +59,11 @@ export function SignInForm({
     const authResponse =
       mode === "signin"
         ? await supabase.auth.signInWithPassword({
-            email,
+            email: normalizedEmail,
             password,
           })
         : await supabase.auth.signUp({
-            email,
+            email: normalizedEmail,
             password,
           });
 
@@ -138,8 +103,28 @@ export function SignInForm({
     setActiveUserProfile(profile);
     rememberUserProfileForEmail(normalizedEmail, profile);
 
-    window.localStorage.removeItem(DEMO_SESSION_KEY);
-    router.push(nextHref);
+    const module = onboardingDraft?.selectedModule || selectedModule;
+    if (onboardingDraft) {
+      router.push(`/auth/creating?module=${module}`);
+      router.refresh();
+      return;
+    }
+
+    if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
+      router.push(`/w/${lastWorkspaceSlug}/chat`);
+      router.refresh();
+      return;
+    }
+
+    const workspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
+    if (workspaceSlug) {
+      rememberLastWorkspaceSlug(workspaceSlug);
+      router.push(`/w/${workspaceSlug}/chat`);
+      router.refresh();
+      return;
+    }
+
+    router.push("/auth/modules");
     router.refresh();
   }
 

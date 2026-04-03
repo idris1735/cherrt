@@ -3,11 +3,9 @@
 import { usePathname, useRouter } from "next/navigation";
 import { PropsWithChildren, useEffect, useState } from "react";
 
-import { getLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
+import { getLastWorkspaceSlug, rememberLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/services/supabase";
-import { workspaceExistsInSupabase } from "@/lib/services/supabase-workspace";
-
-const DEMO_SESSION_KEY = "chertt:demo-session";
+import { getFirstWorkspaceSlugForCurrentUser, workspaceExistsInSupabase } from "@/lib/services/supabase-workspace";
 
 export function WorkspaceAccessGuard({
   children,
@@ -21,20 +19,8 @@ export function WorkspaceAccessGuard({
     let cancelled = false;
 
     async function verifyAccess() {
-      const hasDemoSession =
-        typeof window !== "undefined" && window.localStorage.getItem(DEMO_SESSION_KEY) === "true";
-
-      if (hasDemoSession && workspaceSlug === "global-hub") {
-        if (!cancelled) {
-          setStatus("ready");
-        }
-        return;
-      }
-
       if (!isSupabaseConfigured()) {
-        if (!cancelled) {
-          setStatus("ready");
-        }
+        router.replace("/auth/sign-in");
         return;
       }
 
@@ -58,24 +44,51 @@ export function WorkspaceAccessGuard({
       }
 
       const lastWorkspaceSlug = getLastWorkspaceSlug();
-      if (workspaceSlug === "global-hub" && lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
-        router.replace(pathname.replace("/w/global-hub", `/w/${lastWorkspaceSlug}`));
+      const firstWorkspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
+
+      if (cancelled) {
         return;
       }
 
-      if (workspaceSlug !== "global-hub") {
-        const exists = await workspaceExistsInSupabase(workspaceSlug);
-
-        if (cancelled) {
+      if (workspaceSlug === "global-hub") {
+        if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
+          router.replace(pathname.replace("/w/global-hub", `/w/${lastWorkspaceSlug}`));
           return;
         }
 
-        if (!exists) {
-          router.replace("/auth/modules");
+        if (firstWorkspaceSlug) {
+          rememberLastWorkspaceSlug(firstWorkspaceSlug);
+          router.replace(pathname.replace("/w/global-hub", `/w/${firstWorkspaceSlug}`));
           return;
         }
+
+        router.replace("/auth/modules");
+        return;
       }
 
+      const exists = await workspaceExistsInSupabase(workspaceSlug);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!exists) {
+        if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub" && lastWorkspaceSlug !== workspaceSlug) {
+          router.replace(pathname.replace(`/w/${workspaceSlug}`, `/w/${lastWorkspaceSlug}`));
+          return;
+        }
+
+        if (firstWorkspaceSlug && firstWorkspaceSlug !== workspaceSlug) {
+          rememberLastWorkspaceSlug(firstWorkspaceSlug);
+          router.replace(pathname.replace(`/w/${workspaceSlug}`, `/w/${firstWorkspaceSlug}`));
+          return;
+        }
+
+        router.replace("/auth/modules");
+        return;
+      }
+
+      rememberLastWorkspaceSlug(workspaceSlug);
       setStatus("ready");
     }
 
@@ -92,7 +105,7 @@ export function WorkspaceAccessGuard({
         <div className="workspace-access-guard__card">
           <p className="workspace-access-guard__eyebrow">Checking access</p>
           <h1>Opening your workspace.</h1>
-          <p>Chertt is confirming your session and matching you to the right workspace before the demo continues.</p>
+          <p>Chertt is confirming your session and matching you to the right workspace.</p>
         </div>
       </div>
     );

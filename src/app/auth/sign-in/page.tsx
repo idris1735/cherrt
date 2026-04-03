@@ -55,11 +55,6 @@ export default async function SignInPage({
           <p className="auth-panel__label">Sign in</p>
           <h2>Welcome back</h2>
           <p className="auth-entry-panel__body">Use your existing account to return to your workspace.</p>
-          <div className="auth-demo-credentials">
-            <span>Demo account</span>
-            <code>demo@chertt.app</code>
-            <code>Demo@1234</code>
-          </div>
           <SignInForm hideModeToggle forcedMode="signin" selectedModule={selectedModule} />
           <div className="auth-panel__actions auth-panel__actions--column">
             <Link className="button button--ghost button--full" href="/auth/onboarding">

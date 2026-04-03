@@ -413,6 +413,36 @@ export async function workspaceExistsInSupabase(workspaceSlug: string) {
   return Boolean(workspaceRow);
 }
 
+export async function getFirstWorkspaceSlugForCurrentUser() {
+  const supabase = getSupabaseBrowserClient() as any;
+  if (!supabase || !(await isTableAvailable("memberships")) || !(await isTableAvailable("workspaces"))) {
+    return null;
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("memberships")
+    .select("workspace_id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (membershipError || !membership?.workspace_id) {
+    return null;
+  }
+
+  const { data: workspace, error: workspaceError } = await supabase
+    .from("workspaces")
+    .select("slug")
+    .eq("id", membership.workspace_id)
+    .maybeSingle();
+
+  if (workspaceError || !workspace?.slug) {
+    return null;
+  }
+
+  return workspace.slug as string;
+}
+
 async function ensureConversationRow(workspaceId: string, conversation: Conversation) {
   const supabase = getSupabaseBrowserClient() as any;
   if (!supabase || !(await isTableAvailable("conversations"))) {

@@ -916,33 +916,6 @@ main {
   line-height: 1.55;
 }
 
-.auth-demo-credentials {
-  display: grid;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface-muted);
-}
-
-.auth-demo-credentials span {
-  color: var(--muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.auth-demo-credentials code {
-  display: inline-block;
-  width: fit-content;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #efe5db;
-  color: #3d2a1f;
-  font-size: 0.88rem;
-}
-
 .auth-shell__hero,
 .onboarding-intro,
 .onboarding-environment,

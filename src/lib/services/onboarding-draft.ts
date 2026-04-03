@@ -68,7 +68,7 @@ export function getLastWorkspaceSlug() {
   return window.localStorage.getItem(LAST_WORKSPACE_KEY);
 }
 
-function setLastWorkspaceSlug(slug: string) {
+export function rememberLastWorkspaceSlug(slug: string) {
   if (!canUseStorage()) {
     return;
   }
@@ -126,7 +126,7 @@ export async function bootstrapWorkspaceFromDraft(): Promise<BootstrapResult> {
     return { status: "error", message: error.message };
   }
 
-  setLastWorkspaceSlug(workspaceSlug);
+  rememberLastWorkspaceSlug(workspaceSlug);
   clearOnboardingDraft();
 
   return {
