@@ -299,7 +299,18 @@ export interface WorkspaceSnapshot {
 }
 
 export interface SuggestedArtifact {
-  kind: "document" | "request" | "event" | "payment-link" | "appointment" | "form";
+  kind:
+    | "document"
+    | "request"
+    | "event"
+    | "payment-link"
+    | "appointment"
+    | "form"
+    | "inventory"
+    | "issue"
+    | "expense-log"
+    | "poll"
+    | "directory";
   headline: string;
   supportingText: string;
 }
@@ -312,4 +323,9 @@ export interface AiCommandResult {
   generatedPaymentLink?: PaymentLink;
   generatedAppointment?: Appointment;
   generatedForm?: FormDefinition;
+  generatedInventoryItem?: InventoryItem;
+  generatedIssueReport?: IssueReport;
+  generatedExpenseEntry?: ExpenseEntry;
+  generatedPoll?: FeedbackPoll;
+  generatedPerson?: Person;
 }

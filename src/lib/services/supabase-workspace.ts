@@ -882,12 +882,22 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
     canWritePaymentLinks,
     canWriteAppointments,
     canWriteForms,
+    canWriteInventory,
+    canWriteIssues,
+    canWriteExpenses,
+    canWritePolls,
+    canWritePeople,
   ] = await Promise.all([
     isTableAvailable("workflow_requests"),
     isTableAvailable("smart_documents"),
     isTableAvailable("payment_links"),
     isTableAvailable("toolkit_appointments"),
     isTableAvailable("toolkit_forms"),
+    isTableAvailable("toolkit_inventory_items"),
+    isTableAvailable("toolkit_issue_reports"),
+    isTableAvailable("toolkit_expense_entries"),
+    isTableAvailable("toolkit_feedback_polls"),
+    isTableAvailable("toolkit_people"),
   ]);
 
   const writes: Array<PromiseLike<{ error: { message: string } | null }>> = [];
@@ -956,6 +966,79 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
         name: result.generatedForm.name,
         submissions: result.generatedForm.submissions,
         owner: result.generatedForm.owner,
+      }),
+    );
+  }
+
+  if (result.generatedInventoryItem && canWriteInventory) {
+    writes.push(
+      supabase.from("toolkit_inventory_items").upsert({
+        id: result.generatedInventoryItem.id,
+        workspace_id: workspace.id,
+        name: result.generatedInventoryItem.name,
+        location: result.generatedInventoryItem.location,
+        in_stock: result.generatedInventoryItem.inStock,
+        min_level: result.generatedInventoryItem.minLevel,
+        reserved: result.generatedInventoryItem.reserved,
+      }),
+    );
+  }
+
+  if (result.generatedIssueReport && canWriteIssues) {
+    writes.push(
+      supabase.from("toolkit_issue_reports").upsert({
+        id: result.generatedIssueReport.id,
+        workspace_id: workspace.id,
+        title: result.generatedIssueReport.title,
+        area: result.generatedIssueReport.area,
+        severity: result.generatedIssueReport.severity,
+        status: result.generatedIssueReport.status,
+        media_count: result.generatedIssueReport.mediaCount,
+        reported_by: result.generatedIssueReport.reportedBy,
+      }),
+    );
+  }
+
+  if (result.generatedExpenseEntry && canWriteExpenses) {
+    writes.push(
+      supabase.from("toolkit_expense_entries").upsert({
+        id: result.generatedExpenseEntry.id,
+        workspace_id: workspace.id,
+        title: result.generatedExpenseEntry.title,
+        department: result.generatedExpenseEntry.department,
+        amount: result.generatedExpenseEntry.amount,
+        receipt_count: result.generatedExpenseEntry.receiptCount,
+        status: result.generatedExpenseEntry.status,
+      }),
+    );
+  }
+
+  if (result.generatedPoll && canWritePolls) {
+    writes.push(
+      supabase.from("toolkit_feedback_polls").upsert({
+        id: result.generatedPoll.id,
+        workspace_id: workspace.id,
+        title: result.generatedPoll.title,
+        lane: result.generatedPoll.lane,
+        audience: result.generatedPoll.audience,
+        owner: result.generatedPoll.owner,
+        question_count: result.generatedPoll.questionCount,
+        response_count: result.generatedPoll.responseCount,
+        target_count: result.generatedPoll.targetCount,
+        status: result.generatedPoll.status,
+      }),
+    );
+  }
+
+  if (result.generatedPerson && canWritePeople) {
+    writes.push(
+      supabase.from("toolkit_people").upsert({
+        id: result.generatedPerson.id,
+        workspace_id: workspace.id,
+        name: result.generatedPerson.name,
+        title: result.generatedPerson.title,
+        unit: result.generatedPerson.unit,
+        phone: result.generatedPerson.phone,
       }),
     );
   }

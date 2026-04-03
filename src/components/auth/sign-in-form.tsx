@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
+import { useToast } from "@/components/providers/toast-provider";
 import {
   bootstrapWorkspaceFromDraft,
   getLastWorkspaceSlug,
@@ -39,7 +40,7 @@ export function SignInForm({
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const { notify } = useToast();
 
   useEffect(() => {
     if (forcedMode && forcedMode !== mode) {
@@ -94,7 +95,6 @@ export function SignInForm({
 
     setLoading(true);
     setError("");
-    setMessage("");
     const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/sign-in` : undefined;
 
     const authResponse =
@@ -118,7 +118,11 @@ export function SignInForm({
     }
 
     if (mode === "signup" && !authResponse.data.session) {
-      setMessage("Account created. Confirm your email, then sign in.");
+      notify({
+        tone: "success",
+        title: "Account created",
+        description: "Confirm your email address, then sign in.",
+      });
       setLoading(false);
       return;
     }
@@ -151,9 +155,9 @@ export function SignInForm({
     if (onboardingDraft) {
       const bootstrap = await bootstrapWorkspaceFromDraft();
       if (bootstrap.status === "ready") {
-        router.push(`/w/${bootstrap.slug}/chat`);
-        router.refresh();
-        return;
+      router.push(`/w/${bootstrap.slug}/chat`);
+      router.refresh();
+      return;
       }
 
       if (bootstrap.status === "auth-required") {
@@ -256,7 +260,6 @@ export function SignInForm({
       </label>
       {mode === "signup" ? <p className="auth-panel__hint">Use at least 8 characters with one letter and one number.</p> : null}
       {error ? <p className="auth-panel__error">{error}</p> : null}
-      {message ? <p className="auth-panel__message">{message}</p> : null}
       <div className="auth-panel__actions auth-panel__actions--column">
         <button className="button button--primary button--full" disabled={loading || !email || !password} type="submit">
           {loading ? (mode === "signin" ? "Signing in..." : "Creating account...") : mode === "signin" ? "Continue" : "Create account"}

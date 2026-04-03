@@ -38,4 +38,39 @@ describe("runCherttCommand", () => {
     expect(result.generatedForm).toBeDefined();
     expect(result.artifact?.kind).toBe("form");
   });
+
+  it("creates inventory records for stock prompts", async () => {
+    const result = await runCherttCommand("Add a new inventory stock item for printer paper.");
+
+    expect(result.generatedInventoryItem).toBeDefined();
+    expect(result.artifact?.kind).toBe("inventory");
+  });
+
+  it("creates issue reports for facility prompts", async () => {
+    const result = await runCherttCommand("Log an issue for the broken AC in the front office.");
+
+    expect(result.generatedIssueReport).toBeDefined();
+    expect(result.artifact?.kind).toBe("issue");
+  });
+
+  it("creates expense entries for petty cash logs", async () => {
+    const result = await runCherttCommand("Log expense for petty cash fuel purchase.");
+
+    expect(result.generatedExpenseEntry).toBeDefined();
+    expect(result.artifact?.kind).toBe("expense-log");
+  });
+
+  it("creates polls for feedback prompts", async () => {
+    const result = await runCherttCommand("Create a poll for weekly staff feedback.");
+
+    expect(result.generatedPoll).toBeDefined();
+    expect(result.artifact?.kind).toBe("poll");
+  });
+
+  it("creates directory profiles for staff add prompts", async () => {
+    const result = await runCherttCommand("Add staff profile to directory for new operations intern.");
+
+    expect(result.generatedPerson).toBeDefined();
+    expect(result.artifact?.kind).toBe("directory");
+  });
 });

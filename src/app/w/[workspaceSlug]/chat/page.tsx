@@ -99,6 +99,21 @@ export default function ChatPage() {
     if (payload.generatedRequest) {
       return `Created request: "${payload.generatedRequest.title}" (${payload.generatedRequest.type}).`;
     }
+    if (payload.generatedInventoryItem) {
+      return `Added inventory item: "${payload.generatedInventoryItem.name}" at ${payload.generatedInventoryItem.location}.`;
+    }
+    if (payload.generatedIssueReport) {
+      return `Logged issue: "${payload.generatedIssueReport.title}" (${payload.generatedIssueReport.severity}).`;
+    }
+    if (payload.generatedExpenseEntry) {
+      return `Logged expense: "${payload.generatedExpenseEntry.title}" (${payload.generatedExpenseEntry.department}).`;
+    }
+    if (payload.generatedPoll) {
+      return `Created poll: "${payload.generatedPoll.title}" for ${payload.generatedPoll.audience}.`;
+    }
+    if (payload.generatedPerson) {
+      return `Added directory profile: "${payload.generatedPerson.name}" (${payload.generatedPerson.title}).`;
+    }
     if (payload.generatedAppointment) {
       return `Created appointment: "${payload.generatedAppointment.title}" (${payload.generatedAppointment.when}).`;
     }

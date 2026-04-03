@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "@/components/providers/toast-provider";
 import { buildUserProfile, rememberUserProfileForEmail, setActiveUserProfile } from "@/lib/services/profile";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 
@@ -15,7 +16,7 @@ export function SimpleSignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState("");
+  const { notify } = useToast();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +55,6 @@ export function SimpleSignUpForm() {
 
     setLoading(true);
     setError("");
-    setToast("");
     const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/sign-in` : undefined;
 
     const { data, error: signUpError } = await supabase.auth.signUp({
@@ -76,7 +76,11 @@ export function SimpleSignUpForm() {
     }
 
     if (!data.session) {
-      setToast("Account created. Confirm your email to complete setup, then log in.");
+      notify({
+        tone: "success",
+        title: "Account created",
+        description: "Confirm your email to activate your account, then sign in.",
+      });
       setLoading(false);
       return;
     }
@@ -95,7 +99,6 @@ export function SimpleSignUpForm() {
 
   return (
     <form className="auth-panel__stack" onSubmit={handleSubmit}>
-      {toast ? <div className="auth-toast auth-toast--success">{toast}</div> : null}
       <label className="field">
         <span>Names</span>
         <input

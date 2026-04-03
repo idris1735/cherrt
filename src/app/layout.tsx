@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { PwaRegistrar } from "@/components/providers/pwa-registrar";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { ToastProvider } from "@/components/providers/toast-provider";
 
 import "./globals.css";
 
@@ -21,8 +22,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en">
       <body>
         <QueryProvider>
-          <PwaRegistrar />
-          {children}
+          <ToastProvider>
+            <PwaRegistrar />
+            {children}
+          </ToastProvider>
         </QueryProvider>
       </body>
     </html>

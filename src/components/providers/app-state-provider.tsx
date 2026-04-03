@@ -15,10 +15,14 @@ import type {
   Appointment,
   AiCommandResult,
   Conversation,
+  ExpenseEntry,
+  FeedbackPoll,
   FormDefinition,
   InventoryItem,
+  IssueReport,
   Message,
   Notification,
+  Person,
   SmartDocument,
   WorkspaceSnapshot,
   WorkflowRequest,
@@ -90,6 +94,11 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
       const requests: WorkflowRequest[] = [...state.requests];
       const appointments: Appointment[] = [...state.appointments];
       const forms: FormDefinition[] = [...state.forms];
+      const inventory: InventoryItem[] = [...state.inventory];
+      const issues: IssueReport[] = [...state.issues];
+      const expenses: ExpenseEntry[] = [...state.expenses];
+      const polls: FeedbackPoll[] = [...state.polls];
+      const directory: Person[] = [...state.directory];
 
       if (action.result.generatedDocument) {
         documents.unshift(action.result.generatedDocument);
@@ -139,12 +148,77 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
         });
       }
 
+      if (action.result.generatedInventoryItem) {
+        inventory.unshift(action.result.generatedInventoryItem);
+        notifications.unshift({
+          id: `notif-inventory-${Date.now()}`,
+          kind: "system",
+          title: "Inventory item added",
+          detail: action.result.generatedInventoryItem.name,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
+      if (action.result.generatedIssueReport) {
+        issues.unshift(action.result.generatedIssueReport);
+        notifications.unshift({
+          id: `notif-issue-${Date.now()}`,
+          kind: "system",
+          title: "Issue report logged",
+          detail: action.result.generatedIssueReport.title,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
+      if (action.result.generatedExpenseEntry) {
+        expenses.unshift(action.result.generatedExpenseEntry);
+        notifications.unshift({
+          id: `notif-expense-${Date.now()}`,
+          kind: "system",
+          title: "Expense entry logged",
+          detail: action.result.generatedExpenseEntry.title,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
+      if (action.result.generatedPoll) {
+        polls.unshift(action.result.generatedPoll);
+        notifications.unshift({
+          id: `notif-poll-${Date.now()}`,
+          kind: "system",
+          title: "Feedback poll created",
+          detail: action.result.generatedPoll.title,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
+      if (action.result.generatedPerson) {
+        directory.unshift(action.result.generatedPerson);
+        notifications.unshift({
+          id: `notif-directory-${Date.now()}`,
+          kind: "system",
+          title: "Directory profile added",
+          detail: action.result.generatedPerson.name,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
       return {
         ...state,
         documents,
         requests,
         appointments,
         forms,
+        inventory,
+        issues,
+        expenses,
+        polls,
+        directory,
         paymentLinks: action.result.generatedPaymentLink
           ? [action.result.generatedPaymentLink, ...state.paymentLinks]
           : state.paymentLinks,
