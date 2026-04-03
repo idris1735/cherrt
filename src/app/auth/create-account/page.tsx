@@ -1,5 +1,47 @@
-import { redirect } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+
+import { SimpleSignUpForm } from "@/components/auth/simple-sign-up-form";
+import { BrandMark } from "@/components/shared/brand-mark";
 
 export default function CreateAccountPage() {
-  redirect("/auth/sign-in");
+  return (
+    <main className="auth-entry-page auth-entry-page--warm">
+      <section className="auth-entry-visual">
+        <Image
+          alt="Modern collaborative office with warm mood"
+          className="auth-entry-visual__image"
+          fill
+          priority
+          sizes="(max-width: 980px) 100vw, 58vw"
+          src="/hero-office.jpg"
+        />
+        <div className="auth-entry-visual__overlay" />
+        <div className="auth-entry-visual__content">
+          <div className="auth-entry-visual__brand">
+            <BrandMark />
+          </div>
+          <div className="auth-entry-visual__copy">
+            <p className="auth-entry-visual__eyebrow">Get started</p>
+            <h1>Simple signup, then straight to chat.</h1>
+            <p className="auth-entry-visual__body">Tell Chertt your name and age. We’ll open your workspace immediately.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="auth-entry-panel-wrap">
+        <div className="auth-panel auth-panel--tight auth-entry-panel">
+          <p className="auth-panel__label">Create account</p>
+          <h2>Quick setup</h2>
+          <p className="auth-entry-panel__body">Too simple on purpose: just two fields.</p>
+          <SimpleSignUpForm />
+          <div className="auth-panel__actions auth-panel__actions--column">
+            <Link className="button button--ghost button--full" href="/auth/onboarding">
+              Back
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
 }

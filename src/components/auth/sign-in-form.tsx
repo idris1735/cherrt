@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { getLastWorkspaceSlug, getOnboardingDraft } from "@/lib/services/onboarding-draft";
+import {
+  buildUserProfile,
+  deriveNameFromEmail,
+  getActiveUserProfile,
+  getRememberedUserProfileForEmail,
+  rememberUserProfileForEmail,
+  setActiveUserProfile,
+} from "@/lib/services/profile";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import type { ModuleKey } from "@/lib/types";
 
@@ -39,10 +47,10 @@ export function SignInForm({
     }
 
     if (lastWorkspaceSlug) {
-      return `/w/${lastWorkspaceSlug}/modules/${module}`;
+      return `/w/${lastWorkspaceSlug}/chat`;
     }
 
-    return `/w/global-hub/modules/${module}`;
+    return "/w/global-hub/chat";
   }, [lastWorkspaceSlug, onboardingDraft, selectedModule]);
 
   useEffect(() => {
@@ -61,9 +69,14 @@ export function SignInForm({
       normalizedEmail === DEMO_ACCOUNT_EMAIL &&
       password === DEMO_ACCOUNT_PASSWORD
     ) {
+      const existing = getActiveUserProfile();
+      const remembered = getRememberedUserProfileForEmail(normalizedEmail);
+      const profile = remembered ?? existing ?? buildUserProfile({ fullName: "Demo User", email: normalizedEmail });
+      setActiveUserProfile(profile);
+      rememberUserProfileForEmail(normalizedEmail, profile);
       window.localStorage.setItem(DEMO_SESSION_KEY, "true");
       window.localStorage.setItem(LAST_WORKSPACE_KEY, "global-hub");
-      router.push("/w/global-hub/modules/toolkit");
+      router.push("/w/global-hub/chat");
       router.refresh();
       return;
     }
@@ -100,6 +113,30 @@ export function SignInForm({
       setLoading(false);
       return;
     }
+
+    const supabaseUser = authResponse.data.user;
+    const metadataName =
+      (typeof supabaseUser?.user_metadata?.full_name === "string" && supabaseUser.user_metadata.full_name) ||
+      (typeof supabaseUser?.user_metadata?.name === "string" && supabaseUser.user_metadata.name) ||
+      deriveNameFromEmail(normalizedEmail);
+    const metadataAgeRaw = supabaseUser?.user_metadata?.age;
+    const metadataAge =
+      typeof metadataAgeRaw === "number"
+        ? metadataAgeRaw
+        : typeof metadataAgeRaw === "string"
+          ? Number(metadataAgeRaw)
+          : undefined;
+
+    const remembered = getRememberedUserProfileForEmail(normalizedEmail);
+    const profile =
+      remembered ??
+      buildUserProfile({
+        fullName: metadataName,
+        age: Number.isFinite(metadataAge) ? metadataAge : undefined,
+        email: normalizedEmail,
+      });
+    setActiveUserProfile(profile);
+    rememberUserProfileForEmail(normalizedEmail, profile);
 
     window.localStorage.removeItem(DEMO_SESSION_KEY);
     router.push(nextHref);

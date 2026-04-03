@@ -68,11 +68,11 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
   const router = useRouter();
   const config = creationConfigs[selectedModule];
   const [activeStep, setActiveStep] = useState(0);
-  const [destination, setDestination] = useState(`/w/global-hub/modules/${selectedModule}`);
+  const [destination, setDestination] = useState("/w/global-hub/chat");
   const [statusNote, setStatusNote] = useState("Checking your workspace setup.");
   const [creationError, setCreationError] = useState("");
 
-  const fallbackDestination = useMemo(() => `/w/global-hub/modules/${selectedModule}`, [selectedModule]);
+  const fallbackDestination = useMemo(() => "/w/global-hub/chat", []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -100,11 +100,11 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       if (!draft) {
         const existingSlug = getLastWorkspaceSlug();
         if (!cancelled && existingSlug) {
-          setDestination(`/w/${existingSlug}/modules/${selectedModule}`);
+          setDestination(`/w/${existingSlug}/chat`);
           setStatusNote("Opening your last workspace.");
         } else if (!cancelled) {
           setDestination(fallbackDestination);
-          setStatusNote("No setup draft found. Opening Business Toolkit workspace.");
+          setStatusNote("No setup draft found. Opening chat workspace.");
         }
         return;
       }
@@ -139,8 +139,8 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       }
 
       if (bootstrap.status === "ready") {
-        setDestination(`/w/${bootstrap.slug}/modules/${bootstrap.selectedModule}`);
-        setStatusNote("Workspace ready. Opening your module next.");
+        setDestination(`/w/${bootstrap.slug}/chat`);
+        setStatusNote("Workspace ready. Opening your chat workspace.");
         return;
       }
 

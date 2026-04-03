@@ -139,6 +139,10 @@ type PersonRow = {
   phone: string;
 };
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 const tableAvailability = new Map<string, boolean>();
 
 function formatRelativeLabel(dateLike: string) {
@@ -415,11 +419,30 @@ async function ensureConversationRow(workspaceId: string, conversation: Conversa
     return null;
   }
 
+  if (isUuid(conversation.id)) {
+    const { data: byId, error: byIdError } = await supabase
+      .from("conversations")
+      .select("id, mode, title")
+      .eq("id", conversation.id)
+      .eq("workspace_id", workspaceId)
+      .limit(1)
+      .maybeSingle();
+
+    if (byIdError) {
+      console.error("Supabase conversation lookup by id failed:", byIdError.message);
+      return null;
+    }
+
+    if (byId) {
+      return byId as ConversationRow;
+    }
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from("conversations")
     .select("id, mode, title")
     .eq("workspace_id", workspaceId)
-    .eq("mode", conversation.mode)
+    .eq("title", conversation.title)
     .limit(1)
     .maybeSingle();
 
@@ -432,15 +455,20 @@ async function ensureConversationRow(workspaceId: string, conversation: Conversa
     return existing as ConversationRow;
   }
 
-  const { data, error } = await supabase
-    .from("conversations")
-    .insert({
-      workspace_id: workspaceId,
-      mode: conversation.mode,
-      title: conversation.title,
-    })
-    .select("id, mode, title")
-    .single();
+  const insertPayload = isUuid(conversation.id)
+    ? {
+        id: conversation.id,
+        workspace_id: workspaceId,
+        mode: conversation.mode,
+        title: conversation.title,
+      }
+    : {
+        workspace_id: workspaceId,
+        mode: conversation.mode,
+        title: conversation.title,
+      };
+
+  const { data, error } = await supabase.from("conversations").insert(insertPayload).select("id, mode, title").single();
 
   if (error) {
     console.error("Supabase conversation insert failed:", error.message);
@@ -448,6 +476,21 @@ async function ensureConversationRow(workspaceId: string, conversation: Conversa
   }
 
   return data as ConversationRow;
+}
+
+export async function persistConversation(snapshot: WorkspaceSnapshot, conversation: Conversation) {
+  const supabase = getSupabaseBrowserClient() as any;
+  if (!supabase || !(await isTableAvailable("conversations"))) {
+    return false;
+  }
+
+  const workspace = await ensureWorkspaceRow(snapshot);
+  if (!workspace) {
+    return false;
+  }
+
+  const conversationRow = await ensureConversationRow(workspace.id, conversation);
+  return Boolean(conversationRow);
 }
 
 export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {

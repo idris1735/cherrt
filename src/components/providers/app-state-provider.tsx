@@ -1,14 +1,16 @@
 "use client";
 
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import {
   loadWorkspaceSnapshotFromSupabase,
   persistAiResult,
   persistApprovedRequest,
+  persistConversation,
   persistConversationMessage,
   subscribeToWorkspaceSnapshot,
 } from "@/lib/services/supabase-workspace";
+import { getActiveUserProfile } from "@/lib/services/profile";
 import type {
   Appointment,
   AiCommandResult,
@@ -25,6 +27,7 @@ import type {
 type AppAction =
   | { type: "hydrate"; snapshot: WorkspaceSnapshot }
   | { type: "approve-request"; requestId: string }
+  | { type: "create-conversation"; conversation: Conversation }
   | { type: "add-message"; conversationId: string; message: Message }
   | { type: "read-notifications" }
   | { type: "apply-ai-result"; result: AiCommandResult }
@@ -68,6 +71,11 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
             ? { ...conversation, messages: [...conversation.messages, action.message] }
             : conversation,
           ),
+      };
+    case "create-conversation":
+      return {
+        ...state,
+        conversations: [action.conversation, ...state.conversations],
       };
     case "read-notifications":
       return {
@@ -154,6 +162,7 @@ interface AppStateContextValue {
   snapshot: WorkspaceSnapshot;
   primaryConversation: Conversation;
   approveRequest: (requestId: string) => void;
+  createConversation: (mode?: Conversation["mode"]) => string;
   addMessage: (conversationId: string, message: Message) => void;
   markNotificationsRead: () => void;
   applyAiResult: (result: AiCommandResult) => void;
@@ -162,16 +171,54 @@ interface AppStateContextValue {
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
+const ACTIVE_PROFILE_KEY = "chertt:active-profile";
+
+function applyProfile(snapshot: WorkspaceSnapshot) {
+  const profile = getActiveUserProfile();
+  if (!profile) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    membership: {
+      ...snapshot.membership,
+      userName: profile.fullName,
+      avatarInitials: profile.initials,
+      email: profile.email ?? snapshot.membership.email,
+    },
+  };
+}
+
 export function AppStateProvider({
   children,
   initialSnapshot,
 }: PropsWithChildren<{ initialSnapshot: WorkspaceSnapshot }>) {
   const [snapshot, dispatch] = useReducer(reducer, initialSnapshot);
+  const [profileTick, setProfileTick] = useState(0);
   const snapshotRef = useRef(snapshot);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  useEffect(() => {
+    const listener = (event: StorageEvent) => {
+      if (event.key === ACTIVE_PROFILE_KEY) {
+        setProfileTick((current) => current + 1);
+      }
+    };
+    const localListener = () => {
+      setProfileTick((current) => current + 1);
+    };
+
+    window.addEventListener("storage", listener);
+    window.addEventListener("chertt-profile-updated", localListener);
+    return () => {
+      window.removeEventListener("storage", listener);
+      window.removeEventListener("chertt-profile-updated", localListener);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,13 +246,28 @@ export function AppStateProvider({
     };
   }, [initialSnapshot.workspace.slug]);
 
+  const personalizedSnapshot = useMemo(() => applyProfile(snapshot), [snapshot, profileTick]);
+
   const value = useMemo<AppStateContextValue>(
     () => ({
-      snapshot,
-      primaryConversation: snapshot.conversations[0],
+      snapshot: personalizedSnapshot,
+      primaryConversation: personalizedSnapshot.conversations[0],
       approveRequest: (requestId) => {
         dispatch({ type: "approve-request", requestId });
         void persistApprovedRequest(snapshotRef.current, requestId);
+      },
+      createConversation: (mode = "ai") => {
+        const id = crypto.randomUUID();
+        const existingCount = snapshotRef.current.conversations.filter((conversation) => conversation.mode === mode).length;
+        const conversation: Conversation = {
+          id,
+          mode,
+          title: mode === "ai" ? `New chat ${existingCount + 1}` : `Team chat ${existingCount + 1}`,
+          messages: [],
+        };
+        dispatch({ type: "create-conversation", conversation });
+        void persistConversation(snapshotRef.current, conversation);
+        return id;
       },
       addMessage: (conversationId, message) => {
         dispatch({ type: "add-message", conversationId, message });
@@ -225,7 +287,7 @@ export function AppStateProvider({
         dispatch({ type: "add-inventory-item", item });
       },
     }),
-    [snapshot],
+    [personalizedSnapshot],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

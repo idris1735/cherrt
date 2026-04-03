@@ -58,14 +58,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       id: "conv-1",
       title: "Operations Assistant",
       mode: "ai",
-      messages: [
-        {
-          id: "msg-1",
-          speaker: "assistant",
-          text: "This is Chertt AI.\nBuilt to turn requests, reports, drafts, and process lookups into work that moves.",
-          timeLabel: "Now",
-        },
-      ],
+      messages: [],
     },
     {
       id: "conv-2",

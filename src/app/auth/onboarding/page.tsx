@@ -68,7 +68,7 @@ export default function OnboardingPage() {
             church, storefront, and events.
           </p>
         <div className="get-started-actions">
-          <Link className="button button--primary get-started-button" href="/auth/modules">
+          <Link className="button button--primary get-started-button" href="/auth/create-account">
             Get started
           </Link>
           <Link className="button button--ghost get-started-button get-started-button--secondary" href="/auth/sign-in">
