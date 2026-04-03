@@ -73,4 +73,25 @@ describe("runCherttCommand", () => {
     expect(result.generatedPerson).toBeDefined();
     expect(result.artifact?.kind).toBe("directory");
   });
+
+  it("routes church intents to church module workflows", async () => {
+    const result = await runCherttCommand("Create a prayer request for healing this week.");
+
+    expect(result.generatedRequest).toBeDefined();
+    expect(result.generatedRequest?.module).toBe("church");
+  });
+
+  it("routes store intents to store module workflows", async () => {
+    const result = await runCherttCommand("Capture a new store order for three branded polos.");
+
+    expect(result.generatedRequest).toBeDefined();
+    expect(result.generatedRequest?.module).toBe("store");
+  });
+
+  it("routes events intents to event module workflows", async () => {
+    const result = await runCherttCommand("Set up RSVP reminders for this weekend gala.");
+
+    expect(result.generatedRequest).toBeDefined();
+    expect(result.generatedRequest?.module).toBe("events");
+  });
 });

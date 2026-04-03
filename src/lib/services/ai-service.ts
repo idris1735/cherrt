@@ -234,16 +234,18 @@ function buildRequest(opts: {
   description: string;
   amount?: number | null;
   type?: string;
+  module?: ModuleKey;
+  requester?: string;
 }): WorkflowRequest {
   return {
     id: createId("req"),
     type: opts.type || "Expense",
     title: opts.title || "AI-raised request",
     description: opts.description || "",
-    requester: "Chertt AI",
+    requester: opts.requester || "Chertt AI",
     amount: opts.amount ?? undefined,
     status: "pending",
-    module: "toolkit",
+    module: opts.module || "toolkit",
     createdAtLabel: "Just now",
     approvalSteps: [
       {
@@ -397,6 +399,248 @@ function buildPlannedCapabilityResponse(title: string, module: ModuleKey): AiCom
       `${title} is mapped in the ${module} roadmap.\nThe intent is captured, and this action will run through the same command engine as soon as that module is switched from planned to live.`,
     ),
   };
+}
+
+function extractAmountFromPrompt(prompt: string) {
+  const matches = prompt.match(/\d[\d,]*/g);
+  if (!matches?.length) {
+    return null;
+  }
+
+  const highest = matches
+    .map((chunk) => Number(chunk.replace(/,/g, "")))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0];
+
+  return Number.isFinite(highest) ? highest : null;
+}
+
+function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCommandResult {
+  const amount = extractAmountFromPrompt(prompt);
+
+  switch (capabilityId) {
+    case "church.child-checkin":
+      return {
+        reply: formatReply("I have created the Sunday child check-in form.\nYour team can now start check-ins and track attendance."),
+        artifact: {
+          kind: "form",
+          headline: "Child check-in form prepared",
+          supportingText: "Check-in flow is ready for children service operations.",
+        },
+        generatedForm: buildForm("Sunday Child Check-in", "Children Unit"),
+      };
+    case "church.giving":
+      return {
+        reply: formatReply("I have prepared a giving collection flow.\nThe payment link is ready and can be shared immediately."),
+        artifact: {
+          kind: "payment-link",
+          headline: "Giving link created",
+          supportingText: "Church giving can now be tracked in one place.",
+        },
+        generatedPaymentLink: buildPaymentLink("Church Giving", amount ?? 25000),
+      };
+    case "church.registration":
+      return {
+        reply: formatReply("I have prepared a church registration form.\nYou can now capture attendees directly in chat-driven workflow."),
+        artifact: {
+          kind: "form",
+          headline: "Church registration form created",
+          supportingText: "Conference and service registration can begin now.",
+        },
+        generatedForm: buildForm("Church Event Registration", "Admin Desk"),
+      };
+    case "church.first-timer":
+      return {
+        reply: formatReply("I have created a first-timer capture form.\nFollow-up teams can now work from one structured list."),
+        artifact: {
+          kind: "form",
+          headline: "First-timer form created",
+          supportingText: "Visitor follow-up details can now be captured and tracked.",
+        },
+        generatedForm: buildForm("First Timer Capture", "Follow-up Team"),
+      };
+    case "church.prayer-request":
+      return {
+        reply: formatReply("I have logged that as a prayer request.\nThe pastoral team can now review and follow up."),
+        artifact: {
+          kind: "request",
+          headline: "Prayer request opened",
+          supportingText: "Request is now in the church care queue.",
+        },
+        generatedRequest: buildRequest({
+          title: "Prayer request",
+          description: prompt,
+          type: "Prayer Request",
+          module: "church",
+          requester: "Chertt AI",
+        }),
+      };
+    case "church.pastoral-care":
+      return {
+        reply: formatReply("I have opened a pastoral care request.\nThe care unit can now track this from assignment to closure."),
+        artifact: {
+          kind: "request",
+          headline: "Pastoral care request opened",
+          supportingText: "Care follow-up workflow has been created.",
+        },
+        generatedRequest: buildRequest({
+          title: "Pastoral care request",
+          description: prompt,
+          type: "Pastoral Care",
+          module: "church",
+          requester: "Chertt AI",
+        }),
+      };
+    case "store.catalog":
+      return {
+        reply: formatReply("I have prepared a catalog update draft.\nYour team can now review and publish product details."),
+        artifact: {
+          kind: "document",
+          headline: "Catalog draft prepared",
+          supportingText: "Catalog update is now documented for release.",
+        },
+        generatedDocument: buildDocument("Catalog update draft", prompt, "memo"),
+      };
+    case "store.order-capture":
+      return {
+        reply: formatReply("I have captured this as a store order request.\nIt is now ready for pricing and fulfillment."),
+        artifact: {
+          kind: "request",
+          headline: "Store order captured",
+          supportingText: "Order can now move into fulfillment workflow.",
+        },
+        generatedRequest: buildRequest({
+          title: "Store order capture",
+          description: prompt,
+          type: "Store Order",
+          module: "store",
+        }),
+      };
+    case "store.invoicing-receipts":
+      return {
+        reply: formatReply("I have prepared the invoice.\nIt is now ready to issue to the customer."),
+        artifact: {
+          kind: "document",
+          headline: "Store invoice prepared",
+          supportingText: "Invoice is ready for customer delivery.",
+        },
+        generatedDocument: buildDocument("Store invoice", "Invoice prepared from your order details.", "invoice"),
+      };
+    case "store.payment-collection":
+      return {
+        reply: formatReply("I have generated the payment collection link.\nYou can now share it with the customer."),
+        artifact: {
+          kind: "payment-link",
+          headline: "Payment link generated",
+          supportingText: "Collection step is now active.",
+        },
+        generatedPaymentLink: buildPaymentLink("Store payment", amount ?? 50000),
+      };
+    case "store.stock-tracking":
+      return {
+        reply: formatReply("I have logged a stock-tracking task.\nThe store manager can now update quantities and monitor availability."),
+        artifact: {
+          kind: "request",
+          headline: "Stock tracking task created",
+          supportingText: "Stock update flow has been added to operations queue.",
+        },
+        generatedRequest: buildRequest({
+          title: "Stock tracking update",
+          description: prompt,
+          type: "Stock Tracking",
+          module: "store",
+        }),
+      };
+    case "store.order-management":
+      return {
+        reply: formatReply("I have opened an order management workflow.\nDelivery code and customer status can now be tracked."),
+        artifact: {
+          kind: "request",
+          headline: "Order workflow opened",
+          supportingText: "Order management flow is ready.",
+        },
+        generatedRequest: buildRequest({
+          title: "Order management task",
+          description: prompt,
+          type: "Order Management",
+          module: "store",
+        }),
+      };
+    case "events.registration":
+      return {
+        reply: formatReply("I have created an event registration form.\nGuests can now register and receive updates."),
+        artifact: {
+          kind: "form",
+          headline: "Event registration form created",
+          supportingText: "Registration flow is now active.",
+        },
+        generatedForm: buildForm("Event Registration", "Events Desk"),
+      };
+    case "events.ticketing":
+      return {
+        reply: formatReply("I have opened a ticketing workflow.\nYou can now issue paid or free tickets from this queue."),
+        artifact: {
+          kind: "request",
+          headline: "Ticketing workflow opened",
+          supportingText: "Ticket issuance process is now ready.",
+        },
+        generatedRequest: buildRequest({
+          title: "Ticketing request",
+          description: prompt,
+          type: "Ticketing",
+          module: "events",
+        }),
+      };
+    case "events.invites-reminders":
+      return {
+        reply: formatReply("I have opened an invitation and reminders workflow.\nGuest communication can now be scheduled."),
+        artifact: {
+          kind: "request",
+          headline: "Invitation flow opened",
+          supportingText: "Invites and reminder messaging are ready to run.",
+        },
+        generatedRequest: buildRequest({
+          title: "Invitation and reminder flow",
+          description: prompt,
+          type: "Invitations",
+          module: "events",
+        }),
+      };
+    case "events.rsvp-management":
+      return {
+        reply: formatReply("I have opened an RSVP management workflow.\nGuest responses can now be tracked and updated."),
+        artifact: {
+          kind: "request",
+          headline: "RSVP workflow opened",
+          supportingText: "RSVP tracking is ready for event operations.",
+        },
+        generatedRequest: buildRequest({
+          title: "RSVP management",
+          description: prompt,
+          type: "RSVP",
+          module: "events",
+        }),
+      };
+    case "events.guest-checkin":
+      return {
+        reply: formatReply("I have opened a guest check-in workflow.\nAccess control and check-in operations can now begin."),
+        artifact: {
+          kind: "request",
+          headline: "Guest check-in flow opened",
+          supportingText: "Check-in and access workflow is now prepared.",
+        },
+        generatedRequest: buildRequest({
+          title: "Guest check-in flow",
+          description: prompt,
+          type: "Guest Check-in",
+          module: "events",
+        }),
+      };
+    default:
+      return {
+        reply: formatReply("I have captured that request.\nThe module workflow can now continue in structured steps."),
+      };
+  }
 }
 
 function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommandResult {
@@ -778,6 +1022,10 @@ export async function runCherttCommand(
 
   if (capability.status === "planned") {
     return buildPlannedCapabilityResponse(capability.title, capability.module);
+  }
+
+  if (capability.module !== "toolkit") {
+    return executeNonToolkitCapability(capability.id, prompt);
   }
 
   const client = getGeminiClient();

@@ -53,7 +53,17 @@ The engine should keep chat simple while backend workflows become robust, audita
 - `toolkit.staff-onboarding`
 - `toolkit.staff-directory`
 
-## Planned Capabilities (Cataloged)
+## Church/Store/Events Baseline (Now Live)
+All ChurchBase, StoreFront, and Events capabilities are now runnable through deterministic baseline executors.  
+Current behavior:
+- intent is resolved by engine
+- policy and module access are enforced
+- executor creates structured artifacts (request/form/document/payment-link)
+- response is returned in chat as an actionable workflow update
+
+These are baseline operational executors while richer domain-specific records (ticket entities, guest check-ins, giving ledgers, etc.) are being expanded.
+
+## Planned Enhancements
 ### ChurchBase
 - child check-in
 - giving
@@ -97,4 +107,3 @@ The AI result model now supports:
 4. Add media upload flow for issue reports + expense receipts.
 5. Add workflow event bus for notifications and audit trails.
 6. Add channel adapters (WhatsApp/voice) against same engine contracts.
-
