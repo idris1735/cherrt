@@ -26,6 +26,13 @@ The engine should keep chat simple while backend workflows become robust, audita
   - Blocks execution when module is not enabled in workspace
 - `planned-capability handling`
   - Returns clear response for capabilities not yet switched to live
+- `request payload validation`
+  - `/api/command` now validates prompt/context shape, roles, and module keys
+  - Invalid payloads return explicit `400` errors
+- `result normalization and guardrails`
+  - Every command result is normalized before returning to UI/state
+  - Invalid artifacts are dropped instead of propagating broken shapes
+  - Unsafe/invalid field values are sanitized to safe defaults
 
 ## Runtime Flow
 1. User sends chat message.
@@ -102,7 +109,7 @@ The AI result model now supports:
 
 ## Next Iteration
 1. Replace keyword intent routing with model-assisted classification (`capability_id`, `confidence`, `needs_clarification`).
-2. Introduce action schemas with strict validation (`zod`) before DB writes.
+2. Extend schema validation to DB write contracts and side-effect executors.
 3. Add human-in-the-loop approval gates for sensitive actions.
 4. Add media upload flow for issue reports + expense receipts.
 5. Add workflow event bus for notifications and audit trails.

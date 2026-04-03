@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getCapabilityById } from "@/lib/services/command-engine/capability-registry";
 import { resolveCapabilityIntent } from "@/lib/services/command-engine/intent-router";
 import { evaluateCapabilityAccess } from "@/lib/services/command-engine/policy-guard";
+import { normalizeAiCommandResult } from "@/lib/services/command-engine/result-validator";
 
 import type {
   AiCommandResult,
@@ -380,25 +381,25 @@ function buildPerson(opts: {
 }
 
 function buildPermissionDeniedResponse(reason: string): AiCommandResult {
-  return {
+  return normalizeAiCommandResult({
     reply: formatReply(`I could not run that action yet.\n${reason}\nAsk an admin or owner to grant access for this workflow.`),
-  };
+  });
 }
 
 function buildModuleDisabledResponse(module: ModuleKey): AiCommandResult {
-  return {
+  return normalizeAiCommandResult({
     reply: formatReply(
       `That request belongs to the ${module} module, which is not enabled in this workspace yet.\nEnable the module first, then I can execute it by chat.`,
     ),
-  };
+  });
 }
 
 function buildPlannedCapabilityResponse(title: string, module: ModuleKey): AiCommandResult {
-  return {
+  return normalizeAiCommandResult({
     reply: formatReply(
       `${title} is mapped in the ${module} roadmap.\nThe intent is captured, and this action will run through the same command engine as soon as that module is switched from planned to live.`,
     ),
-  };
+  });
 }
 
 function extractAmountFromPrompt(prompt: string) {
@@ -420,7 +421,7 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
 
   switch (capabilityId) {
     case "church.child-checkin":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have created the Sunday child check-in form.\nYour team can now start check-ins and track attendance."),
         artifact: {
           kind: "form",
@@ -428,9 +429,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Check-in flow is ready for children service operations.",
         },
         generatedForm: buildForm("Sunday Child Check-in", "Children Unit"),
-      };
+      });
     case "church.giving":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have prepared a giving collection flow.\nThe payment link is ready and can be shared immediately."),
         artifact: {
           kind: "payment-link",
@@ -438,9 +439,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Church giving can now be tracked in one place.",
         },
         generatedPaymentLink: buildPaymentLink("Church Giving", amount ?? 25000),
-      };
+      });
     case "church.registration":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have prepared a church registration form.\nYou can now capture attendees directly in chat-driven workflow."),
         artifact: {
           kind: "form",
@@ -448,9 +449,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Conference and service registration can begin now.",
         },
         generatedForm: buildForm("Church Event Registration", "Admin Desk"),
-      };
+      });
     case "church.first-timer":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have created a first-timer capture form.\nFollow-up teams can now work from one structured list."),
         artifact: {
           kind: "form",
@@ -458,9 +459,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Visitor follow-up details can now be captured and tracked.",
         },
         generatedForm: buildForm("First Timer Capture", "Follow-up Team"),
-      };
+      });
     case "church.prayer-request":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have logged that as a prayer request.\nThe pastoral team can now review and follow up."),
         artifact: {
           kind: "request",
@@ -474,9 +475,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           module: "church",
           requester: "Chertt AI",
         }),
-      };
+      });
     case "church.pastoral-care":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened a pastoral care request.\nThe care unit can now track this from assignment to closure."),
         artifact: {
           kind: "request",
@@ -490,9 +491,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           module: "church",
           requester: "Chertt AI",
         }),
-      };
+      });
     case "store.catalog":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have prepared a catalog update draft.\nYour team can now review and publish product details."),
         artifact: {
           kind: "document",
@@ -500,9 +501,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Catalog update is now documented for release.",
         },
         generatedDocument: buildDocument("Catalog update draft", prompt, "memo"),
-      };
+      });
     case "store.order-capture":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have captured this as a store order request.\nIt is now ready for pricing and fulfillment."),
         artifact: {
           kind: "request",
@@ -515,9 +516,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Store Order",
           module: "store",
         }),
-      };
+      });
     case "store.invoicing-receipts":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have prepared the invoice.\nIt is now ready to issue to the customer."),
         artifact: {
           kind: "document",
@@ -525,9 +526,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Invoice is ready for customer delivery.",
         },
         generatedDocument: buildDocument("Store invoice", "Invoice prepared from your order details.", "invoice"),
-      };
+      });
     case "store.payment-collection":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have generated the payment collection link.\nYou can now share it with the customer."),
         artifact: {
           kind: "payment-link",
@@ -535,9 +536,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Collection step is now active.",
         },
         generatedPaymentLink: buildPaymentLink("Store payment", amount ?? 50000),
-      };
+      });
     case "store.stock-tracking":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have logged a stock-tracking task.\nThe store manager can now update quantities and monitor availability."),
         artifact: {
           kind: "request",
@@ -550,9 +551,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Stock Tracking",
           module: "store",
         }),
-      };
+      });
     case "store.order-management":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened an order management workflow.\nDelivery code and customer status can now be tracked."),
         artifact: {
           kind: "request",
@@ -565,9 +566,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Order Management",
           module: "store",
         }),
-      };
+      });
     case "events.registration":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have created an event registration form.\nGuests can now register and receive updates."),
         artifact: {
           kind: "form",
@@ -575,9 +576,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           supportingText: "Registration flow is now active.",
         },
         generatedForm: buildForm("Event Registration", "Events Desk"),
-      };
+      });
     case "events.ticketing":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened a ticketing workflow.\nYou can now issue paid or free tickets from this queue."),
         artifact: {
           kind: "request",
@@ -590,9 +591,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Ticketing",
           module: "events",
         }),
-      };
+      });
     case "events.invites-reminders":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened an invitation and reminders workflow.\nGuest communication can now be scheduled."),
         artifact: {
           kind: "request",
@@ -605,9 +606,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Invitations",
           module: "events",
         }),
-      };
+      });
     case "events.rsvp-management":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened an RSVP management workflow.\nGuest responses can now be tracked and updated."),
         artifact: {
           kind: "request",
@@ -620,9 +621,9 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "RSVP",
           module: "events",
         }),
-      };
+      });
     case "events.guest-checkin":
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have opened a guest check-in workflow.\nAccess control and check-in operations can now begin."),
         artifact: {
           kind: "request",
@@ -635,11 +636,11 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           type: "Guest Check-in",
           module: "events",
         }),
-      };
+      });
     default:
-      return {
+      return normalizeAiCommandResult({
         reply: formatReply("I have captured that request.\nThe module workflow can now continue in structured steps."),
-      };
+      });
   }
 }
 
@@ -688,7 +689,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
   if (forcedCapability) {
     switch (forcedCapability.id) {
       case "toolkit.inventory-management":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have added that inventory item.\nStore levels are now ready for tracking and reorder alerts."),
           artifact: {
             kind: "inventory",
@@ -701,9 +702,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             inStock: 24,
             minLevel: 8,
           }),
-        };
+        });
       case "toolkit.issue-reporting":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have logged that as a facility issue.\nThe team can now track it from report to resolution."),
           artifact: {
             kind: "issue",
@@ -717,9 +718,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             status: "pending",
             reportedBy: "Chertt AI",
           }),
-        };
+        });
       case "toolkit.expense-logging":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have logged that as an expense entry.\nAccounts can now track it in the expense ledger."),
           artifact: {
             kind: "expense-log",
@@ -732,9 +733,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             amount: 85000,
             status: "pending",
           }),
-        };
+        });
       case "toolkit.polls-feedback":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have prepared the poll.\nResponses can now start coming into the feedback lane."),
           artifact: {
             kind: "poll",
@@ -748,9 +749,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             owner: "Operations",
             questionCount: 6,
           }),
-        };
+        });
       case "toolkit.staff-directory":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have added that team member to the directory.\nThe profile is now available for quick lookup."),
           artifact: {
             kind: "directory",
@@ -763,9 +764,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             unit: "Operations",
             phone: "+0000000000",
           }),
-        };
+        });
       case "toolkit.simple-forms":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have prepared a simple internal form.\nYour team can start collecting responses right away."),
           artifact: {
             kind: "form",
@@ -773,9 +774,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             supportingText: "The form is ready to live inside the Toolkit forms area.",
           },
           generatedForm: buildForm("Internal request form", "Operations"),
-        };
+        });
       case "toolkit.appointments":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have prepared the appointment.\nIt is now ready in the Toolkit scheduling flow."),
           artifact: {
             kind: "appointment",
@@ -783,9 +784,9 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             supportingText: "The meeting is ready to be tracked alongside other operational follow-up.",
           },
           generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", "Chertt AI"),
-        };
+        });
       case "toolkit.requests-approvals":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I have raised that as an expense approval.\nIt is now in the Business Toolkit work queue and ready for review."),
           artifact: {
             kind: "request",
@@ -798,18 +799,18 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             amount: 85000,
             type: "Expense",
           }),
-        };
+        });
       case "toolkit.process-recall":
       case "toolkit.faq":
       case "toolkit.staff-onboarding":
-        return {
+        return normalizeAiCommandResult({
           reply: formatReply("I found the closest operational guidance.\nYou can move from lookup to action without leaving Business Toolkit."),
           artifact: {
             kind: "document",
             headline: "Knowledge recall prepared",
             supportingText: "Process guidance is now available without leaving the module.",
           },
-        };
+        });
       case "toolkit.smart-documents":
       default:
         break;
@@ -817,7 +818,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
   }
 
   if (wantsExpenseLog && !normalized.includes("request")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have logged that as an expense entry.\nAccounts can now track it in the expense ledger."),
       artifact: {
         kind: "expense-log",
@@ -830,11 +831,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         amount: 85000,
         status: "pending",
       }),
-    };
+    });
   }
 
   if (normalized.includes("expense") || normalized.includes("fuel") || normalized.includes("diesel")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have raised that as an expense approval.\nIt is now in the Business Toolkit work queue and ready for review."),
       artifact: {
         kind: "request",
@@ -847,11 +848,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         amount: 85000,
         type: "Expense",
       }),
-    };
+    });
   }
 
   if (wantsInventory) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have added that inventory item.\nStore levels are now ready for tracking and reorder alerts."),
       artifact: {
         kind: "inventory",
@@ -864,11 +865,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         inStock: 24,
         minLevel: 8,
       }),
-    };
+    });
   }
 
   if (wantsIssue) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have logged that as a facility issue.\nThe team can now track it from report to resolution."),
       artifact: {
         kind: "issue",
@@ -882,11 +883,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         status: "pending",
         reportedBy: "Chertt AI",
       }),
-    };
+    });
   }
 
   if (wantsWrittenReport) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have drafted the report.\nIt is ready in Smart Documents for review and editing."),
       artifact: {
         kind: "document",
@@ -898,11 +899,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         `Report Summary\n\n${prompt}\n\nPrepared for internal review by Chertt AI.`,
         "memo",
       ),
-    };
+    });
   }
 
   if (normalized.includes("invoice") || normalized.includes("payment link")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have prepared the invoice flow.\nThe payment link is ready for collection follow-through."),
       artifact: {
         kind: "payment-link",
@@ -915,11 +916,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         "invoice",
       ),
       generatedPaymentLink: buildPaymentLink("Customer invoice", 128000),
-    };
+    });
   }
 
   if (normalized.includes("appointment") || normalized.includes("meeting") || normalized.includes("schedule")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have prepared the appointment.\nIt is now ready in the Toolkit scheduling flow."),
       artifact: {
         kind: "appointment",
@@ -927,11 +928,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         supportingText: "The meeting is ready to be tracked alongside other operational follow-up.",
       },
       generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", "Chertt AI"),
-    };
+    });
   }
 
   if (normalized.includes("form")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have prepared a simple internal form.\nYour team can start collecting responses right away."),
       artifact: {
         kind: "form",
@@ -939,11 +940,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         supportingText: "The form is ready to live inside the Toolkit forms area.",
       },
       generatedForm: buildForm("Internal request form", "Operations"),
-    };
+    });
   }
 
   if (wantsPoll) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have prepared the poll.\nResponses can now start coming into the feedback lane."),
       artifact: {
         kind: "poll",
@@ -957,11 +958,11 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         owner: "Operations",
         questionCount: 6,
       }),
-    };
+    });
   }
 
   if (wantsDirectoryEntry) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I have added that team member to the directory.\nThe profile is now available for quick lookup."),
       artifact: {
         kind: "directory",
@@ -974,21 +975,21 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         unit: "Operations",
         phone: "+0000000000",
       }),
-    };
+    });
   }
 
   if (normalized.includes("process") || normalized.includes("faq") || normalized.includes("policy") || normalized.includes("directory") || normalized.includes("staff")) {
-    return {
+    return normalizeAiCommandResult({
       reply: formatReply("I found the closest operational guidance.\nYou can move from lookup to action without leaving Business Toolkit."),
       artifact: {
         kind: "document",
         headline: "Knowledge recall prepared",
         supportingText: "Process guidance is now available without leaving the module.",
       },
-    };
+    });
   }
 
-  return {
+  return normalizeAiCommandResult({
     reply: formatReply("I have drafted the document.\nIt is staged in Smart Documents for review and signature routing."),
     artifact: {
       kind: "document",
@@ -1000,7 +1001,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
       `Dear Team,\n\n${prompt}\n\nWarm regards,\nChertt AI`,
       "letter",
     ),
-  };
+  });
 }
 
 export async function runCherttCommand(
@@ -1136,7 +1137,7 @@ export async function runCherttCommand(
       });
     }
 
-    return result;
+    return normalizeAiCommandResult(result);
   } catch (error) {
     console.error("Gemini command fallback:", error);
     return fallbackCommand(prompt, capability.id);

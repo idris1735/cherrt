@@ -30,7 +30,7 @@ export const capabilityCatalog: CapabilityDefinition[] = [
     module: "toolkit",
     title: "Inventory management",
     status: "live",
-    keywords: ["inventory", "stock", "reorder", "store", "in stock", "restock"],
+    keywords: ["inventory", "stock", "reorder", "store inventory", "in stock", "restock"],
   },
   {
     id: "toolkit.issue-reporting",
@@ -149,7 +149,7 @@ export const capabilityCatalog: CapabilityDefinition[] = [
     module: "store",
     title: "Order capture",
     status: "live",
-    keywords: ["order", "place order", "capture order"],
+    keywords: ["order", "store order", "place order", "capture order", "sales order"],
   },
   {
     id: "store.invoicing-receipts",
