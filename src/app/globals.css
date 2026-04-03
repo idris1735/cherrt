@@ -5107,6 +5107,51 @@ main {
   margin-top: 6px;
 }
 
+.tk-msg__action-card {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(233, 225, 217, 0.96);
+  border-radius: 12px;
+  background: rgba(255, 252, 248, 0.9);
+  display: grid;
+  gap: 4px;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.tk-msg__action-card:hover {
+  background: var(--ch-contrast, #211e1c);
+  border-color: var(--ch-contrast, #211e1c);
+  color: var(--ch-contrast-text, #fffaf7);
+  transform: translateY(-1px);
+}
+
+.tk-msg__action-kind {
+  width: fit-content;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 225, 217, 0.96);
+  padding: 2px 8px;
+}
+
+.tk-msg__action-title {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.tk-msg__action-note {
+  margin: 0;
+  font-size: 0.76rem;
+  opacity: 0.84;
+}
+
+.tk-msg__action-cta {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 620;
+}
+
 .tk-document-body {
   border-radius: 16px;
   border: 1px solid rgba(233, 225, 217, 0.92);

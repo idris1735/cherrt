@@ -8,6 +8,26 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { toolkitQuickPrompts } from "@/lib/data/toolkit";
 import type { AiCommandResult, Conversation, Message, Person } from "@/lib/types";
 
+const ACTION_CARD_PREFIX = "[[cherrt-card:";
+const ACTION_CARD_SUFFIX = "]]";
+
+type ResultAction = {
+  kind: string;
+  title: string;
+  note: string;
+  href: string;
+  actionLabel: string;
+  systemText: string;
+};
+
+type InlineActionCard = {
+  kind: string;
+  title: string;
+  note: string;
+  href: string;
+  cta: string;
+};
+
 const teamPrompts = [
   "Facilities, confirm the AC repair timeline.",
   "Finance, review the diesel request before noon.",
@@ -85,13 +105,75 @@ function renderMessageAvatar(message: Message, userInitials: string) {
   return null;
 }
 
-function describeResult(result: AiCommandResult | null, workspaceSlug: string) {
+function encodeActionCard(card: InlineActionCard) {
+  return `${ACTION_CARD_PREFIX}${encodeURIComponent(JSON.stringify(card))}${ACTION_CARD_SUFFIX}`;
+}
+
+function appendActionCardToMessage(text: string, card?: InlineActionCard) {
+  if (!card) return text;
+  return `${text}\n${encodeActionCard(card)}`.trim();
+}
+
+function extractActionCardFromMessage(text: string): { body: string; card?: InlineActionCard } {
+  const markerStart = text.lastIndexOf(ACTION_CARD_PREFIX);
+  if (markerStart < 0) {
+    return { body: text };
+  }
+
+  const markerEnd = text.indexOf(ACTION_CARD_SUFFIX, markerStart);
+  if (markerEnd < 0) {
+    return { body: text };
+  }
+
+  const encoded = text.slice(markerStart + ACTION_CARD_PREFIX.length, markerEnd);
+
+  try {
+    const card = JSON.parse(decodeURIComponent(encoded)) as Partial<InlineActionCard>;
+    if (!card || typeof card !== "object") {
+      return { body: text };
+    }
+
+    const kind = typeof card.kind === "string" ? card.kind : "record";
+    const title = typeof card.title === "string" ? card.title.trim() : "";
+    const note = typeof card.note === "string" ? card.note.trim() : "";
+    const href = typeof card.href === "string" ? card.href.trim() : "";
+    const cta = typeof card.cta === "string" ? card.cta.trim() : "Open";
+
+    if (!title || !href || !href.startsWith("/")) {
+      return { body: text };
+    }
+
+    const body = `${text.slice(0, markerStart)}${text.slice(markerEnd + ACTION_CARD_SUFFIX.length)}`.trim();
+
+    return {
+      body,
+      card: { kind, title, note, href, cta },
+    };
+  } catch {
+    return { body: text };
+  }
+}
+
+function toInlineActionCard(action: ResultAction | null | undefined): InlineActionCard | undefined {
+  if (!action) return undefined;
+  return {
+    kind: action.kind,
+    title: action.title,
+    note: action.note,
+    href: action.href,
+    cta: action.actionLabel,
+  };
+}
+
+function describeResult(result: AiCommandResult | null, workspaceSlug: string): ResultAction | null {
   if (!result) return null;
 
   const base = `/w/${workspaceSlug}/modules/toolkit`;
+  const workspaceBase = `/w/${workspaceSlug}`;
 
   if (result.generatedDocument) {
     return {
+      kind: "document",
       title: result.generatedDocument.title,
       note: `Saved in Smart Documents as a ${result.generatedDocument.type}.`,
       href: `${base}/documents/${result.generatedDocument.id}`,
@@ -101,7 +183,19 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string) {
   }
 
   if (result.generatedRequest) {
+    if (result.generatedRequest.module !== "toolkit") {
+      return {
+        kind: "request",
+        title: result.generatedRequest.title,
+        note: `${result.generatedRequest.type} request created in ${result.generatedRequest.module} module.`,
+        href: `${workspaceBase}/modules/${result.generatedRequest.module}`,
+        actionLabel: "Open module",
+        systemText: `Created "${result.generatedRequest.title}" in ${result.generatedRequest.module} workflows.\nOpen the module to continue.`,
+      };
+    }
+
     return {
+      kind: "request",
       title: result.generatedRequest.title,
       note: `Added to Requests as ${result.generatedRequest.type.toLowerCase()}.`,
       href: `${base}/requests/${result.generatedRequest.id}`,
@@ -112,6 +206,7 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string) {
 
   if (result.generatedAppointment) {
     return {
+      kind: "appointment",
       title: result.generatedAppointment.title,
       note: `Added to Appointments for ${result.generatedAppointment.when}.`,
       href: `${base}/appointments`,
@@ -122,6 +217,7 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string) {
 
   if (result.generatedForm) {
     return {
+      kind: "form",
       title: result.generatedForm.name,
       note: `Saved in Forms under ${result.generatedForm.owner}.`,
       href: `${base}/forms`,
@@ -132,6 +228,7 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string) {
 
   if (result.generatedPaymentLink) {
     return {
+      kind: "payment-link",
       title: result.generatedPaymentLink.label,
       note: "Payment link generated and ready to share.",
       href: `${base}/documents`,
@@ -210,12 +307,18 @@ export default function ToolkitChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text }),
       });
+      if (!response.ok) {
+        throw new Error("Command failed");
+      }
 
       const payload = (await response.json()) as AiCommandResult;
+      const action = describeResult(payload, snapshot.workspace.slug);
+      const assistantText = appendActionCardToMessage(payload.reply, toInlineActionCard(action));
+
       addMessage(conversationId, {
         id: `ai-${Date.now()}`,
         speaker: "assistant",
-        text: payload.reply,
+        text: assistantText,
         timeLabel: formatTimestamp(),
       });
 
@@ -356,7 +459,24 @@ export default function ToolkitChatPage() {
                 {message.speaker !== "system" ? renderMessageAvatar(message, userInitials) : null}
                 {message.speaker === "teammate" ? <span className="tk-msg__sender">{activePerson?.name ?? "Team"}</span> : null}
                 {message.speaker === "system" ? <span className="tk-msg__sender">System</span> : null}
-                <div className="tk-msg__bubble">{renderMessageText(message.text)}</div>
+                <div className="tk-msg__bubble">
+                  {(() => {
+                    const parsed = extractActionCardFromMessage(message.text);
+                    return (
+                      <>
+                        {renderMessageText(parsed.body)}
+                        {parsed.card ? (
+                          <Link className="tk-msg__action-card" href={parsed.card.href}>
+                            <span className="tk-msg__action-kind">{parsed.card.kind}</span>
+                            <strong className="tk-msg__action-title">{parsed.card.title}</strong>
+                            {parsed.card.note ? <p className="tk-msg__action-note">{parsed.card.note}</p> : null}
+                            <span className="tk-msg__action-cta">{parsed.card.cta}</span>
+                          </Link>
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                </div>
                 <span className="tk-msg__meta">
                   <span className="tk-msg__time">{message.timeLabel}</span>
                   {message.speaker === "user" ? (
