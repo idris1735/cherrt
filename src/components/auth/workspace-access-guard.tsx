@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { PropsWithChildren, useEffect, useState } from "react";
 
+import { BrandMark } from "@/components/shared/brand-mark";
 import { getLastWorkspaceSlug, rememberLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/services/supabase";
 import { getFirstWorkspaceSlugForCurrentUser, workspaceExistsInSupabase } from "@/lib/services/supabase-workspace";
@@ -101,11 +102,11 @@ export function WorkspaceAccessGuard({
 
   if (status !== "ready") {
     return (
-      <div className="workspace-access-guard">
-        <div className="workspace-access-guard__card">
-          <p className="workspace-access-guard__eyebrow">Checking access</p>
-          <h1>Opening your workspace.</h1>
-          <p>Chertt is confirming your session and matching you to the right workspace.</p>
+      <div className="workspace-loader-overlay workspace-loader-overlay--page" role="status" aria-live="polite">
+        <div className="workspace-loader-card">
+          <BrandMark compact />
+          <div className="workspace-loader-spinner" />
+          <p>Opening your workspace...</p>
         </div>
       </div>
     );

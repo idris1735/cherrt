@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 
 import { BrandMark } from "@/components/shared/brand-mark";
-import { saveOnboardingDraft } from "@/lib/services/onboarding-draft";
+import { bootstrapWorkspaceFromDraft, saveOnboardingDraft } from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import type { ModuleKey } from "@/lib/types";
 
@@ -548,6 +548,8 @@ function ChoiceGroup({
 export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
   const router = useRouter();
   const config = moduleConfigs[selectedModule];
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const sharedFieldsForModule = getSharedFields(selectedModule);
   const [choices, setChoices] = useState<Record<string, string[]>>({
     "ops-focus": ["documents", "approvals"],
@@ -605,11 +607,19 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
     });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSubmitError("");
+    setSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
     const fields = Object.fromEntries(Array.from(formData.entries()).map(([key, value]) => [key, String(value).trim()]));
+
+    if (!fields.orgName || !fields.adminName || !fields.email) {
+      setSubmitError("Organization name, admin name, and email are required.");
+      setSubmitting(false);
+      return;
+    }
 
     saveOnboardingDraft({
       selectedModule,
@@ -618,7 +628,27 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
       savedAt: new Date().toISOString(),
     });
 
-    router.push(`/auth/creating?module=${selectedModule}`);
+    const bootstrap = await bootstrapWorkspaceFromDraft();
+    if (bootstrap.status === "ready") {
+      router.push(`/w/${bootstrap.slug}/chat`);
+      router.refresh();
+      return;
+    }
+
+    if (bootstrap.status === "auth-required") {
+      router.push("/auth/sign-in");
+      router.refresh();
+      return;
+    }
+
+    if (bootstrap.status === "error") {
+      setSubmitError(bootstrap.message || "Could not create workspace. Please review details and try again.");
+      setSubmitting(false);
+      return;
+    }
+
+    router.push(`/auth/modules`);
+    router.refresh();
   }
 
   return (
@@ -681,15 +711,27 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
           </section>
         ))}
 
+        {submitError ? <p className="auth-panel__error">{submitError}</p> : null}
+
         <div className="setup-panel__actions">
-          <button className="button button--primary setup-panel__button" type="submit">
-            Continue
+          <button className="button button--primary setup-panel__button" disabled={submitting} type="submit">
+            {submitting ? "Creating workspace..." : "Continue"}
           </button>
           <Link className="button button--ghost setup-panel__button" href="/auth/modules">
             Back
           </Link>
         </div>
       </form>
+
+      {submitting ? (
+        <div className="workspace-loader-overlay" role="status" aria-live="polite">
+          <div className="workspace-loader-card">
+            <BrandMark compact />
+            <div className="workspace-loader-spinner" />
+            <p>Setting up your workspace...</p>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
