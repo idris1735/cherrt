@@ -187,6 +187,59 @@ function formatReply(reply: string) {
     .trim();
 }
 
+function toTitleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function toSentence(value: string) {
+  const clean = value.trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  const sentence = clean.charAt(0).toUpperCase() + clean.slice(1);
+  return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
+function buildFallbackLetterDraft(prompt: string) {
+  const cleanPrompt = prompt.trim().replace(/\s+/g, " ");
+
+  const recipientMatch =
+    cleanPrompt.match(/(?:letter|email|message|write)\s+(?:to|for)\s+([a-zA-Z][a-zA-Z\s.'-]{1,48})/i) ??
+    cleanPrompt.match(/\bto\s+([a-zA-Z][a-zA-Z\s.'-]{1,48})/i);
+
+  const rawRecipient = recipientMatch?.[1] ?? "";
+  const recipient = toTitleCase(rawRecipient.split(/\bthat\b|\babout\b|\bregarding\b|\bon\b/i)[0] ?? "").trim();
+
+  const intentMatch = cleanPrompt.match(/\b(?:that|about|regarding|on)\s+(.+)$/i);
+  const intent = intentMatch?.[1]?.trim();
+
+  const intentLine = intent
+    ? toSentence(intent)
+    : "I am writing to share this message clearly and respectfully.";
+
+  const title = recipient ? `Letter to ${recipient}` : "Draft letter";
+  const salutation = recipient ? `Dear ${recipient},` : "Dear Team,";
+
+  const body = `${salutation}\n\n${intentLine}\n\nI wanted to put this in writing so the message is clear and sincere.\n\nWarm regards,\nChertt AI`;
+
+  return {
+    title,
+    body,
+  };
+}
+
+function buildFallbackMemoDraft(prompt: string) {
+  const cleanPrompt = prompt.trim().replace(/\s+/g, " ");
+  const summary = toSentence(cleanPrompt);
+
+  return {
+    title: "Operational memo draft",
+    body: `Summary\n${summary}\n\nContext\nThis draft was prepared from your prompt and is ready for review.\n\nNext actions\n- Confirm owners\n- Confirm timeline\n- Route for approval if needed`,
+  };
+}
+
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
@@ -887,6 +940,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
   }
 
   if (wantsWrittenReport) {
+    const memo = buildFallbackMemoDraft(prompt);
     return normalizeAiCommandResult({
       reply: formatReply("I have drafted the report.\nIt is ready in Smart Documents for review and editing."),
       artifact: {
@@ -894,11 +948,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         headline: "Report draft prepared",
         supportingText: "The written report is now ready for review and routing.",
       },
-      generatedDocument: buildDocument(
-        "Operational report",
-        `Report Summary\n\n${prompt}\n\nPrepared for internal review by Chertt AI.`,
-        "memo",
-      ),
+      generatedDocument: buildDocument(memo.title, memo.body, "memo"),
     });
   }
 
@@ -989,6 +1039,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
     });
   }
 
+  const letter = buildFallbackLetterDraft(prompt);
   return normalizeAiCommandResult({
     reply: formatReply("I have drafted the document.\nIt is staged in Smart Documents for review and signature routing."),
     artifact: {
@@ -996,11 +1047,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
       headline: "Draft prepared",
       supportingText: "The document is ready for authorization and next-step handling.",
     },
-    generatedDocument: buildDocument(
-      "Letter of organizational intent",
-      `Dear Team,\n\n${prompt}\n\nWarm regards,\nChertt AI`,
-      "letter",
-    ),
+    generatedDocument: buildDocument(letter.title, letter.body, "letter"),
   });
 }
 

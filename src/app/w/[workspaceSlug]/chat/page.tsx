@@ -614,7 +614,7 @@ export default function ChatPage() {
                     <p className={styles.canvasEyebrow}>Writing Canvas</p>
                     <strong className={styles.canvasTitle}>{draftCanvas.title}</strong>
                     <span className={styles.canvasMeta}>
-                      {draftCanvas.type} • {draftCanvas.lastSavedLabel}
+                      {draftCanvas.type} - {draftCanvas.lastSavedLabel}
                     </span>
                   </div>
                   <div className={styles.canvasActions}>
@@ -661,6 +661,7 @@ export default function ChatPage() {
                         : current,
                     )
                   }
+                  spellCheck={false}
                   value={draftCanvas.body}
                 />
               </aside>

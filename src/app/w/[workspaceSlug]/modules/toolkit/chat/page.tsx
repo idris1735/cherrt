@@ -516,14 +516,14 @@ export default function ToolkitChatPage() {
                   {mode === "ai"
                     ? "AI-powered operations assistant"
                     : activePerson
-                      ? `${activePerson.title} • ${activePerson.unit}`
+                      ? `${activePerson.title} - ${activePerson.unit}`
                       : "Operations, admin, and finance thread"}
                 </span>
                 <small className="tk-chat-panel__meta">
                   {mode === "ai"
                     ? "Drafts, requests, reports, and process lookups."
                     : activePerson
-                      ? `Direct team thread • ${activePerson.phone}`
+                      ? `Direct team thread - ${activePerson.phone}`
                       : "Follow-ups, owners, approvals, and handoffs."}
                 </small>
               </div>
@@ -653,7 +653,7 @@ export default function ToolkitChatPage() {
               <p className="tk-eyebrow">AI writing canvas</p>
               <strong className="tk-chat-canvas__title">{draftCanvas.title}</strong>
               <span className="tk-chat-canvas__meta">
-                {draftCanvas.type} • {draftCanvas.lastSavedLabel}
+                {draftCanvas.type} - {draftCanvas.lastSavedLabel}
               </span>
             </div>
             <div className="tk-chat-canvas__actions">
@@ -696,11 +696,12 @@ export default function ToolkitChatPage() {
                         ...current,
                         body: event.target.value,
                         dirty: true,
-                        lastSavedLabel: "Saving…",
+                        lastSavedLabel: "Saving...",
                       }
                     : current,
                 )
               }
+              spellCheck={false}
               value={draftCanvas.body}
             />
           </label>
