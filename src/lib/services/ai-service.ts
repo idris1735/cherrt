@@ -1,4 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
+import { getCapabilityById } from "@/lib/services/command-engine/capability-registry";
+import { resolveCapabilityIntent } from "@/lib/services/command-engine/intent-router";
+import { evaluateCapabilityAccess } from "@/lib/services/command-engine/policy-guard";
 
 import type {
   AiCommandResult,
@@ -7,8 +10,10 @@ import type {
   FeedbackPoll,
   FormDefinition,
   InventoryItem,
+  ModuleKey,
   PaymentLink,
   Person,
+  Role,
   IssueReport,
   SmartDocument,
   WorkflowRequest,
@@ -70,6 +75,11 @@ type GeminiResponse = {
   directoryTitle: string;
   directoryUnit: string;
   directoryPhone: string;
+};
+
+export type CommandExecutionContext = {
+  role?: Role;
+  enabledModules?: ModuleKey[];
 };
 
 const SYSTEM_PROMPT = `You are Chertt AI inside the Business Toolkit module of Chertt, a chat-first operations app for organizations.
@@ -185,7 +195,7 @@ function getGeminiClient() {
   return new GoogleGenAI({ apiKey });
 }
 
-async function callGemini(prompt: string): Promise<GeminiResponse> {
+async function callGemini(prompt: string, capabilityId: string, capabilityTitle: string): Promise<GeminiResponse> {
   const client = getGeminiClient();
 
   if (!client) {
@@ -194,7 +204,7 @@ async function callGemini(prompt: string): Promise<GeminiResponse> {
 
   const response = await client.models.generateContent({
     model: "gemini-2.5-flash",
-    contents: `${SYSTEM_PROMPT}\n\nUser request: ${prompt}`,
+    contents: `${SYSTEM_PROMPT}\n\nTarget capability: ${capabilityId} (${capabilityTitle})\nUser request: ${prompt}`,
     config: {
       responseMimeType: "application/json",
       temperature: 0.5,
@@ -367,8 +377,31 @@ function buildPerson(opts: {
   };
 }
 
-function fallbackCommand(prompt: string): AiCommandResult {
+function buildPermissionDeniedResponse(reason: string): AiCommandResult {
+  return {
+    reply: formatReply(`I could not run that action yet.\n${reason}\nAsk an admin or owner to grant access for this workflow.`),
+  };
+}
+
+function buildModuleDisabledResponse(module: ModuleKey): AiCommandResult {
+  return {
+    reply: formatReply(
+      `That request belongs to the ${module} module, which is not enabled in this workspace yet.\nEnable the module first, then I can execute it by chat.`,
+    ),
+  };
+}
+
+function buildPlannedCapabilityResponse(title: string, module: ModuleKey): AiCommandResult {
+  return {
+    reply: formatReply(
+      `${title} is mapped in the ${module} roadmap.\nThe intent is captured, and this action will run through the same command engine as soon as that module is switched from planned to live.`,
+    ),
+  };
+}
+
+function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommandResult {
   const normalized = prompt.toLowerCase();
+  const forcedCapability = forcedCapabilityId ? getCapabilityById(forcedCapabilityId) : null;
   const wantsWrittenReport =
     normalized.includes("draft a report") ||
     normalized.includes("write a report") ||
@@ -403,6 +436,141 @@ function fallbackCommand(prompt: string): AiCommandResult {
     normalized.includes("new staff") ||
     normalized.includes("staff directory") ||
     normalized.includes("add to directory");
+
+  if (forcedCapability?.status === "planned") {
+    return buildPlannedCapabilityResponse(forcedCapability.title, forcedCapability.module);
+  }
+
+  if (forcedCapability) {
+    switch (forcedCapability.id) {
+      case "toolkit.inventory-management":
+        return {
+          reply: formatReply("I have added that inventory item.\nStore levels are now ready for tracking and reorder alerts."),
+          artifact: {
+            kind: "inventory",
+            headline: "Inventory item added",
+            supportingText: "The item is now part of inventory monitoring.",
+          },
+          generatedInventoryItem: buildInventoryItem({
+            name: "Office supply item",
+            location: "Main store",
+            inStock: 24,
+            minLevel: 8,
+          }),
+        };
+      case "toolkit.issue-reporting":
+        return {
+          reply: formatReply("I have logged that as a facility issue.\nThe team can now track it from report to resolution."),
+          artifact: {
+            kind: "issue",
+            headline: "Issue report opened",
+            supportingText: "The maintenance problem now lives as a structured work item.",
+          },
+          generatedIssueReport: buildIssueReport({
+            title: "Facility issue report",
+            area: "Operations floor",
+            severity: "high",
+            status: "pending",
+            reportedBy: "Chertt AI",
+          }),
+        };
+      case "toolkit.expense-logging":
+        return {
+          reply: formatReply("I have logged that as an expense entry.\nAccounts can now track it in the expense ledger."),
+          artifact: {
+            kind: "expense-log",
+            headline: "Expense entry logged",
+            supportingText: "The expense is now captured for reconciliation and reporting.",
+          },
+          generatedExpenseEntry: buildExpenseEntry({
+            title: "Operational expense log",
+            department: "Operations",
+            amount: 85000,
+            status: "pending",
+          }),
+        };
+      case "toolkit.polls-feedback":
+        return {
+          reply: formatReply("I have prepared the poll.\nResponses can now start coming into the feedback lane."),
+          artifact: {
+            kind: "poll",
+            headline: "Feedback poll created",
+            supportingText: "The poll is active and ready for staff responses.",
+          },
+          generatedPoll: buildPoll({
+            title: "Weekly operations pulse",
+            lane: "pulse",
+            audience: "All staff",
+            owner: "Operations",
+            questionCount: 6,
+          }),
+        };
+      case "toolkit.staff-directory":
+        return {
+          reply: formatReply("I have added that team member to the directory.\nThe profile is now available for quick lookup."),
+          artifact: {
+            kind: "directory",
+            headline: "Directory profile added",
+            supportingText: "Staff details can now be searched and referenced.",
+          },
+          generatedPerson: buildPerson({
+            name: "New team member",
+            title: "Team member",
+            unit: "Operations",
+            phone: "+0000000000",
+          }),
+        };
+      case "toolkit.simple-forms":
+        return {
+          reply: formatReply("I have prepared a simple internal form.\nYour team can start collecting responses right away."),
+          artifact: {
+            kind: "form",
+            headline: "Form scaffold prepared",
+            supportingText: "The form is ready to live inside the Toolkit forms area.",
+          },
+          generatedForm: buildForm("Internal request form", "Operations"),
+        };
+      case "toolkit.appointments":
+        return {
+          reply: formatReply("I have prepared the appointment.\nIt is now ready in the Toolkit scheduling flow."),
+          artifact: {
+            kind: "appointment",
+            headline: "Appointment scheduled",
+            supportingText: "The meeting is ready to be tracked alongside other operational follow-up.",
+          },
+          generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", "Chertt AI"),
+        };
+      case "toolkit.requests-approvals":
+        return {
+          reply: formatReply("I have raised that as an expense approval.\nIt is now in the Business Toolkit work queue and ready for review."),
+          artifact: {
+            kind: "request",
+            headline: "Expense request opened",
+            supportingText: "The request is now a trackable approval item with owners and status.",
+          },
+          generatedRequest: buildRequest({
+            title: "Operational expense request",
+            description: prompt,
+            amount: 85000,
+            type: "Expense",
+          }),
+        };
+      case "toolkit.process-recall":
+      case "toolkit.faq":
+      case "toolkit.staff-onboarding":
+        return {
+          reply: formatReply("I found the closest operational guidance.\nYou can move from lookup to action without leaving Business Toolkit."),
+          artifact: {
+            kind: "document",
+            headline: "Knowledge recall prepared",
+            supportingText: "Process guidance is now available without leaving the module.",
+          },
+        };
+      case "toolkit.smart-documents":
+      default:
+        break;
+    }
+  }
 
   if (wantsExpenseLog && !normalized.includes("request")) {
     return {
@@ -591,15 +759,35 @@ function fallbackCommand(prompt: string): AiCommandResult {
   };
 }
 
-export async function runCherttCommand(prompt: string): Promise<AiCommandResult> {
+export async function runCherttCommand(
+  prompt: string,
+  context: CommandExecutionContext = {},
+): Promise<AiCommandResult> {
+  const intent = resolveCapabilityIntent(prompt);
+  const capability = intent.capability;
+  const role = context.role ?? "owner";
+  const access = evaluateCapabilityAccess(capability.id, role);
+
+  if (!access.allowed) {
+    return buildPermissionDeniedResponse(access.reason);
+  }
+
+  if (context.enabledModules?.length && !context.enabledModules.includes(capability.module)) {
+    return buildModuleDisabledResponse(capability.module);
+  }
+
+  if (capability.status === "planned") {
+    return buildPlannedCapabilityResponse(capability.title, capability.module);
+  }
+
   const client = getGeminiClient();
 
   if (!client) {
-    return fallbackCommand(prompt);
+    return fallbackCommand(prompt, capability.id);
   }
 
   try {
-    const gemini = await callGemini(prompt);
+    const gemini = await callGemini(prompt, capability.id, capability.title);
     const result: AiCommandResult = {
       reply: formatReply(gemini.reply || "Done.\nI have prepared the next operational step for you."),
     };
@@ -703,6 +891,6 @@ export async function runCherttCommand(prompt: string): Promise<AiCommandResult>
     return result;
   } catch (error) {
     console.error("Gemini command fallback:", error);
-    return fallbackCommand(prompt);
+    return fallbackCommand(prompt, capability.id);
   }
 }

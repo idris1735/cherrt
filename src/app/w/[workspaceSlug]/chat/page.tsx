@@ -148,7 +148,13 @@ export default function ChatPage() {
       const response = await fetch("/api/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: cleanPrompt }),
+        body: JSON.stringify({
+          prompt: cleanPrompt,
+          context: {
+            role: snapshot.membership.role,
+            enabledModules: snapshot.workspace.modules,
+          },
+        }),
       });
 
       if (!response.ok) {
