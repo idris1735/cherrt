@@ -8,6 +8,7 @@ import {
   persistApprovedRequest,
   persistConversation,
   persistConversationMessage,
+  persistSmartDocumentDraft,
   subscribeToWorkspaceSnapshot,
 } from "@/lib/services/supabase-workspace";
 import { getActiveUserProfile } from "@/lib/services/profile";
@@ -35,6 +36,7 @@ type AppAction =
   | { type: "add-message"; conversationId: string; message: Message }
   | { type: "read-notifications" }
   | { type: "apply-ai-result"; result: AiCommandResult }
+  | { type: "upsert-document"; document: SmartDocument }
   | { type: "add-inventory-item"; item: InventoryItem };
 
 function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot {
@@ -227,6 +229,17 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
     }
     case "add-inventory-item":
       return { ...state, inventory: [action.item, ...state.inventory] };
+    case "upsert-document": {
+      const existingIndex = state.documents.findIndex((document) => document.id === action.document.id);
+      if (existingIndex < 0) {
+        return { ...state, documents: [action.document, ...state.documents] };
+      }
+
+      return {
+        ...state,
+        documents: state.documents.map((document) => (document.id === action.document.id ? action.document : document)),
+      };
+    }
     default:
       return state;
   }
@@ -240,6 +253,7 @@ interface AppStateContextValue {
   addMessage: (conversationId: string, message: Message) => void;
   markNotificationsRead: () => void;
   applyAiResult: (result: AiCommandResult) => void;
+  upsertDocument: (document: SmartDocument) => void;
   addInventoryItem: (item: InventoryItem) => void;
 }
 
@@ -356,6 +370,10 @@ export function AppStateProvider({
       applyAiResult: (result) => {
         dispatch({ type: "apply-ai-result", result });
         void persistAiResult(snapshotRef.current, result);
+      },
+      upsertDocument: (document) => {
+        dispatch({ type: "upsert-document", document });
+        void persistSmartDocumentDraft(snapshotRef.current, document);
       },
       addInventoryItem: (item) => {
         dispatch({ type: "add-inventory-item", item });

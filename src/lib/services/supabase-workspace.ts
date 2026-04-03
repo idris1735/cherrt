@@ -312,6 +312,23 @@ function mapPerson(row: PersonRow): Person {
   };
 }
 
+function createDefaultConversations(workspaceSlug: string): Conversation[] {
+  return [
+    {
+      id: `local-ai-${workspaceSlug}`,
+      title: "Operations Assistant",
+      mode: "ai",
+      messages: [],
+    },
+    {
+      id: `local-team-${workspaceSlug}`,
+      title: "Business Toolkit Team",
+      mode: "team",
+      messages: [],
+    },
+  ];
+}
+
 function buildToolkitActivities(snapshot: WorkspaceSnapshot) {
   const otherActivities = snapshot.activities.filter((activity) => activity.module !== "toolkit");
   const toolkitActivities = [
@@ -696,38 +713,16 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
   };
 
   const remoteRequests = (requestsResponse.data as RequestRow[]).map(mapRequest);
-  snapshot.requests = [
-    ...remoteRequests,
-    ...snapshot.requests.filter((request) => request.module !== "toolkit"),
-  ];
-
-  snapshot.documents = (documentsResponse.data as DocumentRow[]).length
-    ? (documentsResponse.data as DocumentRow[]).map(mapDocument)
-    : snapshot.documents;
-  snapshot.paymentLinks = (paymentLinksResponse.data as PaymentLinkRow[]).length
-    ? (paymentLinksResponse.data as PaymentLinkRow[]).map(mapPaymentLink)
-    : snapshot.paymentLinks;
-  snapshot.appointments = (appointmentsResponse.data as AppointmentRow[]).length
-    ? (appointmentsResponse.data as AppointmentRow[]).map(mapAppointment)
-    : snapshot.appointments;
-  snapshot.forms = (formsResponse.data as FormRow[]).length
-    ? (formsResponse.data as FormRow[]).map(mapForm)
-    : snapshot.forms;
-  snapshot.inventory = (inventoryResponse.data as InventoryRow[]).length
-    ? (inventoryResponse.data as InventoryRow[]).map(mapInventory)
-    : snapshot.inventory;
-  snapshot.issues = (issuesResponse.data as IssueRow[]).length
-    ? (issuesResponse.data as IssueRow[]).map(mapIssue)
-    : snapshot.issues;
-  snapshot.expenses = (expensesResponse.data as ExpenseRow[]).length
-    ? (expensesResponse.data as ExpenseRow[]).map(mapExpense)
-    : snapshot.expenses;
-  snapshot.polls = (pollsResponse.data as PollRow[]).length
-    ? (pollsResponse.data as PollRow[]).map(mapPoll)
-    : snapshot.polls;
-  snapshot.directory = (peopleResponse.data as PersonRow[]).length
-    ? (peopleResponse.data as PersonRow[]).map(mapPerson)
-    : snapshot.directory;
+  snapshot.requests = remoteRequests;
+  snapshot.documents = (documentsResponse.data as DocumentRow[]).map(mapDocument);
+  snapshot.paymentLinks = (paymentLinksResponse.data as PaymentLinkRow[]).map(mapPaymentLink);
+  snapshot.appointments = (appointmentsResponse.data as AppointmentRow[]).map(mapAppointment);
+  snapshot.forms = (formsResponse.data as FormRow[]).map(mapForm);
+  snapshot.inventory = (inventoryResponse.data as InventoryRow[]).map(mapInventory);
+  snapshot.issues = (issuesResponse.data as IssueRow[]).map(mapIssue);
+  snapshot.expenses = (expensesResponse.data as ExpenseRow[]).map(mapExpense);
+  snapshot.polls = (pollsResponse.data as PollRow[]).map(mapPoll);
+  snapshot.directory = (peopleResponse.data as PersonRow[]).map(mapPerson);
 
   const messagesByConversation = new Map<string, Message[]>();
   for (const row of messagesResponse.data as MessageRow[]) {
@@ -741,7 +736,6 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     messagesByConversation.set(row.conversation_id, current);
   }
 
-  const fallbackConversations = cloneSnapshot().conversations;
   snapshot.conversations = (conversationsResponse.data as ConversationRow[]).length
     ? (conversationsResponse.data as ConversationRow[]).map((conversation) => ({
         id: conversation.id,
@@ -749,7 +743,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
         mode: conversation.mode,
         messages: messagesByConversation.get(conversation.id) ?? [],
       }))
-    : fallbackConversations;
+    : createDefaultConversations(workspaceSlug);
 
   snapshot.activities = buildToolkitActivities(snapshot);
   return snapshot;
@@ -1055,6 +1049,37 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
 
   if (firstError?.error) {
     console.error("Supabase AI result persistence failed:", firstError.error.message);
+    return false;
+  }
+
+  return true;
+}
+
+export async function persistSmartDocumentDraft(snapshot: WorkspaceSnapshot, document: SmartDocument) {
+  const supabase = getSupabaseBrowserClient() as any;
+  if (!supabase || !(await isTableAvailable("smart_documents"))) {
+    return false;
+  }
+
+  const workspace = await ensureWorkspaceRow(snapshot);
+  if (!workspace) {
+    return false;
+  }
+
+  const { error } = await supabase.from("smart_documents").upsert({
+    id: document.id,
+    workspace_id: workspace.id,
+    title: document.title,
+    document_type: document.type,
+    body: document.body,
+    status: document.status,
+    prepared_by: document.preparedBy,
+    awaiting_signature_from: document.awaitingSignatureFrom ?? null,
+    amount: document.amount ?? null,
+  });
+
+  if (error) {
+    console.error("Supabase smart document save failed:", error.message);
     return false;
   }
 

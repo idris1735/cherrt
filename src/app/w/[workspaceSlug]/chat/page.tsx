@@ -35,6 +35,7 @@ const ACTION_CARD_SUFFIX = "]]";
 
 type ActionCard = {
   kind: string;
+  recordId?: string;
   title: string;
   note: string;
   href: string;
@@ -70,6 +71,7 @@ function extractActionCardFromMessage(text: string): { body: string; card?: Acti
     }
 
     const kind = typeof card.kind === "string" ? card.kind : "record";
+    const recordId = typeof card.recordId === "string" ? card.recordId.trim() : undefined;
     const title = typeof card.title === "string" ? card.title.trim() : "";
     const note = typeof card.note === "string" ? card.note.trim() : "";
     const href = typeof card.href === "string" ? card.href.trim() : "";
@@ -83,21 +85,37 @@ function extractActionCardFromMessage(text: string): { body: string; card?: Acti
 
     return {
       body,
-      card: { kind, title, note, href, cta },
+      card: { kind, recordId, title, note, href, cta },
     };
   } catch {
     return { body: text };
   }
 }
 
+type DraftCanvasState = {
+  id: string;
+  title: string;
+  type: "letter" | "invoice" | "memo";
+  body: string;
+  preparedBy: string;
+  status: "draft" | "pending" | "approved" | "in-progress" | "completed" | "flagged";
+  awaitingSignatureFrom?: string;
+  amount?: number;
+  createdAtLabel: string;
+  dirty: boolean;
+  lastSavedLabel: string;
+};
+
 export default function ChatPage() {
-  const { snapshot, addMessage, applyAiResult, createConversation } = useAppState();
+  const { snapshot, addMessage, applyAiResult, createConversation, upsertDocument } = useAppState();
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(snapshot.conversations[0]?.id ?? "");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [greetingIndex, setGreetingIndex] = useState(0);
   const [greetingChars, setGreetingChars] = useState(0);
+  const [draftCanvas, setDraftCanvas] = useState<DraftCanvasState | null>(null);
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
   const conversations = snapshot.conversations;
@@ -159,6 +177,7 @@ export default function ChatPage() {
     if (payload.generatedDocument) {
       return {
         kind: "document",
+        recordId: payload.generatedDocument.id,
         title: payload.generatedDocument.title,
         note: `${payload.generatedDocument.type} draft ready for review and routing.`,
         href: `${base}/modules/toolkit/documents/${payload.generatedDocument.id}`,
@@ -269,6 +288,37 @@ export default function ChatPage() {
     return undefined;
   }
 
+  useEffect(() => {
+    if (!draftCanvas || !draftCanvas.dirty) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      upsertDocument({
+        id: draftCanvas.id,
+        title: draftCanvas.title,
+        type: draftCanvas.type,
+        body: draftCanvas.body,
+        status: draftCanvas.status,
+        preparedBy: draftCanvas.preparedBy,
+        awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
+        amount: draftCanvas.amount,
+        createdAtLabel: draftCanvas.createdAtLabel,
+      });
+      setDraftCanvas((current) =>
+        current && current.id === draftCanvas.id
+          ? {
+              ...current,
+              dirty: false,
+              lastSavedLabel: "Saved now",
+            }
+          : current,
+      );
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [draftCanvas, upsertDocument]);
+
   async function sendPrompt(nextPrompt: string) {
     if (!activeConversation) {
       return;
@@ -316,6 +366,23 @@ export default function ChatPage() {
       });
 
       applyAiResult(payload);
+
+      if (payload.generatedDocument) {
+        setDraftCanvas({
+          id: payload.generatedDocument.id,
+          title: payload.generatedDocument.title,
+          type: payload.generatedDocument.type,
+          body: payload.generatedDocument.body,
+          preparedBy: payload.generatedDocument.preparedBy,
+          status: payload.generatedDocument.status,
+          awaitingSignatureFrom: payload.generatedDocument.awaitingSignatureFrom,
+          amount: payload.generatedDocument.amount,
+          createdAtLabel: payload.generatedDocument.createdAtLabel,
+          dirty: false,
+          lastSavedLabel: "Just now",
+        });
+        setCanvasOpen(true);
+      }
     } catch {
       addMessage(conversationId, {
         id: `assistant-error-${Date.now()}`,
@@ -326,6 +393,27 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function openDraftFromCard(recordId?: string) {
+    if (!recordId) return;
+    const document = snapshot.documents.find((item) => item.id === recordId);
+    if (!document) return;
+
+    setDraftCanvas({
+      id: document.id,
+      title: document.title,
+      type: document.type,
+      body: document.body,
+      preparedBy: document.preparedBy,
+      status: document.status,
+      awaitingSignatureFrom: document.awaitingSignatureFrom,
+      amount: document.amount,
+      createdAtLabel: document.createdAtLabel,
+      dirty: false,
+      lastSavedLabel: "Loaded",
+    });
+    setCanvasOpen(true);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -448,65 +536,136 @@ export default function ChatPage() {
             </form>
           </div>
         ) : (
-          <>
-            <div className={styles.thread} ref={threadRef}>
-              {transcript.map((message, index) => (
-                <article
-                  className={`${styles.message} ${speakerClass[message.speaker]}`}
-                  key={message.id}
-                  style={{ animationDelay: `${Math.min(index * 35, 220)}ms` }}
-                >
-                  {(() => {
-                    const parsed = extractActionCardFromMessage(message.text);
-                    const lines = parsed.body ? parsed.body.split("\n").filter((line) => line.trim().length > 0) : [];
+          <div className={`${styles.chatWorkarea} ${canvasOpen && draftCanvas ? styles.chatWorkareaSplit : ""}`}>
+            <div className={styles.chatColumn}>
+              <div className={styles.thread} ref={threadRef}>
+                {transcript.map((message, index) => (
+                  <article
+                    className={`${styles.message} ${speakerClass[message.speaker]}`}
+                    key={message.id}
+                    style={{ animationDelay: `${Math.min(index * 35, 220)}ms` }}
+                  >
+                    {(() => {
+                      const parsed = extractActionCardFromMessage(message.text);
+                      const card = parsed.card;
+                      const lines = parsed.body ? parsed.body.split("\n").filter((line) => line.trim().length > 0) : [];
 
-                    return (
-                      <>
-                        {lines.length ? (
-                          <div className={styles.messageText}>
-                            {lines.map((line, lineIndex) => (
-                              <p key={`${message.id}-line-${lineIndex}`}>{line}</p>
-                            ))}
-                          </div>
-                        ) : null}
+                      return (
+                        <>
+                          {lines.length ? (
+                            <div className={styles.messageText}>
+                              {lines.map((line, lineIndex) => (
+                                <p key={`${message.id}-line-${lineIndex}`}>{line}</p>
+                              ))}
+                            </div>
+                          ) : null}
 
-                        {parsed.card ? (
-                          <Link className={styles.inlineActionCard} href={parsed.card.href}>
-                            <span className={styles.inlineActionKind}>{parsed.card.kind}</span>
-                            <strong className={styles.inlineActionTitle}>{parsed.card.title}</strong>
-                            {parsed.card.note ? <p className={styles.inlineActionNote}>{parsed.card.note}</p> : null}
-                            <span className={styles.inlineActionCta}>{parsed.card.cta}</span>
-                          </Link>
-                        ) : null}
-                      </>
-                    );
-                  })()}
-                </article>
-              ))}
+                          {card ? (
+                            card.kind === "document" && card.recordId ? (
+                              <button className={styles.inlineActionCard} onClick={() => openDraftFromCard(card.recordId)} type="button">
+                                <span className={styles.inlineActionKind}>{card.kind}</span>
+                                <strong className={styles.inlineActionTitle}>{card.title}</strong>
+                                {card.note ? <p className={styles.inlineActionNote}>{card.note}</p> : null}
+                                <span className={styles.inlineActionCta}>Open in canvas</span>
+                              </button>
+                            ) : (
+                              <Link className={styles.inlineActionCard} href={card.href}>
+                                <span className={styles.inlineActionKind}>{card.kind}</span>
+                                <strong className={styles.inlineActionTitle}>{card.title}</strong>
+                                {card.note ? <p className={styles.inlineActionNote}>{card.note}</p> : null}
+                                <span className={styles.inlineActionCta}>{card.cta}</span>
+                              </Link>
+                            )
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </article>
+                ))}
 
-              {loading ? (
-                <article className={`${styles.message} ${styles.messageAssistant} ${styles.messageThinking}`}>
-                  <p>Thinking...</p>
-                </article>
-              ) : null}
+                {loading ? (
+                  <article className={`${styles.message} ${styles.messageAssistant} ${styles.messageThinking}`}>
+                    <p>Thinking...</p>
+                  </article>
+                ) : null}
+              </div>
+
+              <form className={styles.composer} onSubmit={handleSubmit}>
+                <button aria-label="Attach item" className={styles.attachButton} type="button">
+                  +
+                </button>
+                <textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
+                  placeholder="Message Chertt..."
+                  rows={1}
+                />
+                <button className={styles.sendButton} type="submit" disabled={loading || !prompt.trim()}>
+                  Send
+                </button>
+              </form>
             </div>
 
-            <form className={styles.composer} onSubmit={handleSubmit}>
-              <button aria-label="Attach item" className={styles.attachButton} type="button">
-                +
-              </button>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                onKeyDown={handleComposerKeyDown}
-                placeholder="Message Chertt..."
-                rows={1}
-              />
-              <button className={styles.sendButton} type="submit" disabled={loading || !prompt.trim()}>
-                Send
-              </button>
-            </form>
-          </>
+            {canvasOpen && draftCanvas ? (
+              <aside className={styles.canvasPane}>
+                <div className={styles.canvasHead}>
+                  <div>
+                    <p className={styles.canvasEyebrow}>Writing Canvas</p>
+                    <strong className={styles.canvasTitle}>{draftCanvas.title}</strong>
+                    <span className={styles.canvasMeta}>
+                      {draftCanvas.type} • {draftCanvas.lastSavedLabel}
+                    </span>
+                  </div>
+                  <div className={styles.canvasActions}>
+                    <button
+                      className={styles.canvasButton}
+                      onClick={() => {
+                        upsertDocument({
+                          id: draftCanvas.id,
+                          title: draftCanvas.title,
+                          type: draftCanvas.type,
+                          body: draftCanvas.body,
+                          status: draftCanvas.status,
+                          preparedBy: draftCanvas.preparedBy,
+                          awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
+                          amount: draftCanvas.amount,
+                          createdAtLabel: draftCanvas.createdAtLabel,
+                        });
+                        setDraftCanvas((current) => (current ? { ...current, dirty: false, lastSavedLabel: "Saved now" } : current));
+                      }}
+                      type="button"
+                    >
+                      Save now
+                    </button>
+                    <button className={styles.canvasButton} onClick={() => setCanvasOpen(false)} type="button">
+                      Close
+                    </button>
+                    <Link className={styles.canvasLink} href={`/w/${snapshot.workspace.slug}/modules/toolkit/documents/${draftCanvas.id}`}>
+                      Open full view
+                    </Link>
+                  </div>
+                </div>
+
+                <textarea
+                  className={styles.canvasTextarea}
+                  onChange={(event) =>
+                    setDraftCanvas((current) =>
+                      current
+                        ? {
+                            ...current,
+                            body: event.target.value,
+                            dirty: true,
+                            lastSavedLabel: "Saving...",
+                          }
+                        : current,
+                    )
+                  }
+                  value={draftCanvas.body}
+                />
+              </aside>
+            ) : null}
+          </div>
         )}
       </section>
     </div>

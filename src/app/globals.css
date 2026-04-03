@@ -4910,6 +4910,82 @@ main {
   gap: 12px;
 }
 
+.tk-chat-canvas {
+  border: 1px solid rgba(233, 225, 217, 0.92);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98) 0%, rgba(248, 243, 236, 0.98) 100%);
+  box-shadow: 0 14px 40px rgba(22, 18, 14, 0.05);
+  padding: 14px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.tk-chat-canvas__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+
+.tk-chat-canvas__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.tk-chat-canvas__title {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.tk-chat-canvas__meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tk-chat-canvas__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tk-chat-canvas__field {
+  display: grid;
+  gap: 8px;
+}
+
+.tk-chat-canvas__field > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tk-chat-canvas__field textarea {
+  width: 100%;
+  min-height: 420px;
+  border-radius: 18px;
+  border: 1px solid rgba(233, 225, 217, 0.96);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  line-height: 1.65;
+  padding: 14px;
+  resize: vertical;
+}
+
+.tk-chat-canvas__field textarea:focus {
+  outline: 2px solid rgba(216, 94, 47, 0.2);
+  border-color: rgba(216, 94, 47, 0.48);
+}
+
+.tk-chat-canvas__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .tk-chat-team-panel {
   border: 1px solid rgba(233, 225, 217, 0.92);
   border-radius: 28px;
@@ -5108,9 +5184,14 @@ main {
 }
 
 .tk-msg__action-card {
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  border: 1px solid rgba(233, 225, 217, 0.96);
+  cursor: pointer;
   margin-top: 10px;
   padding: 10px;
-  border: 1px solid rgba(233, 225, 217, 0.96);
   border-radius: 12px;
   background: rgba(255, 252, 248, 0.9);
   display: grid;
@@ -5335,6 +5416,10 @@ main {
     padding: 16px;
   }
 
+  .tk-chat-canvas {
+    padding: 16px;
+  }
+
   .tk-chat-team-panel {
     padding: 16px;
   }
@@ -5346,6 +5431,19 @@ main {
 
   .tk-chat-review__actions {
     justify-content: flex-end;
+  }
+
+  .tk-chat-canvas__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tk-chat-canvas__actions {
+    justify-content: flex-start;
+  }
+
+  .tk-chat-canvas__field textarea {
+    min-height: 340px;
   }
 }
 

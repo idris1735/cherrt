@@ -13,6 +13,7 @@ const ACTION_CARD_SUFFIX = "]]";
 
 type ResultAction = {
   kind: string;
+  recordId?: string;
   title: string;
   note: string;
   href: string;
@@ -22,10 +23,25 @@ type ResultAction = {
 
 type InlineActionCard = {
   kind: string;
+  recordId?: string;
   title: string;
   note: string;
   href: string;
   cta: string;
+};
+
+type DraftCanvasState = {
+  id: string;
+  title: string;
+  type: "letter" | "invoice" | "memo";
+  body: string;
+  preparedBy: string;
+  status: "draft" | "pending" | "approved" | "in-progress" | "completed" | "flagged";
+  awaitingSignatureFrom?: string;
+  amount?: number;
+  createdAtLabel: string;
+  dirty: boolean;
+  lastSavedLabel: string;
 };
 
 const teamPrompts = [
@@ -134,6 +150,7 @@ function extractActionCardFromMessage(text: string): { body: string; card?: Inli
     }
 
     const kind = typeof card.kind === "string" ? card.kind : "record";
+    const recordId = typeof card.recordId === "string" ? card.recordId.trim() : undefined;
     const title = typeof card.title === "string" ? card.title.trim() : "";
     const note = typeof card.note === "string" ? card.note.trim() : "";
     const href = typeof card.href === "string" ? card.href.trim() : "";
@@ -147,7 +164,7 @@ function extractActionCardFromMessage(text: string): { body: string; card?: Inli
 
     return {
       body,
-      card: { kind, title, note, href, cta },
+      card: { kind, recordId, title, note, href, cta },
     };
   } catch {
     return { body: text };
@@ -158,10 +175,29 @@ function toInlineActionCard(action: ResultAction | null | undefined): InlineActi
   if (!action) return undefined;
   return {
     kind: action.kind,
+    recordId: action.recordId,
     title: action.title,
     note: action.note,
     href: action.href,
     cta: action.actionLabel,
+  };
+}
+
+function createDraftCanvasState(result: AiCommandResult): DraftCanvasState | null {
+  if (!result.generatedDocument) return null;
+
+  return {
+    id: result.generatedDocument.id,
+    title: result.generatedDocument.title,
+    type: result.generatedDocument.type,
+    body: result.generatedDocument.body,
+    preparedBy: result.generatedDocument.preparedBy,
+    status: result.generatedDocument.status,
+    awaitingSignatureFrom: result.generatedDocument.awaitingSignatureFrom,
+    amount: result.generatedDocument.amount,
+    createdAtLabel: result.generatedDocument.createdAtLabel,
+    dirty: false,
+    lastSavedLabel: "Just now",
   };
 }
 
@@ -174,6 +210,7 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string): 
   if (result.generatedDocument) {
     return {
       kind: "document",
+      recordId: result.generatedDocument.id,
       title: result.generatedDocument.title,
       note: `Saved in Smart Documents as a ${result.generatedDocument.type}.`,
       href: `${base}/documents/${result.generatedDocument.id}`,
@@ -241,13 +278,15 @@ function describeResult(result: AiCommandResult | null, workspaceSlug: string): 
 }
 
 export default function ToolkitChatPage() {
-  const { snapshot, addMessage, applyAiResult } = useAppState();
+  const { snapshot, addMessage, applyAiResult, upsertDocument } = useAppState();
   const aiConversation = snapshot.conversations.find((conversation) => conversation.mode === "ai") ?? snapshot.conversations[0];
   const teamConversation = snapshot.conversations.find((conversation) => conversation.mode === "team") ?? snapshot.conversations[0];
   const [mode, setMode] = useState<"ai" | "team">("ai");
   const [prompt, setPrompt] = useState("");
   const [loadingMode, setLoadingMode] = useState<"ai" | "team" | null>(null);
   const [lastResult, setLastResult] = useState<AiCommandResult | null>(null);
+  const [draftCanvas, setDraftCanvas] = useState<DraftCanvasState | null>(null);
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const [teamSearch, setTeamSearch] = useState("");
   const [teamDirectory, setTeamDirectory] = useState<Person[]>(snapshot.directory);
   const [activePersonId, setActivePersonId] = useState(snapshot.directory[0]?.id ?? "");
@@ -290,6 +329,39 @@ export default function ToolkitChatPage() {
     }
   }, [visibleTranscript, loadingMode, mode]);
 
+  useEffect(() => {
+    if (!draftCanvas || !draftCanvas.dirty) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const updated = {
+        id: draftCanvas.id,
+        title: draftCanvas.title,
+        type: draftCanvas.type,
+        body: draftCanvas.body,
+        status: draftCanvas.status,
+        preparedBy: draftCanvas.preparedBy,
+        awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
+        amount: draftCanvas.amount,
+        createdAtLabel: draftCanvas.createdAtLabel,
+      };
+
+      upsertDocument(updated);
+      setDraftCanvas((current) =>
+        current && current.id === draftCanvas.id
+          ? {
+              ...current,
+              dirty: false,
+              lastSavedLabel: "Saved now",
+            }
+          : current,
+      );
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [draftCanvas, upsertDocument]);
+
   async function sendAiMessage(text: string, conversationId: string) {
     addMessage(conversationId, {
       id: `u-${Date.now()}`,
@@ -305,7 +377,13 @@ export default function ToolkitChatPage() {
       const response = await fetch("/api/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }),
+        body: JSON.stringify({
+          prompt: text,
+          context: {
+            role: snapshot.membership.role,
+            enabledModules: snapshot.workspace.modules,
+          },
+        }),
       });
       if (!response.ok) {
         throw new Error("Command failed");
@@ -324,6 +402,12 @@ export default function ToolkitChatPage() {
 
       applyAiResult(payload);
       setLastResult(payload);
+
+      const nextDraft = createDraftCanvasState(payload);
+      if (nextDraft) {
+        setDraftCanvas(nextDraft);
+        setCanvasOpen(true);
+      }
     } catch {
       addMessage(conversationId, {
         id: `err-${Date.now()}`,
@@ -374,6 +458,27 @@ export default function ToolkitChatPage() {
     }
 
     sendTeamMessage(clean, currentConversation.id);
+  }
+
+  function openDraftFromCard(recordId?: string) {
+    if (!recordId) return;
+    const document = snapshot.documents.find((item) => item.id === recordId);
+    if (!document) return;
+
+    setDraftCanvas({
+      id: document.id,
+      title: document.title,
+      type: document.type,
+      body: document.body,
+      preparedBy: document.preparedBy,
+      status: document.status,
+      awaitingSignatureFrom: document.awaitingSignatureFrom,
+      amount: document.amount,
+      createdAtLabel: document.createdAtLabel,
+      dirty: false,
+      lastSavedLabel: "Loaded",
+    });
+    setCanvasOpen(true);
   }
 
   function handleSubmit(event: FormEvent) {
@@ -462,16 +567,30 @@ export default function ToolkitChatPage() {
                 <div className="tk-msg__bubble">
                   {(() => {
                     const parsed = extractActionCardFromMessage(message.text);
+                    const card = parsed.card;
                     return (
                       <>
                         {renderMessageText(parsed.body)}
-                        {parsed.card ? (
-                          <Link className="tk-msg__action-card" href={parsed.card.href}>
-                            <span className="tk-msg__action-kind">{parsed.card.kind}</span>
-                            <strong className="tk-msg__action-title">{parsed.card.title}</strong>
-                            {parsed.card.note ? <p className="tk-msg__action-note">{parsed.card.note}</p> : null}
-                            <span className="tk-msg__action-cta">{parsed.card.cta}</span>
-                          </Link>
+                        {card ? (
+                          card.kind === "document" && card.recordId ? (
+                            <button
+                              className="tk-msg__action-card"
+                              onClick={() => openDraftFromCard(card.recordId)}
+                              type="button"
+                            >
+                              <span className="tk-msg__action-kind">{card.kind}</span>
+                              <strong className="tk-msg__action-title">{card.title}</strong>
+                              {card.note ? <p className="tk-msg__action-note">{card.note}</p> : null}
+                              <span className="tk-msg__action-cta">Open in canvas</span>
+                            </button>
+                          ) : (
+                            <Link className="tk-msg__action-card" href={card.href}>
+                              <span className="tk-msg__action-kind">{card.kind}</span>
+                              <strong className="tk-msg__action-title">{card.title}</strong>
+                              {card.note ? <p className="tk-msg__action-note">{card.note}</p> : null}
+                              <span className="tk-msg__action-cta">{card.cta}</span>
+                            </Link>
+                          )
                         ) : null}
                       </>
                     );
@@ -527,7 +646,78 @@ export default function ToolkitChatPage() {
         </div>
       </div>
 
-      {mode === "ai" && lastResult && latestAction ? (
+      {mode === "ai" && canvasOpen && draftCanvas ? (
+        <aside className="tk-chat-canvas" aria-label="Writing canvas">
+          <div className="tk-chat-canvas__head">
+            <div className="tk-chat-canvas__copy">
+              <p className="tk-eyebrow">AI writing canvas</p>
+              <strong className="tk-chat-canvas__title">{draftCanvas.title}</strong>
+              <span className="tk-chat-canvas__meta">
+                {draftCanvas.type} • {draftCanvas.lastSavedLabel}
+              </span>
+            </div>
+            <div className="tk-chat-canvas__actions">
+              <button
+                className="button button--ghost"
+                onClick={() => {
+                  upsertDocument({
+                    id: draftCanvas.id,
+                    title: draftCanvas.title,
+                    type: draftCanvas.type,
+                    body: draftCanvas.body,
+                    status: draftCanvas.status,
+                    preparedBy: draftCanvas.preparedBy,
+                    awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
+                    amount: draftCanvas.amount,
+                    createdAtLabel: draftCanvas.createdAtLabel,
+                  });
+                  setDraftCanvas((current) => (current ? { ...current, dirty: false, lastSavedLabel: "Saved now" } : current));
+                }}
+                type="button"
+              >
+                Save now
+              </button>
+              <button className="button button--ghost" onClick={() => setCanvasOpen(false)} type="button">
+                Close
+              </button>
+              <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/modules/toolkit/documents/${draftCanvas.id}`}>
+                Open full view
+              </Link>
+            </div>
+          </div>
+
+          <label className="tk-chat-canvas__field">
+            <span>Draft body</span>
+            <textarea
+              onChange={(event) =>
+                setDraftCanvas((current) =>
+                  current
+                    ? {
+                        ...current,
+                        body: event.target.value,
+                        dirty: true,
+                        lastSavedLabel: "Saving…",
+                      }
+                    : current,
+                )
+              }
+              value={draftCanvas.body}
+            />
+          </label>
+
+          <div className="tk-chat-canvas__foot">
+            <button className="tk-chat__chip" onClick={() => void send(`Improve this draft for clarity:\n\n${draftCanvas.body}`)} type="button">
+              Improve clarity
+            </button>
+            <button className="tk-chat__chip" onClick={() => void send(`Make this draft more formal and executive-friendly:\n\n${draftCanvas.body}`)} type="button">
+              Make formal
+            </button>
+            <button className="tk-chat__chip" onClick={() => void send(`Shorten this draft while keeping key points:\n\n${draftCanvas.body}`)} type="button">
+              Shorten draft
+            </button>
+          </div>
+        </aside>
+      ) : mode === "ai" && lastResult && latestAction ? (
         <aside className="tk-chat-process-panel" aria-label="Current process">
           <div className="tk-chat-review">
             <div className="tk-chat-review__header">
