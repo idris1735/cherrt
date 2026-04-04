@@ -150,6 +150,18 @@ export interface GivingRecord {
   amount: number;
   channel: string;
   service: string;
+  churchName?: string;
+  virtualAccount?: string;
+  givingType?: string;
+  createdAtLabel?: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  label: string;
+  amount: number;
+  type: "credit" | "debit";
+  createdAt: number;
 }
 
 export interface CareRequest {
@@ -246,6 +258,7 @@ export interface Message {
   speaker: "user" | "assistant" | "teammate" | "system";
   text: string;
   timeLabel: string;
+  createdAt?: number; // Unix ms timestamp
 }
 
 export interface Conversation {
@@ -310,13 +323,19 @@ export interface SuggestedArtifact {
     | "issue"
     | "expense-log"
     | "poll"
-    | "directory";
+    | "directory"
+    | "giving";
   headline: string;
   supportingText: string;
 }
 
 export interface AiCommandResult {
   reply: string;
+  pendingConfirmation?: {
+    summary: string;
+    actionKey: string;
+    previewTitle: string;
+  };
   artifact?: SuggestedArtifact;
   generatedDocument?: SmartDocument;
   generatedRequest?: WorkflowRequest;
@@ -328,4 +347,5 @@ export interface AiCommandResult {
   generatedExpenseEntry?: ExpenseEntry;
   generatedPoll?: FeedbackPoll;
   generatedPerson?: Person;
+  generatedGivingRecord?: GivingRecord;
 }

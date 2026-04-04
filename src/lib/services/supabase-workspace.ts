@@ -312,23 +312,6 @@ function mapPerson(row: PersonRow): Person {
   };
 }
 
-function createDefaultConversations(workspaceSlug: string): Conversation[] {
-  return [
-    {
-      id: `local-ai-${workspaceSlug}`,
-      title: "Operations Assistant",
-      mode: "ai",
-      messages: [],
-    },
-    {
-      id: `local-team-${workspaceSlug}`,
-      title: "Business Toolkit Team",
-      mode: "team",
-      messages: [],
-    },
-  ];
-}
-
 function buildToolkitActivities(snapshot: WorkspaceSnapshot) {
   const otherActivities = snapshot.activities.filter((activity) => activity.module !== "toolkit");
   const toolkitActivities = [
@@ -377,29 +360,19 @@ async function isTableAvailable(table: string) {
   return available;
 }
 
-async function ensureWorkspaceRow(snapshot: WorkspaceSnapshot) {
+async function findWorkspaceRowById(workspaceId: string) {
   const supabase = getSupabaseBrowserClient() as any;
-  if (!supabase || !(await isTableAvailable("workspaces"))) {
+  if (!supabase || !(await isTableAvailable("workspaces")) || !isUuid(workspaceId)) {
     return null;
   }
 
   const { data, error } = await supabase
     .from("workspaces")
-    .upsert(
-      {
-        slug: snapshot.workspace.slug,
-        name: snapshot.workspace.name,
-        legal_name: snapshot.workspace.legalName,
-        city: snapshot.workspace.city,
-        timezone: snapshot.workspace.timezone,
-      },
-      { onConflict: "slug" },
-    )
     .select("id, slug, name, legal_name, city, timezone")
-    .single();
+    .eq("id", workspaceId)
+    .maybeSingle();
 
-  if (error) {
-    console.error("Supabase workspace upsert failed:", error.message);
+  if (error || !data) {
     return null;
   }
 
@@ -423,6 +396,15 @@ async function findWorkspaceRowBySlug(workspaceSlug: string) {
   }
 
   return data as WorkspaceRow;
+}
+
+async function resolveWorkspaceRowForWrite(snapshot: WorkspaceSnapshot) {
+  const byId = await findWorkspaceRowById(snapshot.workspace.id);
+  if (byId) {
+    return byId;
+  }
+
+  return findWorkspaceRowBySlug(snapshot.workspace.slug);
 }
 
 export async function workspaceExistsInSupabase(workspaceSlug: string) {
@@ -481,7 +463,28 @@ async function ensureConversationRow(workspaceId: string, conversation: Conversa
     }
 
     if (byId) {
-      return byId as ConversationRow;
+      const existing = byId as ConversationRow;
+      if (existing.title === conversation.title && existing.mode === conversation.mode) {
+        return existing;
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from("conversations")
+        .update({
+          title: conversation.title,
+          mode: conversation.mode,
+        })
+        .eq("id", existing.id)
+        .eq("workspace_id", workspaceId)
+        .select("id, mode, title")
+        .maybeSingle();
+
+      if (updateError) {
+        console.error("Supabase conversation update failed:", updateError.message);
+        return existing;
+      }
+
+      return (updated as ConversationRow) ?? existing;
     }
   }
 
@@ -531,7 +534,7 @@ export async function persistConversation(snapshot: WorkspaceSnapshot, conversat
     return false;
   }
 
-  const workspace = await ensureWorkspaceRow(snapshot);
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
   if (!workspace) {
     return false;
   }
@@ -611,7 +614,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
           .from("conversations")
           .select("id, mode, title")
           .eq("workspace_id", workspaceRow.id)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as ConversationRow[], error: null }),
     canLoadPaymentLinks
       ? supabase
@@ -743,7 +746,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
         mode: conversation.mode,
         messages: messagesByConversation.get(conversation.id) ?? [],
       }))
-    : createDefaultConversations(workspaceSlug);
+    : [];
 
   snapshot.activities = buildToolkitActivities(snapshot);
   return snapshot;
@@ -808,7 +811,7 @@ export async function subscribeToWorkspaceSnapshot(
     }, 150);
   };
 
-  const channel: RealtimeChannel = supabase.channel(`workspace-sync:${workspaceRow.id}`);
+  const channel: RealtimeChannel = supabase.channel(`workspace-sync:${workspaceRow.id}-${Date.now()}`);
 
   for (const table of availableTables) {
     const filter =
@@ -835,7 +838,7 @@ export async function persistConversationMessage(snapshot: WorkspaceSnapshot, co
     return false;
   }
 
-  const workspace = await ensureWorkspaceRow(snapshot);
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
   if (!workspace) {
     return false;
   }
@@ -865,7 +868,7 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
     return false;
   }
 
-  const workspace = await ensureWorkspaceRow(snapshot);
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
   if (!workspace) {
     return false;
   }
@@ -1061,7 +1064,7 @@ export async function persistSmartDocumentDraft(snapshot: WorkspaceSnapshot, doc
     return false;
   }
 
-  const workspace = await ensureWorkspaceRow(snapshot);
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
   if (!workspace) {
     return false;
   }
@@ -1086,9 +1089,44 @@ export async function persistSmartDocumentDraft(snapshot: WorkspaceSnapshot, doc
   return true;
 }
 
+export async function deleteConversationFromSupabase(snapshot: WorkspaceSnapshot, conversationId: string) {
+  const supabase = getSupabaseBrowserClient() as any;
+  if (!supabase || !(await isTableAvailable("conversations"))) {
+    return false;
+  }
+
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
+  if (!workspace) {
+    return false;
+  }
+
+  // Delete messages first, then the conversation
+  if (await isTableAvailable("messages")) {
+    await supabase.from("messages").delete().eq("conversation_id", conversationId);
+  }
+
+  const { error } = await supabase
+    .from("conversations")
+    .delete()
+    .eq("id", conversationId)
+    .eq("workspace_id", workspace.id);
+
+  if (error) {
+    console.error("Supabase conversation delete failed:", error.message);
+    return false;
+  }
+
+  return true;
+}
+
 export async function persistApprovedRequest(snapshot: WorkspaceSnapshot, requestId: string) {
   const supabase = getSupabaseBrowserClient() as any;
   if (!supabase || !(await isTableAvailable("workflow_requests"))) {
+    return false;
+  }
+
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
+  if (!workspace) {
     return false;
   }
 
@@ -1096,7 +1134,7 @@ export async function persistApprovedRequest(snapshot: WorkspaceSnapshot, reques
     .from("workflow_requests")
     .update({ status: "approved" })
     .eq("id", requestId)
-    .eq("workspace_id", snapshot.workspace.id);
+    .eq("workspace_id", workspace.id);
 
   if (error) {
     console.error("Supabase request approval failed:", error.message);

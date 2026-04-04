@@ -76,6 +76,14 @@ export function rememberLastWorkspaceSlug(slug: string) {
   window.localStorage.setItem(LAST_WORKSPACE_KEY, slug);
 }
 
+export function clearLastWorkspaceSlug() {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.removeItem(LAST_WORKSPACE_KEY);
+}
+
 export function slugifyWorkspaceName(value: string) {
   const slug = value
     .toLowerCase()

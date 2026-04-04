@@ -52,7 +52,7 @@ export default function ToolkitExpensesPage() {
               {pendingCount > 0 ? ` ${pendingCount} awaiting approval.` : ""}
             </p>
           </div>
-          <Link className="button button--primary" href={`${base}/chat`}>
+          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
             Log expense
           </Link>
         </div>
@@ -230,7 +230,7 @@ export default function ToolkitExpensesPage() {
               <Link className="button button--ghost" href={`${base}/requests`} onClick={() => setSelected(null)}>
                 View request
               </Link>
-              <Link className="tk-inline-link" href={`${base}/chat`} onClick={() => setSelected(null)}>
+              <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`} onClick={() => setSelected(null)}>
                 Update in chat
               </Link>
             </div>
@@ -240,3 +240,4 @@ export default function ToolkitExpensesPage() {
     </>
   );
 }
+

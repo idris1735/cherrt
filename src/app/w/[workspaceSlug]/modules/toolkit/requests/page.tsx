@@ -69,7 +69,7 @@ export default function ToolkitRequestsPage() {
               Raise work in chat, then follow ownership, amount, and approval pressure from one clean queue.
             </p>
           </div>
-          <Link className="button button--primary" href={`${base}/chat`}>
+          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
             Raise request
           </Link>
         </div>
@@ -211,7 +211,7 @@ export default function ToolkitRequestsPage() {
                   <Link className="button button--ghost" href={`${base}/requests/${nextApproval.id}`}>
                     Open request
                   </Link>
-                  <Link className="tk-inline-link" href={`${base}/chat`}>
+                  <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
                     Raise another
                   </Link>
                 </div>
@@ -247,7 +247,7 @@ export default function ToolkitRequestsPage() {
                 </Link>
               ) : null}
 
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                 <strong>Best way to raise work</strong>
                 <p>Describe the request in plain language and Chertt will structure it, route it, and keep it visible here.</p>
               </Link>
@@ -258,3 +258,4 @@ export default function ToolkitRequestsPage() {
     </div>
   );
 }
+

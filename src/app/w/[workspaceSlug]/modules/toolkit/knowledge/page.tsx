@@ -19,7 +19,7 @@ export default function ToolkitKnowledgePage() {
             Process notes, compliance documents, FAQs, and common answers that Chertt can recall in chat.
           </p>
         </div>
-        <Link className="tk-inline-link" href={`${base}/chat`}>
+        <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
           Ask in chat
         </Link>
       </div>
@@ -58,7 +58,7 @@ export default function ToolkitKnowledgePage() {
           </p>
 
           <div className="tk-card__actions">
-            <Link className="button button--primary" href={`${base}/chat`}>
+            <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
               Open chat to ask
             </Link>
           </div>
@@ -75,7 +75,7 @@ export default function ToolkitKnowledgePage() {
           </div>
           <div className="tk-mini-stack">
             {toolkitProcessDocuments.map((doc) => (
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`} key={doc}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`} key={doc}>
                 <strong>{doc}</strong>
                 <p>Saved process note. Ask in chat to retrieve the right steps for this task.</p>
               </Link>
@@ -92,7 +92,7 @@ export default function ToolkitKnowledgePage() {
           </div>
           <div className="tk-mini-stack">
             {toolkitFaqTopics.map((topic) => (
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`} key={topic}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`} key={topic}>
                 <strong>{topic}</strong>
                 <p>Ask Chertt to pull the relevant answer and next operational step.</p>
               </Link>
@@ -114,3 +114,4 @@ export default function ToolkitKnowledgePage() {
     </div>
   );
 }
+

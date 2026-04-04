@@ -4,6 +4,7 @@ import type {
   ExpenseEntry,
   FeedbackPoll,
   FormDefinition,
+  GivingRecord,
   InventoryItem,
   Person,
   SmartDocument,
@@ -26,6 +27,7 @@ const artifactKinds = new Set([
   "expense-log",
   "poll",
   "directory",
+  "giving",
 ]);
 const moduleKeys = new Set(["toolkit", "church", "store", "events"]);
 const issueSeverities = new Set(["low", "medium", "high"]);
@@ -61,7 +63,7 @@ function normalizeDocument(document: SmartDocument | undefined) {
     ...document,
     title,
     body,
-    preparedBy: toCleanString(document.preparedBy, "Chertt AI"),
+    preparedBy: toCleanString(document.preparedBy, "You"),
     status: toStatus(document.status),
     createdAtLabel: toCleanString(document.createdAtLabel, "Just now"),
   } satisfies SmartDocument;
@@ -73,7 +75,7 @@ function normalizeRequest(request: WorkflowRequest | undefined) {
 
   const title = toCleanString(request.title);
   const description = toCleanString(request.description);
-  const requester = toCleanString(request.requester, "Chertt AI");
+  const requester = toCleanString(request.requester, "You");
   if (!title || !description) return undefined;
 
   return {
@@ -111,7 +113,7 @@ function normalizeAppointment(appointment: Appointment | undefined) {
     ...appointment,
     title,
     when,
-    owner: toCleanString(appointment.owner, "Chertt AI"),
+    owner: toCleanString(appointment.owner, "You"),
   } satisfies Appointment;
 }
 
@@ -123,7 +125,7 @@ function normalizeForm(form: FormDefinition | undefined) {
   return {
     ...form,
     name,
-    owner: toCleanString(form.owner, "Chertt AI"),
+    owner: toCleanString(form.owner, "You"),
     submissions: typeof form.submissions === "number" && Number.isFinite(form.submissions) ? Math.max(0, form.submissions) : 0,
   } satisfies FormDefinition;
 }
@@ -155,7 +157,7 @@ function normalizeIssue(issue: AiCommandResult["generatedIssueReport"]) {
     ...issue,
     title,
     area,
-    reportedBy: toCleanString(issue.reportedBy, "Chertt AI"),
+    reportedBy: toCleanString(issue.reportedBy, "You"),
     status: toStatus(issue.status),
     mediaCount: typeof issue.mediaCount === "number" && Number.isFinite(issue.mediaCount) ? Math.max(0, Math.round(issue.mediaCount)) : 0,
   };
@@ -190,7 +192,7 @@ function normalizePoll(poll: FeedbackPoll | undefined) {
     ...poll,
     title,
     audience: toCleanString(poll.audience, "All staff"),
-    owner: toCleanString(poll.owner, "Chertt AI"),
+    owner: toCleanString(poll.owner, "You"),
     questionCount: typeof poll.questionCount === "number" && Number.isFinite(poll.questionCount) ? Math.max(1, Math.round(poll.questionCount)) : 1,
     responseCount: typeof poll.responseCount === "number" && Number.isFinite(poll.responseCount) ? Math.max(0, Math.round(poll.responseCount)) : 0,
     targetCount: typeof poll.targetCount === "number" && Number.isFinite(poll.targetCount) ? Math.max(0, Math.round(poll.targetCount)) : 0,
@@ -212,6 +214,21 @@ function normalizePerson(person: Person | undefined) {
   } satisfies Person;
 }
 
+function normalizeGiving(record: GivingRecord | undefined) {
+  if (!record) return undefined;
+  const churchName = toCleanString(record.churchName);
+  if (!churchName || typeof record.amount !== "number" || record.amount <= 0) return undefined;
+
+  return {
+    ...record,
+    churchName,
+    donor: toCleanString(record.donor, "You"),
+    channel: toCleanString(record.channel, "virtual-transfer"),
+    service: toCleanString(record.service, "giving"),
+    createdAtLabel: toCleanString(record.createdAtLabel, "Just now"),
+  } satisfies GivingRecord;
+}
+
 export function normalizeAiCommandResult(input: AiCommandResult): AiCommandResult {
   const reply = toCleanString(input.reply, "Done. Your request has been captured.");
 
@@ -226,7 +243,8 @@ export function normalizeAiCommandResult(input: AiCommandResult): AiCommandResul
 
   return {
     reply,
-    artifact: artifact?.headline ? artifact : undefined,
+    pendingConfirmation: input.pendingConfirmation,
+    artifact: artifact?.headline ? (artifact as AiCommandResult["artifact"]) : undefined,
     generatedDocument: normalizeDocument(input.generatedDocument),
     generatedRequest: normalizeRequest(input.generatedRequest),
     generatedPaymentLink: input.generatedPaymentLink
@@ -252,5 +270,6 @@ export function normalizeAiCommandResult(input: AiCommandResult): AiCommandResul
     generatedExpenseEntry: normalizeExpense(input.generatedExpenseEntry),
     generatedPoll: normalizePoll(input.generatedPoll),
     generatedPerson: normalizePerson(input.generatedPerson),
+    generatedGivingRecord: normalizeGiving(input.generatedGivingRecord),
   };
 }

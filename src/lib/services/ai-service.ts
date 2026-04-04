@@ -10,6 +10,7 @@ import type {
   ExpenseEntry,
   FeedbackPoll,
   FormDefinition,
+  GivingRecord,
   InventoryItem,
   ModuleKey,
   PaymentLink,
@@ -39,6 +40,7 @@ type GeminiResponse = {
     | "expense-log"
     | "poll"
     | "directory"
+    | "giving"
     | "none";
   artifactHeadline: string;
   artifactDetail: string;
@@ -76,48 +78,71 @@ type GeminiResponse = {
   directoryTitle: string;
   directoryUnit: string;
   directoryPhone: string;
+  givingChurchName: string;
+  givingAmount: number | null;
+  givingType: string;
 };
 
 export type CommandExecutionContext = {
   role?: Role;
   enabledModules?: ModuleKey[];
+  history?: Array<{ speaker: string; text: string }>;
+  memoryContext?: string;
+  userName?: string;
+  userTitle?: string;
+  userOrganization?: string;
 };
 
-const SYSTEM_PROMPT = `You are Chertt AI inside the Business Toolkit module of Chertt, a chat-first operations app for organizations.
+const SYSTEM_PROMPT = `You are Chertt, a chat-first AI assistant for organizations. You handle all operational, financial, administrative, and community work through natural conversation.
 
 Role:
-- You are an operational AI assistant for internal business work.
-- You think like an operations lead, admin desk, facilities coordinator, finance coordinator, and executive assistant combined.
-- You do not answer like a generic chatbot. You answer like someone helping a real organization move work forward.
+- You think like an operations lead, finance coordinator, admin desk, facilities manager, pastoral coordinator, and executive assistant combined.
+- You do not answer like a generic chatbot. You answer like someone helping a real organization move work forward efficiently.
 
-Business Toolkit scope:
-- smart documents with approval and signature routing
-- requests and approvals for expense, supply, repair, and admin work
-- inventory and stock checks
-- issue and facility reporting
-- petty cash and expense logging
-- simple forms
-- appointments and scheduling
-- FAQs, process notes, and internal operations memory
-- staff onboarding and staff directory lookups
+What you handle:
+- Documents: letters, memos, invoices, contracts — draft, route for signature, approve
+- Requests and approvals: expense, supply, maintenance, admin approvals
+- Finance: log expenses, create payment links, record invoices, track giving and offerings
+- People: staff directory entries, onboarding, appointments and scheduling
+- Operations: inventory, stock levels, facility issue reporting
+- Church and community: giving records, tithes, offerings, church payments, child check-ins, care requests, pastoral notes
+- Events: registrations, tickets, guest management
+- Store: orders, products, payment collection, receipts
+
+Memory and history:
+- You receive the recent conversation history and a snapshot of workspace records.
+- Use this context to answer historical questions like "what was that last payment?", "show me my pending requests", "what did I pay last week?", "pull up that document".
+- Reference specific records by name, amount, date, or status when answering.
+- If the user references something from a previous message, check the conversation history first.
+
+Payments and giving:
+- Church payments (tithes, offerings, donations to a church): use artifactKind "giving". Set givingChurchName to the church name, givingAmount to the amount, givingType to "tithe" | "offering" | "donation" | "pledge".
+- If the user wants to pay/give to a church but hasn't said which church: ask in the reply with artifactKind "none".
+- If the amount is not mentioned for giving or payment-link: ask for it in the reply, use artifactKind "none".
+- Payment links for collecting money from others: use artifactKind "payment-link" with requestAmount.
+- Logging expenses or petty cash: use artifactKind "expense-log".
+- You CANNOT (yet): execute actual live bank transfers — that requires payment gateway integration. Tell the user this clearly if they ask.
 
 Product behavior:
-- Chat-first means the user may speak naturally and casually.
-- When possible, translate messy requests into clean structured work.
-- If the user asks for something incomplete, make a sensible first draft instead of refusing.
-- Only ask for missing details when they are truly necessary.
-- Prefer practical next steps over abstract advice.
-- Do not use time-based greetings like good morning, good afternoon, or good evening unless the user uses them first.
-- Do not sound like a generic chatbot or personal assistant.
-- Avoid filler lines like "How can I help you today?" or "I'm here to help."
-- Lead with the work: what you understood, what you created, or what the next operational step is.
+- Chat-first: users speak naturally and casually. Translate messy requests into clean structured work.
+- Make a sensible first draft instead of refusing incomplete requests.
+- Do not use time-based greetings unless the user uses them first.
+- Avoid filler lines like "How can I help today?" or "I'm here to help."
+- Lead with the work: what you understood, what you created, or what the next step is.
+- Keep replies short and warm — they display inside a mobile chat bubble.
 
-Return valid JSON only. No markdown. No code fences. No commentary outside JSON.
+Identity rules:
+- NEVER use "Chertt AI" as an author, preparedBy, requester, reportedBy, owner, or any person name in created records.
+- The user's real name and title are provided in the identity block. Use them everywhere — document closings, request raisers, appointment owners.
+- For letters: close with "Warm regards,\n[Full Name]\n[Job Title]" using the real identity. If no title is known, just the name.
+- For memos: preparedBy is the real name. Sign-off in the document body uses the real name.
+
+Return valid JSON only. No code fences. No commentary outside JSON.
 
 Use this exact shape:
 {
   "reply": "short direct response",
-  "artifactKind": "document" | "request" | "payment-link" | "appointment" | "form" | "inventory" | "issue" | "expense-log" | "poll" | "directory" | "none",
+  "artifactKind": "document" | "request" | "payment-link" | "appointment" | "form" | "inventory" | "issue" | "expense-log" | "poll" | "directory" | "giving" | "none",
   "artifactHeadline": "short title or empty string",
   "artifactDetail": "one sentence or empty string",
   "documentTitle": "string",
@@ -128,7 +153,7 @@ Use this exact shape:
   "requestType": "Expense" | "Maintenance" | "Approval" | "Supply" | "",
   "requestAmount": null or number,
   "appointmentTitle": "string",
-  "appointmentWhen": "string",
+  "appointmentWhen": "ISO date-time string or natural date e.g. 2026-04-10 or 2026-04-10T10:00",
   "appointmentOwner": "string",
   "formName": "string",
   "formOwner": "string",
@@ -153,7 +178,10 @@ Use this exact shape:
   "directoryName": "string",
   "directoryTitle": "string",
   "directoryUnit": "string",
-  "directoryPhone": "string"
+  "directoryPhone": "string",
+  "givingChurchName": "string",
+  "givingAmount": null or number,
+  "givingType": "tithe" | "offering" | "donation" | "pledge" | ""
 }
 
 Rules:
@@ -161,23 +189,26 @@ Rules:
 - If the user asks to draft or write a report, summary, memo, or formal note, prefer artifactKind "document" with documentType "memo" unless they are clearly reporting a live operational issue.
 - Expense, repairs, approvals, supplies -> artifactKind "request"
 - Payment links and invoice collection -> artifactKind "payment-link"
-- Scheduling meetings or visits -> artifactKind "appointment"
+- Scheduling meetings or visits -> artifactKind "appointment"; appointmentWhen should be a proper date string like "2026-04-10" or "2026-04-10 10:00 AM" — never vague like "tomorrow" or "next week"
 - Creating internal forms -> artifactKind "form"
 - Adding or updating stock items -> artifactKind "inventory"
 - Logging facility incidents or faults -> artifactKind "issue"
 - Logging petty cash or ledger expenses -> artifactKind "expense-log"
 - Creating surveys, polls, or feedback forms -> artifactKind "poll"
 - Adding a staff contact card -> artifactKind "directory"
+- Paying tithes, offerings, or donations to a church -> artifactKind "giving"
 - Directory lookup, FAQ, or process recall without creating a new record -> artifactKind "none"
+- IMPORTANT: If a payment or giving amount is not specified, set artifactKind to "none" and ask for the amount in the reply.
 - Keep the reply warm, concise, and product-aware.
 - The reply should read well inside a mobile chat bubble.
-- Use 1 to 4 short paragraphs or short lines, not one long block.
-- Plain text only. No markdown bullets, no numbering, no code fences.
+- You may use markdown in the reply: **bold** for key terms or names, bullet lists (- item) for steps or options, numbered lists for sequences. Keep formatting purposeful — do not over-format a one-line answer.
 - Keep the tone calm, capable, and operational.
 - If you create a record, say what you created and what happens next.
 - If you recall knowledge, give the answer directly and include the most useful next action.
 - If you draft a document body, make it polished, professional, and ready for review.
-- Prefer Business Toolkit use cases only.`;
+- For documentBody with documentType "memo": use markdown — ## for section headers (## Summary, ## Context, ## Next Actions), - for bullet lists.
+- For documentBody with documentType "letter": use standard letter format — salutation line, body paragraphs, closing and name. No markdown headers.
+- For documentBody with documentType "invoice": use a clean structured format — recipient info, itemised list with amounts, total line. Use markdown ## for section headings.`;
 
 function formatReply(reply: string) {
   return reply
@@ -202,7 +233,7 @@ function toSentence(value: string) {
   return /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
 }
 
-function buildFallbackLetterDraft(prompt: string) {
+function buildFallbackLetterDraft(prompt: string, author = "You") {
   const cleanPrompt = prompt.trim().replace(/\s+/g, " ");
 
   const recipientMatch =
@@ -222,7 +253,7 @@ function buildFallbackLetterDraft(prompt: string) {
   const title = recipient ? `Letter to ${recipient}` : "Draft letter";
   const salutation = recipient ? `Dear ${recipient},` : "Dear Team,";
 
-  const body = `${salutation}\n\n${intentLine}\n\nI wanted to put this in writing so the message is clear and sincere.\n\nWarm regards,\nChertt AI`;
+  const body = `${salutation}\n\n${intentLine}\n\nI wanted to put this in writing so the message is clear and sincere.\n\nWarm regards,\n${author}`;
 
   return {
     title,
@@ -236,7 +267,7 @@ function buildFallbackMemoDraft(prompt: string) {
 
   return {
     title: "Operational memo draft",
-    body: `Summary\n${summary}\n\nContext\nThis draft was prepared from your prompt and is ready for review.\n\nNext actions\n- Confirm owners\n- Confirm timeline\n- Route for approval if needed`,
+    body: `## Summary\n\n${summary}\n\n## Context\n\nThis draft was prepared from your prompt and is ready for review and editing.\n\n## Next actions\n\n- Confirm owners and responsibilities\n- Confirm timeline and deadlines\n- Route for approval if required`,
   };
 }
 
@@ -249,20 +280,48 @@ function getGeminiClient() {
   return new GoogleGenAI({ apiKey });
 }
 
-async function callGemini(prompt: string, capabilityId: string, capabilityTitle: string): Promise<GeminiResponse> {
+async function callGemini(
+  prompt: string,
+  capabilityId: string,
+  capabilityTitle: string,
+  history?: Array<{ speaker: string; text: string }>,
+  memoryContext?: string,
+  userName?: string,
+  userTitle?: string,
+  userOrganization?: string,
+): Promise<GeminiResponse> {
   const client = getGeminiClient();
 
   if (!client) {
     throw new Error("Gemini API key is not configured.");
   }
 
+  const identityParts: string[] = [];
+  if (userName) identityParts.push(`Name: ${userName}`);
+  if (userTitle) identityParts.push(`Title: ${userTitle}`);
+  if (userOrganization) identityParts.push(`Organization: ${userOrganization}`);
+  const identityBlock = identityParts.length
+    ? `\n\n[User identity — use in all documents and records]\n${identityParts.join("\n")}`
+    : "";
+
+  const historyBlock =
+    history && history.length > 0
+      ? `\n\n[Recent conversation]\n${history.map((m) => `${m.speaker === "user" ? "User" : "Chertt"}: ${m.text.slice(0, 400)}`).join("\n")}`
+      : "";
+
+  const memoryBlock = memoryContext
+    ? `\n\n[Workspace records]\n${memoryContext}`
+    : "";
+
+  const contents = `${SYSTEM_PROMPT}${identityBlock}${historyBlock}${memoryBlock}\n\nCapability: ${capabilityId} (${capabilityTitle})\nUser: ${prompt}`;
+
   const response = await client.models.generateContent({
     model: "gemini-2.5-flash",
-    contents: `${SYSTEM_PROMPT}\n\nTarget capability: ${capabilityId} (${capabilityTitle})\nUser request: ${prompt}`,
+    contents,
     config: {
       responseMimeType: "application/json",
       temperature: 0.5,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 1200,
     },
   });
 
@@ -270,14 +329,18 @@ async function callGemini(prompt: string, capabilityId: string, capabilityTitle:
   return JSON.parse(raw) as GeminiResponse;
 }
 
-function buildDocument(title: string, body: string, type: SmartDocument["type"]): SmartDocument {
+function resolveAuthor(context: CommandExecutionContext): string {
+  return context.userName?.trim() || "You";
+}
+
+function buildDocument(title: string, body: string, type: SmartDocument["type"], author = "You"): SmartDocument {
   return {
     id: createId("doc"),
     title: title || "Untitled document",
     type,
     body,
     status: "pending",
-    preparedBy: "Chertt AI",
+    preparedBy: author,
     awaitingSignatureFrom: "Workspace approver",
     createdAtLabel: "Just now",
   };
@@ -294,9 +357,9 @@ function buildRequest(opts: {
   return {
     id: createId("req"),
     type: opts.type || "Expense",
-    title: opts.title || "AI-raised request",
+    title: opts.title || "Raised request",
     description: opts.description || "",
-    requester: opts.requester || "Chertt AI",
+    requester: opts.requester || "You",
     amount: opts.amount ?? undefined,
     status: "pending",
     module: opts.module || "toolkit",
@@ -334,7 +397,7 @@ function buildAppointment(title: string, when: string, owner: string): Appointme
     id: createId("appt"),
     title: title || "New appointment",
     when: when || "To be scheduled",
-    owner: owner || "Chertt AI",
+    owner: owner || "You",
   };
 }
 
@@ -343,7 +406,7 @@ function buildForm(name: string, owner: string): FormDefinition {
     id: createId("form"),
     name: name || "New internal form",
     submissions: 0,
-    owner: owner || "Chertt AI",
+    owner: owner || "You",
   };
 }
 
@@ -377,7 +440,7 @@ function buildIssueReport(opts: {
     severity: opts.severity || "medium",
     status: opts.status || "pending",
     mediaCount: 0,
-    reportedBy: opts.reportedBy || "Chertt AI",
+    reportedBy: opts.reportedBy || "You",
   };
 }
 
@@ -409,7 +472,7 @@ function buildPoll(opts: {
     title: opts.title || "New feedback poll",
     lane: opts.lane || "pulse",
     audience: opts.audience || "All staff",
-    owner: opts.owner || "Chertt AI",
+    owner: opts.owner || "You",
     questionCount: typeof opts.questionCount === "number" ? Math.max(1, Math.round(opts.questionCount)) : 5,
     responseCount: 0,
     targetCount: 40,
@@ -430,6 +493,37 @@ function buildPerson(opts: {
     title: opts.title || "Team member",
     unit: opts.unit || "Operations",
     phone: opts.phone || "+0000000000",
+  };
+}
+
+function generateVirtualAccount(churchName: string): string {
+  // Deterministic-looking 10-digit NUBAN-style account based on church name + a fixed salt
+  let h = 0x811c9dc5;
+  for (let i = 0; i < churchName.length; i++) {
+    h ^= churchName.charCodeAt(i);
+    h = (Math.imul(h, 0x01000193) >>> 0);
+  }
+  const p1 = String(h % 100000).padStart(5, "0");
+  const p2 = String((h >>> 5) % 100000).padStart(5, "0");
+  return `${p1}${p2}`;
+}
+
+function buildGivingRecord(opts: {
+  churchName: string;
+  amount: number;
+  givingType?: string;
+  donor: string;
+}): GivingRecord {
+  return {
+    id: createId("giving"),
+    donor: opts.donor,
+    amount: opts.amount,
+    channel: "virtual-transfer",
+    service: opts.givingType || "giving",
+    churchName: opts.churchName,
+    virtualAccount: generateVirtualAccount(opts.churchName),
+    givingType: opts.givingType || "donation",
+    createdAtLabel: "Just now",
   };
 }
 
@@ -697,7 +791,8 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
   }
 }
 
-function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommandResult {
+function fallbackCommand(prompt: string, forcedCapabilityId?: string, context: CommandExecutionContext = {}): AiCommandResult {
+  const author = resolveAuthor(context);
   const normalized = prompt.toLowerCase();
   const forcedCapability = forcedCapabilityId ? getCapabilityById(forcedCapabilityId) : null;
   const wantsWrittenReport =
@@ -769,7 +864,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             area: "Operations floor",
             severity: "high",
             status: "pending",
-            reportedBy: "Chertt AI",
+            reportedBy: author,
           }),
         });
       case "toolkit.expense-logging":
@@ -836,7 +931,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
             headline: "Appointment scheduled",
             supportingText: "The meeting is ready to be tracked alongside other operational follow-up.",
           },
-          generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", "Chertt AI"),
+          generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", author),
         });
       case "toolkit.requests-approvals":
         return normalizeAiCommandResult({
@@ -934,7 +1029,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         area: "Operations floor",
         severity: "high",
         status: "pending",
-        reportedBy: "Chertt AI",
+        reportedBy: author,
       }),
     });
   }
@@ -948,7 +1043,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         headline: "Report draft prepared",
         supportingText: "The written report is now ready for review and routing.",
       },
-      generatedDocument: buildDocument(memo.title, memo.body, "memo"),
+      generatedDocument: buildDocument(memo.title, memo.body, "memo", author),
     });
   }
 
@@ -977,7 +1072,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
         headline: "Appointment scheduled",
         supportingText: "The meeting is ready to be tracked alongside other operational follow-up.",
       },
-      generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", "Chertt AI"),
+      generatedAppointment: buildAppointment("Vendor document sign-off", "Tomorrow, 10:00 AM", author),
     });
   }
 
@@ -1039,7 +1134,7 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
     });
   }
 
-  const letter = buildFallbackLetterDraft(prompt);
+  const letter = buildFallbackLetterDraft(prompt, author);
   return normalizeAiCommandResult({
     reply: formatReply("I have drafted the document.\nIt is staged in Smart Documents for review and signature routing."),
     artifact: {
@@ -1047,13 +1142,37 @@ function fallbackCommand(prompt: string, forcedCapabilityId?: string): AiCommand
       headline: "Draft prepared",
       supportingText: "The document is ready for authorization and next-step handling.",
     },
-    generatedDocument: buildDocument(letter.title, letter.body, "letter"),
+    generatedDocument: buildDocument(letter.title, letter.body, "letter", author),
+  });
+}
+
+// Capabilities that produce a formal output requiring user confirmation before execution
+const CONFIRMATION_REQUIRED_ARTIFACT_KINDS = new Set(["document", "payment-link"]);
+
+function buildConfirmationResponse(
+  artifactKind: string,
+  title: string,
+  docType?: string,
+): AiCommandResult {
+  const kindLabel = artifactKind === "payment-link" ? "payment link"
+    : artifactKind === "request" ? "request"
+    : artifactKind === "giving" ? "payment"
+    : docType || "document";
+  const summary = `Confirm ${kindLabel}: "${title}"`;
+  return normalizeAiCommandResult({
+    reply: `I'm ready to create this — confirm to proceed.\n\n**${title}**`,
+    pendingConfirmation: {
+      summary,
+      actionKey: artifactKind,
+      previewTitle: title,
+    },
   });
 }
 
 export async function runCherttCommand(
   prompt: string,
   context: CommandExecutionContext = {},
+  confirmed = false,
 ): Promise<AiCommandResult> {
   const intent = resolveCapabilityIntent(prompt);
   const capability = intent.capability;
@@ -1064,33 +1183,49 @@ export async function runCherttCommand(
     return buildPermissionDeniedResponse(access.reason);
   }
 
-  if (context.enabledModules?.length && !context.enabledModules.includes(capability.module)) {
-    return buildModuleDisabledResponse(capability.module);
-  }
-
   if (capability.status === "planned") {
     return buildPlannedCapabilityResponse(capability.title, capability.module);
-  }
-
-  if (capability.module !== "toolkit") {
-    return executeNonToolkitCapability(capability.id, prompt);
   }
 
   const client = getGeminiClient();
 
   if (!client) {
-    return fallbackCommand(prompt, capability.id);
+    return fallbackCommand(prompt, capability.id, context);
   }
 
   try {
-    const gemini = await callGemini(prompt, capability.id, capability.title);
+    const gemini = await callGemini(prompt, capability.id, capability.title, context.history, context.memoryContext, context.userName, context.userTitle, context.userOrganization);
+
+    const author = resolveAuthor(context);
+
+    // Gate document and payment-link creation behind a confirmation step
+    if (!confirmed && CONFIRMATION_REQUIRED_ARTIFACT_KINDS.has(gemini.artifactKind)) {
+      const previewTitle =
+        gemini.artifactKind === "payment-link"
+          ? gemini.artifactHeadline || "Payment link"
+          : gemini.documentTitle || gemini.artifactHeadline || "Document";
+      return buildConfirmationResponse(gemini.artifactKind, previewTitle, gemini.documentType || undefined);
+    }
+
+    // Gate high-amount requests behind a confirmation step
+    if (!confirmed && gemini.artifactKind === "request" && typeof gemini.requestAmount === "number" && gemini.requestAmount >= 50000) {
+      return buildConfirmationResponse("request", gemini.requestTitle || "Request", gemini.requestType || undefined);
+    }
+
+    // Gate giving/church payments behind a confirmation step
+    if (!confirmed && gemini.artifactKind === "giving" && gemini.givingChurchName && gemini.givingAmount) {
+      const label = `${gemini.givingType || "Giving"} to ${gemini.givingChurchName}`;
+      return buildConfirmationResponse("giving", label);
+    }
+
     const result: AiCommandResult = {
-      reply: formatReply(gemini.reply || "Done.\nI have prepared the next operational step for you."),
+      reply: formatReply(gemini.reply || "Done. Here's the next step."),
     };
 
     if (gemini.artifactKind !== "none" && gemini.artifactHeadline) {
       result.artifact = {
-        kind: gemini.artifactKind,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        kind: gemini.artifactKind as any,
         headline: gemini.artifactHeadline,
         supportingText: gemini.artifactDetail || "",
       };
@@ -1099,8 +1234,9 @@ export async function runCherttCommand(
     if (gemini.artifactKind === "document" && gemini.documentTitle) {
       result.generatedDocument = buildDocument(
         gemini.documentTitle,
-        gemini.documentBody || "Document content prepared by Chertt AI.",
+        gemini.documentBody || "Document content is being prepared.",
         (gemini.documentType as SmartDocument["type"]) || "letter",
+        author,
       );
     }
 
@@ -1110,18 +1246,20 @@ export async function runCherttCommand(
         description: gemini.requestDescription,
         amount: gemini.requestAmount,
         type: gemini.requestType || "Expense",
+        requester: author,
       });
     }
 
-    if (gemini.artifactKind === "payment-link") {
+    if (gemini.artifactKind === "payment-link" && gemini.requestAmount) {
       result.generatedDocument = buildDocument(
-        gemini.documentTitle || "Customer invoice",
+        gemini.documentTitle || "Invoice",
         gemini.documentBody || "Invoice prepared for payment collection.",
         "invoice",
+        author,
       );
       result.generatedPaymentLink = buildPaymentLink(
         gemini.artifactHeadline || "Payment link",
-        gemini.requestAmount ?? 128000,
+        gemini.requestAmount,
       );
     }
 
@@ -1129,12 +1267,12 @@ export async function runCherttCommand(
       result.generatedAppointment = buildAppointment(
         gemini.appointmentTitle,
         gemini.appointmentWhen,
-        gemini.appointmentOwner,
+        gemini.appointmentOwner || author,
       );
     }
 
     if (gemini.artifactKind === "form" && gemini.formName) {
-      result.generatedForm = buildForm(gemini.formName, gemini.formOwner);
+      result.generatedForm = buildForm(gemini.formName, gemini.formOwner || author);
     }
 
     if (gemini.artifactKind === "inventory" && gemini.inventoryItemName) {
@@ -1152,7 +1290,7 @@ export async function runCherttCommand(
         area: gemini.issueArea,
         severity: (gemini.issueSeverity as IssueReport["severity"]) || "medium",
         status: (gemini.issueStatus as IssueReport["status"]) || "pending",
-        reportedBy: gemini.issueReportedBy,
+        reportedBy: gemini.issueReportedBy || author,
       });
     }
 
@@ -1170,7 +1308,7 @@ export async function runCherttCommand(
         title: gemini.pollTitle,
         lane: (gemini.pollLane as FeedbackPoll["lane"]) || "pulse",
         audience: gemini.pollAudience,
-        owner: gemini.pollOwner,
+        owner: gemini.pollOwner || author,
         questionCount: gemini.pollQuestionCount,
       });
     }
@@ -1184,9 +1322,18 @@ export async function runCherttCommand(
       });
     }
 
+    if (gemini.artifactKind === "giving" && gemini.givingChurchName && gemini.givingAmount) {
+      result.generatedGivingRecord = buildGivingRecord({
+        churchName: gemini.givingChurchName,
+        amount: gemini.givingAmount,
+        givingType: gemini.givingType || "donation",
+        donor: author,
+      });
+    }
+
     return normalizeAiCommandResult(result);
   } catch (error) {
     console.error("Gemini command fallback:", error);
-    return fallbackCommand(prompt, capability.id);
+    return fallbackCommand(prompt, capability.id, context);
   }
 }

@@ -115,7 +115,7 @@ export default function ToolkitFormDetailPage() {
           </p>
 
           <div className="tk-card__actions">
-            <Link className="button button--primary" href={`${base}/chat`}>
+            <Link className="button button--primary" href={`/w/${params.workspaceSlug}/chat`}>
               Update in chat
             </Link>
             <Link className="button button--ghost" href={`${base}/feedback`}>
@@ -169,7 +169,7 @@ export default function ToolkitFormDetailPage() {
               </div>
             </div>
             <div className="tk-mini-stack">
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Add another field</strong>
                 <p>Ask Chertt to extend the form when the workflow changes.</p>
               </Link>
@@ -188,3 +188,4 @@ export default function ToolkitFormDetailPage() {
     </div>
   );
 }
+

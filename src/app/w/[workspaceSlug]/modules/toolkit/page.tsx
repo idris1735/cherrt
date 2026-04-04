@@ -230,6 +230,8 @@ const capabilityLinks: HomeLink[] = [
 export default function ToolkitHomePage() {
   const { snapshot } = useAppState();
   const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
+  const chatHref = `/w/${snapshot.workspace.slug}/chat`;
+  const resolveToolkitHref = (href: string) => (href === "/chat" ? chatHref : `${base}${href}`);
 
   const requests = snapshot.requests.filter((request) => request.module === "toolkit");
   const pending = requests.filter((request) => request.status === "pending").length;
@@ -280,7 +282,7 @@ export default function ToolkitHomePage() {
               {capabilityLinks.map((item) => (
                 <Link
                   className="tk-capability"
-                  href={`${base}${item.href}`}
+                  href={resolveToolkitHref(item.href)}
                   key={item.label}
                   style={
                     {
@@ -308,7 +310,7 @@ export default function ToolkitHomePage() {
               <p className="tk-home__intro">Start in chat and let Chertt turn it into structured work.</p>
             </div>
 
-            <Link className="tk-home__prompt" href={`${base}/chat`}>
+            <Link className="tk-home__prompt" href={chatHref}>
               <span className="tk-home__prompt-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
@@ -351,7 +353,7 @@ export default function ToolkitHomePage() {
                   {quickActions.map((action) => (
                     <Link
                       className="tk-tile"
-                      href={`${base}${action.href}`}
+                      href={resolveToolkitHref(action.href)}
                       key={action.label}
                       style={
                         {

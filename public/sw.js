@@ -5,7 +5,3 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
-
-self.addEventListener("fetch", () => {
-  // Offline and cache strategies can be expanded later without changing the app shell contract.
-});

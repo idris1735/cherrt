@@ -143,7 +143,7 @@ export default function ToolkitRecordsPage() {
             Everything operational that Chertt can create, track, recall, and move forward for your team.
           </p>
         </div>
-        <Link className="button button--primary" href={`${base}/chat`}>
+        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
           Create from chat
         </Link>
       </div>
@@ -201,3 +201,4 @@ export default function ToolkitRecordsPage() {
     </div>
   );
 }
+

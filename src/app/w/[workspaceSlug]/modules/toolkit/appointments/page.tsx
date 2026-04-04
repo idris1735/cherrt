@@ -22,7 +22,7 @@ export default function ToolkitAppointmentsPage() {
             Operational meetings, sign-off sessions, and follow-up moments tracked in one place.
           </p>
         </div>
-        <Link className="button button--primary" href={`${base}/chat`}>
+        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
           Schedule new
         </Link>
       </div>
@@ -49,10 +49,13 @@ export default function ToolkitAppointmentsPage() {
                 </div>
               </div>
               <div className="tk-card__actions">
-                <Link className="button button--ghost" href={`${base}/chat`}>
+                <Link className="button button--ghost" href={`${base}/appointments/${nextUp.id}`}>
+                  Open detail
+                </Link>
+                <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`}>
                   Update in chat
                 </Link>
-                <Link className="tk-inline-link" href={`${base}/chat`}>
+                <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
                   Reschedule
                 </Link>
               </div>
@@ -69,7 +72,7 @@ export default function ToolkitAppointmentsPage() {
               </div>
               <div className="tk-list">
                 {rest.map((appt) => (
-                  <div className="tk-row" key={appt.id}>
+                  <Link className="tk-row" href={`${base}/appointments/${appt.id}`} key={appt.id}>
                     <div className="tk-row__main">
                       <strong>{appt.title}</strong>
                       <p>{appt.owner}</p>
@@ -77,7 +80,7 @@ export default function ToolkitAppointmentsPage() {
                     <div className="tk-row__aside">
                       <span>{appt.when}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -110,15 +113,15 @@ export default function ToolkitAppointmentsPage() {
               </div>
             </div>
             <div className="tk-mini-stack">
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                 <strong>Book a vendor meeting</strong>
                 <p>Schedule supplier sign-off, delivery checks, or contract reviews.</p>
               </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                 <strong>Set an onboarding session</strong>
                 <p>Orientation appointments for new team members joining this week.</p>
               </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                 <strong>Schedule a review</strong>
                 <p>Facility walks, document reviews, or team check-in meetings.</p>
               </Link>
@@ -148,3 +151,4 @@ export default function ToolkitAppointmentsPage() {
     </div>
   );
 }
+

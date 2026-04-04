@@ -53,39 +53,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       read: true,
     },
   ],
-  conversations: [
-    {
-      id: "conv-1",
-      title: "Operations Assistant",
-      mode: "ai",
-      messages: [],
-    },
-    {
-      id: "conv-2",
-      title: "Business Toolkit Team",
-      mode: "team",
-      messages: [
-        {
-          id: "team-msg-1",
-          speaker: "teammate",
-          text: "Facilities confirmed the diesel vendor can deliver within 40 minutes if approval lands now.",
-          timeLabel: "9:12 AM",
-        },
-        {
-          id: "team-msg-2",
-          speaker: "user",
-          text: "Please hold the vendor and keep Finance in the loop.",
-          timeLabel: "9:14 AM",
-        },
-        {
-          id: "team-msg-3",
-          speaker: "teammate",
-          text: "Done. I also pinned the supplier payment process note for reference.",
-          timeLabel: "9:16 AM",
-        },
-      ],
-    },
-  ],
+  conversations: [],
   requests: [
     {
       id: "req-1",

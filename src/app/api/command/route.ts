@@ -17,6 +17,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const result = await runCherttCommand(parsed.data.prompt, parsed.data.context);
+  const result = await runCherttCommand(
+    parsed.data.prompt,
+    { ...parsed.data.context, history: parsed.data.history, memoryContext: parsed.data.memoryContext },
+    parsed.data.confirmed,
+  );
   return NextResponse.json(result);
 }

@@ -3,11 +3,19 @@ import type { ModuleKey, Role } from "@/lib/types";
 export type CommandRequestContext = {
   role?: Role;
   enabledModules?: ModuleKey[];
+  userName?: string;
+  userTitle?: string;
+  userOrganization?: string;
 };
+
+export type HistoryMessage = { speaker: string; text: string };
 
 export type CommandRequestPayload = {
   prompt: string;
   context?: CommandRequestContext;
+  confirmed?: boolean;
+  history?: HistoryMessage[];
+  memoryContext?: string;
 };
 
 const roleSet = new Set<Role>([
@@ -61,6 +69,18 @@ function normalizeContext(value: unknown): CommandRequestContext | null {
     context.role = objectValue.role as Role;
   }
 
+  if (typeof objectValue.userName === "string" && objectValue.userName.trim()) {
+    context.userName = objectValue.userName.trim().slice(0, 120);
+  }
+
+  if (typeof objectValue.userTitle === "string" && objectValue.userTitle.trim()) {
+    context.userTitle = objectValue.userTitle.trim().slice(0, 120);
+  }
+
+  if (typeof objectValue.userOrganization === "string" && objectValue.userOrganization.trim()) {
+    context.userOrganization = objectValue.userOrganization.trim().slice(0, 120);
+  }
+
   if (objectValue.enabledModules !== undefined) {
     if (!Array.isArray(objectValue.enabledModules)) {
       return null;
@@ -100,11 +120,31 @@ export function parseCommandRequestPayload(input: unknown):
     return { ok: false, error: "Invalid command context." };
   }
 
+  const confirmed = payload.confirmed === true;
+
+  // history: array of {speaker, text}, max 20 entries, strings only
+  let history: HistoryMessage[] | undefined;
+  if (Array.isArray(payload.history)) {
+    history = (payload.history as unknown[])
+      .filter((m): m is HistoryMessage => {
+        if (typeof m !== "object" || m === null) return false;
+        const msg = m as Record<string, unknown>;
+        return typeof msg.speaker === "string" && typeof msg.text === "string";
+      })
+      .slice(-20);
+  }
+
+  const memoryContext =
+    typeof payload.memoryContext === "string" ? payload.memoryContext.slice(0, 4000) : undefined;
+
   return {
     ok: true,
     data: {
       prompt,
       context: Object.keys(context).length ? context : undefined,
+      confirmed,
+      history,
+      memoryContext,
     },
   };
 }

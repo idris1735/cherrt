@@ -3,6 +3,7 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import {
+  deleteConversationFromSupabase,
   loadWorkspaceSnapshotFromSupabase,
   persistAiResult,
   persistApprovedRequest,
@@ -19,6 +20,7 @@ import type {
   ExpenseEntry,
   FeedbackPoll,
   FormDefinition,
+  GivingRecord,
   InventoryItem,
   IssueReport,
   Message,
@@ -33,6 +35,8 @@ type AppAction =
   | { type: "hydrate"; snapshot: WorkspaceSnapshot }
   | { type: "approve-request"; requestId: string }
   | { type: "create-conversation"; conversation: Conversation }
+  | { type: "rename-conversation"; conversationId: string; title: string }
+  | { type: "delete-conversation"; conversationId: string }
   | { type: "add-message"; conversationId: string; message: Message }
   | { type: "read-notifications" }
   | { type: "apply-ai-result"; result: AiCommandResult }
@@ -83,6 +87,18 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
         ...state,
         conversations: [action.conversation, ...state.conversations],
       };
+    case "rename-conversation":
+      return {
+        ...state,
+        conversations: state.conversations.map((conversation) =>
+          conversation.id === action.conversationId ? { ...conversation, title: action.title } : conversation,
+        ),
+      };
+    case "delete-conversation":
+      return {
+        ...state,
+        conversations: state.conversations.filter((c) => c.id !== action.conversationId),
+      };
     case "read-notifications":
       return {
         ...state,
@@ -101,6 +117,7 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
       const expenses: ExpenseEntry[] = [...state.expenses];
       const polls: FeedbackPoll[] = [...state.polls];
       const directory: Person[] = [...state.directory];
+      const giving: GivingRecord[] = [...state.giving];
 
       if (action.result.generatedDocument) {
         documents.unshift(action.result.generatedDocument);
@@ -210,6 +227,18 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
         });
       }
 
+      if (action.result.generatedGivingRecord) {
+        giving.unshift(action.result.generatedGivingRecord);
+        notifications.unshift({
+          id: `notif-giving-${Date.now()}`,
+          kind: "payment",
+          title: "Giving record created",
+          detail: `${action.result.generatedGivingRecord.givingType || "Donation"} to ${action.result.generatedGivingRecord.churchName || "church"}`,
+          timeLabel: "Now",
+          read: false,
+        });
+      }
+
       return {
         ...state,
         documents,
@@ -221,6 +250,7 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
         expenses,
         polls,
         directory,
+        giving,
         paymentLinks: action.result.generatedPaymentLink
           ? [action.result.generatedPaymentLink, ...state.paymentLinks]
           : state.paymentLinks,
@@ -250,6 +280,8 @@ interface AppStateContextValue {
   primaryConversation: Conversation;
   approveRequest: (requestId: string) => void;
   createConversation: (mode?: Conversation["mode"]) => string;
+  renameConversation: (conversationId: string, title: string) => void;
+  deleteConversation: (conversationId: string) => void;
   addMessage: (conversationId: string, message: Message) => void;
   markNotificationsRead: () => void;
   applyAiResult: (result: AiCommandResult) => void;
@@ -260,6 +292,7 @@ interface AppStateContextValue {
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 const ACTIVE_PROFILE_KEY = "chertt:active-profile";
+const AUTO_TITLE_PATTERN = /^(new chat(?: \d+)?|team chat(?: \d+)?)$/i;
 
 function applyProfile(snapshot: WorkspaceSnapshot) {
   const profile = getActiveUserProfile();
@@ -269,6 +302,10 @@ function applyProfile(snapshot: WorkspaceSnapshot) {
 
   return {
     ...snapshot,
+    workspace: {
+      ...snapshot.workspace,
+      currency: profile.currency ?? snapshot.workspace.currency,
+    },
     membership: {
       ...snapshot.membership,
       userName: profile.fullName,
@@ -278,12 +315,36 @@ function applyProfile(snapshot: WorkspaceSnapshot) {
   };
 }
 
+function shouldAutoTitleConversation(conversationTitle: string) {
+  return AUTO_TITLE_PATTERN.test(conversationTitle.trim());
+}
+
+function buildConversationTitleFromMessage(messageText: string, mode: Conversation["mode"]) {
+  const firstLine = messageText.split("\n")[0]?.trim() ?? "";
+  const clean = firstLine
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, "")
+    .trim();
+
+  if (!clean) {
+    return mode === "team" ? "Team chat" : "New chat";
+  }
+
+  const words = clean.split(" ").filter(Boolean).slice(0, 7);
+  const joined = words.join(" ").trim();
+  const capped = joined.length > 48 ? `${joined.slice(0, 48).trimEnd()}...` : joined;
+  const title = capped.charAt(0).toUpperCase() + capped.slice(1);
+
+  return title || (mode === "team" ? "Team chat" : "New chat");
+}
+
 export function AppStateProvider({
   children,
   initialSnapshot,
 }: PropsWithChildren<{ initialSnapshot: WorkspaceSnapshot }>) {
   const [snapshot, dispatch] = useReducer(reducer, initialSnapshot);
   const [profileTick, setProfileTick] = useState(0);
+  const [profileReady, setProfileReady] = useState(false);
   const snapshotRef = useRef(snapshot);
 
   useEffect(() => {
@@ -306,6 +367,10 @@ export function AppStateProvider({
       window.removeEventListener("storage", listener);
       window.removeEventListener("chertt-profile-updated", localListener);
     };
+  }, []);
+
+  useEffect(() => {
+    setProfileReady(true);
   }, []);
 
   useEffect(() => {
@@ -334,34 +399,56 @@ export function AppStateProvider({
     };
   }, [initialSnapshot.workspace.slug]);
 
-  const personalizedSnapshot = useMemo(() => applyProfile(snapshot), [snapshot, profileTick]);
+  const personalizedSnapshot = useMemo(
+    () => (profileReady ? applyProfile(snapshot) : snapshot),
+    [profileReady, profileTick, snapshot],
+  );
 
-  const value = useMemo<AppStateContextValue>(
+const value = useMemo<AppStateContextValue>(
     () => ({
       snapshot: personalizedSnapshot,
-      primaryConversation: personalizedSnapshot.conversations[0],
+      primaryConversation:
+        personalizedSnapshot.conversations[0] ?? { id: "fallback-conversation", title: "New chat", mode: "ai", messages: [] },
       approveRequest: (requestId) => {
         dispatch({ type: "approve-request", requestId });
         void persistApprovedRequest(snapshotRef.current, requestId);
       },
       createConversation: (mode = "ai") => {
         const id = crypto.randomUUID();
-        const existingCount = snapshotRef.current.conversations.filter((conversation) => conversation.mode === mode).length;
         const conversation: Conversation = {
           id,
           mode,
-          title: mode === "ai" ? `New chat ${existingCount + 1}` : `Team chat ${existingCount + 1}`,
+          title: mode === "team" ? "Team chat" : "New chat",
           messages: [],
         };
         dispatch({ type: "create-conversation", conversation });
         void persistConversation(snapshotRef.current, conversation);
         return id;
       },
+      renameConversation: (conversationId, title) => {
+        dispatch({ type: "rename-conversation", conversationId, title });
+        const conversation = snapshotRef.current.conversations.find((c) => c.id === conversationId);
+        if (conversation) {
+          void persistConversation(snapshotRef.current, { ...conversation, title });
+        }
+      },
+      deleteConversation: (conversationId) => {
+        dispatch({ type: "delete-conversation", conversationId });
+        void deleteConversationFromSupabase(snapshotRef.current, conversationId);
+      },
       addMessage: (conversationId, message) => {
         dispatch({ type: "add-message", conversationId, message });
         const conversation = snapshotRef.current.conversations.find((item) => item.id === conversationId);
         if (conversation) {
           void persistConversationMessage(snapshotRef.current, conversation, message);
+
+          if (message.speaker === "user" && shouldAutoTitleConversation(conversation.title)) {
+            const nextTitle = buildConversationTitleFromMessage(message.text, conversation.mode);
+            if (nextTitle && nextTitle !== conversation.title) {
+              dispatch({ type: "rename-conversation", conversationId, title: nextTitle });
+              void persistConversation(snapshotRef.current, { ...conversation, title: nextTitle });
+            }
+          }
         }
       },
       markNotificationsRead: () => {

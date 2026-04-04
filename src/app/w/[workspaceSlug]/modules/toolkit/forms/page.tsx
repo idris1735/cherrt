@@ -41,7 +41,7 @@ export default function ToolkitFormsPage() {
               Flexible internal forms for workflows that vary from one organization to another.
             </p>
           </div>
-          <Link className="button button--primary" href={`${base}/chat`}>
+          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
             Create a form
           </Link>
         </div>
@@ -139,7 +139,7 @@ export default function ToolkitFormsPage() {
                   <strong>Describe what you need</strong>
                   <p>Tell Chertt the form name, purpose, and who it is for. It will build the structure and make it ready to share.</p>
                 </div>
-                <Link className="button button--ghost" href={`${base}/chat`}>Open chat</Link>
+                <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`}>Open chat</Link>
               </div>
             </div>
 
@@ -192,7 +192,7 @@ export default function ToolkitFormsPage() {
               </div>
             </div>
             <div className="tk-modal__actions">
-              <Link className="button button--ghost" href={`${base}/chat`} onClick={() => setSelected(null)}>
+              <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`} onClick={() => setSelected(null)}>
                 Manage in chat
               </Link>
             </div>
@@ -202,3 +202,4 @@ export default function ToolkitFormsPage() {
     </>
   );
 }
+

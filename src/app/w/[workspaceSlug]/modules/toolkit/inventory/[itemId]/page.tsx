@@ -216,7 +216,7 @@ export default function ToolkitInventoryDetailPage() {
             </p>
 
             <div className="tk-card__actions">
-              <Link className="button button--primary" href={`${base}/chat`}>
+              <Link className="button button--primary" href={`/w/${params.workspaceSlug}/chat`}>
                 Receive or release in chat
               </Link>
               <Link className="button button--ghost" href={`${base}/requests`}>
@@ -271,15 +271,15 @@ export default function ToolkitInventoryDetailPage() {
               </div>
             </div>
             <div className="tk-mini-stack">
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Receive fresh stock</strong>
                 <p>Tell Chertt what arrived and it will update quantities for this item.</p>
               </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Approve release</strong>
                 <p>Route stock issue approval and keep a traceable movement record.</p>
               </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Adjust reorder level</strong>
                 <p>Set a new threshold if this item now moves faster or slower than expected.</p>
               </Link>
@@ -290,3 +290,4 @@ export default function ToolkitInventoryDetailPage() {
     </div>
   );
 }
+

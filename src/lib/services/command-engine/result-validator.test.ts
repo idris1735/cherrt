@@ -56,6 +56,6 @@ describe("normalizeAiCommandResult", () => {
     expect(result.generatedPoll?.questionCount).toBe(1);
     expect(result.generatedPoll?.responseCount).toBe(0);
     expect(result.generatedPoll?.targetCount).toBe(0);
-    expect(result.generatedPoll?.owner).toBe("Chertt AI");
+    expect(result.generatedPoll?.owner).toBe("You");
   });
 });

@@ -253,7 +253,7 @@ export default function ToolkitInventoryPage() {
                       </p>
                     </div>
                   ))}
-                  <Link className="button button--primary" href={`${base}/chat`}>
+                  <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
                     Raise restock request
                   </Link>
                 </div>
@@ -272,11 +272,11 @@ export default function ToolkitInventoryPage() {
                   <strong>Add an item</strong>
                   <p>Register a new stock item with quantity and minimum level.</p>
                 </button>
-                <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+                <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                   <strong>Receive stock</strong>
                   <p>Log incoming items and update quantities via chat.</p>
                 </Link>
-                <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+                <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
                   <strong>Approve item release</strong>
                   <p>Authorize stock release with a traceable record.</p>
                 </Link>
@@ -404,10 +404,10 @@ export default function ToolkitInventoryPage() {
                   </div>
                 </div>
                 <div className="tk-modal__actions">
-                  <Link className="button button--primary" href={`${base}/chat`} onClick={closeModal}>
+                  <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`} onClick={closeModal}>
                     Raise restock request
                   </Link>
-                  <Link className="button button--ghost" href={`${base}/chat`} onClick={closeModal}>
+                  <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`} onClick={closeModal}>
                     Log release
                   </Link>
                 </div>
@@ -419,3 +419,4 @@ export default function ToolkitInventoryPage() {
     </>
   );
 }
+

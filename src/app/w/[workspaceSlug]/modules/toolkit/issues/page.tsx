@@ -44,7 +44,7 @@ export default function ToolkitIssuesPage() {
               {highCount > 0 ? ` ${highCount} urgent.` : ""}
             </p>
           </div>
-          <Link className="button button--primary" href={`${base}/chat`}>
+          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
             Report issue
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default function ToolkitIssuesPage() {
                   <p>Reported by {nextUrgent.reportedBy}{nextUrgent.mediaCount > 0 ? ` · ${nextUrgent.mediaCount} photo${nextUrgent.mediaCount !== 1 ? "s" : ""}` : ""}.</p>
                   <div className="tk-requests-focus__actions">
                     <Link className="button button--ghost" href={`${base}/requests`}>Open workflow</Link>
-                    <Link className="tk-inline-link" href={`${base}/chat`}>Update via chat</Link>
+                    <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>Update via chat</Link>
                   </div>
                 </div>
               ) : (
@@ -237,7 +237,7 @@ export default function ToolkitIssuesPage() {
             </div>
             <div className="tk-modal__actions">
               <Link className="button button--primary" href={`${base}/requests`} onClick={() => setSelected(null)}>Open workflow</Link>
-              <Link className="button button--ghost" href={`${base}/chat`} onClick={() => setSelected(null)}>Update in chat</Link>
+              <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`} onClick={() => setSelected(null)}>Update in chat</Link>
             </div>
           </div>
         </div>
@@ -245,3 +245,4 @@ export default function ToolkitIssuesPage() {
     </>
   );
 }
+

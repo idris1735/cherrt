@@ -74,8 +74,8 @@ export default function ToolkitRequestDetailPage() {
               <button className="button button--primary" onClick={() => approveRequest(request.id)} type="button">
                 Approve
               </button>
-              <Link className="button button--ghost" href={`/w/${params.workspaceSlug}/modules/toolkit/chat`}>
-                Continue in chat
+              <Link className="button button--ghost" href={`/w/${params.workspaceSlug}/chat`}>
+                Back to chat
               </Link>
             </div>
           ) : null}

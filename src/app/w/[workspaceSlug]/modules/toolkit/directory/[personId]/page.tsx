@@ -88,7 +88,7 @@ export default function ToolkitDirectoryPersonPage() {
             <a className="button button--primary" href={`tel:${person.phone}`}>
               Call now
             </a>
-            <Link className="button button--ghost" href={`${base}/chat`}>
+            <Link className="button button--ghost" href={`/w/${params.workspaceSlug}/chat`}>
               Continue in chat
             </Link>
           </div>
@@ -138,3 +138,4 @@ export default function ToolkitDirectoryPersonPage() {
     </div>
   );
 }
+

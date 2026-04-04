@@ -46,7 +46,7 @@ export default function ToolkitDirectoryPage() {
             <h1 className="tk-page-title">Staff directory</h1>
             <p className="tk-page-desc">Minimal contact view for quick lookup and action.</p>
           </div>
-          <Link className="tk-inline-link" href={`${base}/chat`}>
+          <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
             Find in chat
           </Link>
         </div>
@@ -156,3 +156,4 @@ export default function ToolkitDirectoryPage() {
     </>
   );
 }
+

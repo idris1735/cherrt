@@ -93,7 +93,7 @@ export default function ToolkitDocumentsPage() {
           <h1 className="tk-page-title">Smart Documents</h1>
           <p className="tk-page-desc">Minimal records view for templates, drafts, approvals, and signatures.</p>
         </div>
-        <Link className="button button--primary" href={`${base}/chat`}>
+        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
           Draft in chat
         </Link>
       </div>
@@ -151,14 +151,14 @@ export default function ToolkitDocumentsPage() {
       <section className="tk-card tk-smartdocs__section">
         <div className="tk-smartdocs__section-head">
           <h2>Recommended templates</h2>
-          <Link className="tk-inline-link" href={`${base}/chat`}>
+          <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
             View all
           </Link>
         </div>
 
         <div className="tk-smartdocs__templates">
           {templateCards.map((template) => (
-            <Link className="tk-smartdocs__template" href={`${base}/chat`} key={template.id}>
+            <Link className="tk-smartdocs__template" href={`/w/${snapshot.workspace.slug}/chat`} key={template.id}>
               <div className={`tk-smartdocs__template-visual ${templateClass(template.type)}`}>
                 <span>{template.type === "memo" ? "Process Note" : template.type === "invoice" ? "Tax Ready" : "Letterhead"}</span>
               </div>
@@ -212,3 +212,4 @@ export default function ToolkitDocumentsPage() {
     </div>
   );
 }
+

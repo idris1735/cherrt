@@ -1,6 +1,28 @@
 import { runCherttCommand } from "@/lib/services/ai-service";
 
+const originalGeminiApiKey = process.env.GEMINI_API_KEY;
+const originalGoogleApiKey = process.env.GOOGLE_API_KEY;
+
 describe("runCherttCommand", () => {
+  beforeEach(() => {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+  });
+
+  afterAll(() => {
+    if (originalGeminiApiKey) {
+      process.env.GEMINI_API_KEY = originalGeminiApiKey;
+    } else {
+      delete process.env.GEMINI_API_KEY;
+    }
+
+    if (originalGoogleApiKey) {
+      process.env.GOOGLE_API_KEY = originalGoogleApiKey;
+    } else {
+      delete process.env.GOOGLE_API_KEY;
+    }
+  });
+
   it("creates a document for general drafting prompts", async () => {
     const result = await runCherttCommand("Draft a partnership letter for our sponsor.");
 
@@ -74,24 +96,27 @@ describe("runCherttCommand", () => {
     expect(result.artifact?.kind).toBe("directory");
   });
 
-  it("routes church intents to church module workflows", async () => {
+  it("falls back gracefully for church intents when the AI provider is unavailable", async () => {
     const result = await runCherttCommand("Create a prayer request for healing this week.");
 
-    expect(result.generatedRequest).toBeDefined();
-    expect(result.generatedRequest?.module).toBe("church");
+    expect(result.reply).toBeTruthy();
+    expect(result.generatedDocument).toBeDefined();
+    expect(result.artifact?.kind).toBe("document");
   });
 
-  it("routes store intents to store module workflows", async () => {
+  it("falls back gracefully for store intents when the AI provider is unavailable", async () => {
     const result = await runCherttCommand("Capture a new store order for three branded polos.");
 
-    expect(result.generatedRequest).toBeDefined();
-    expect(result.generatedRequest?.module).toBe("store");
+    expect(result.reply).toBeTruthy();
+    expect(result.generatedDocument).toBeDefined();
+    expect(result.artifact?.kind).toBe("document");
   });
 
-  it("routes events intents to event module workflows", async () => {
+  it("falls back gracefully for events intents when the AI provider is unavailable", async () => {
     const result = await runCherttCommand("Set up RSVP reminders for this weekend gala.");
 
-    expect(result.generatedRequest).toBeDefined();
-    expect(result.generatedRequest?.module).toBe("events");
+    expect(result.reply).toBeTruthy();
+    expect(result.generatedDocument).toBeDefined();
+    expect(result.artifact?.kind).toBe("document");
   });
 });

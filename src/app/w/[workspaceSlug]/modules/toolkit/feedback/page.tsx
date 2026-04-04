@@ -67,7 +67,7 @@ export default function ToolkitFeedbackPage() {
             Pulse checks, approval reviews, and guest feedback that Chertt can track, summarize, and follow up on.
           </p>
         </div>
-        <Link className="button button--primary" href={`${base}/chat`}>
+        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
           Create in chat
         </Link>
       </div>
@@ -154,7 +154,7 @@ export default function ToolkitFeedbackPage() {
         {(["pulse", "approval", "guest"] as const).map((lane) => (
           <Link
             className="tk-card tk-card--clickable tk-feedback-lane"
-            href={laneLeads[lane] ? `${base}/feedback/${laneLeads[lane]!.id}` : `${base}/chat`}
+            href={laneLeads[lane] ? `${base}/feedback/${laneLeads[lane]!.id}` : `/w/${snapshot.workspace.slug}/chat`}
             key={lane}
           >
             <p className="tk-eyebrow">Feedback lane</p>
@@ -270,7 +270,7 @@ export default function ToolkitFeedbackPage() {
                 <strong>Describe what you want to measure</strong>
                 <p>Tell Chertt the audience, question count, and what decision the poll should support.</p>
               </div>
-              <Link className="button button--ghost" href={`${base}/chat`}>
+              <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`}>
                 Start in chat
               </Link>
             </div>
@@ -297,3 +297,4 @@ export default function ToolkitFeedbackPage() {
     </div>
   );
 }
+

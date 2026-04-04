@@ -120,7 +120,7 @@ export default function ToolkitExpenseDetailPage() {
           </p>
 
           <div className="tk-card__actions">
-            <Link className="button button--primary" href={`${base}/chat`}>
+            <Link className="button button--primary" href={`/w/${params.workspaceSlug}/chat`}>
               Attach more evidence
             </Link>
             <Link className="button button--ghost" href={`${base}/requests`}>
@@ -183,11 +183,11 @@ export default function ToolkitExpenseDetailPage() {
               </div>
             </div>
             <div className="tk-mini-stack">
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Add receipt image</strong>
                 <p>Tell Chertt to attach a receipt image or supporting evidence to this expense.</p>
               </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/chat`}>
+              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${params.workspaceSlug}/chat`}>
                 <strong>Clarify the description</strong>
                 <p>Update what the spend was for so accounts and approvers have clean context.</p>
               </Link>
@@ -202,3 +202,4 @@ export default function ToolkitExpenseDetailPage() {
     </div>
   );
 }
+
