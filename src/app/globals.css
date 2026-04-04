@@ -8872,6 +8872,137 @@ main {
 }
 
 @media (max-width: 760px) {
+  .auth-entry-page,
+  .auth-entry-page--warm {
+    background:
+      linear-gradient(180deg, rgba(12, 10, 9, 0.22) 0%, rgba(12, 10, 9, 0.56) 100%),
+      #120f0d;
+  }
+
+  .auth-entry-visual {
+    min-height: auto;
+  }
+
+  .auth-entry-visual__image {
+    transform: none;
+    object-position: center 22%;
+  }
+
+  .auth-entry-visual__overlay {
+    background:
+      linear-gradient(180deg, rgba(12, 10, 9, 0.2) 0%, rgba(12, 10, 9, 0.34) 34%, rgba(12, 10, 9, 0.78) 100%),
+      linear-gradient(90deg, rgba(12, 10, 9, 0.42) 0%, rgba(12, 10, 9, 0.16) 100%);
+  }
+
+  .auth-entry-visual__content {
+    min-height: auto;
+    padding: 18px 16px 28px;
+    justify-content: flex-start;
+    gap: 22px;
+  }
+
+  .auth-entry-visual__brand .brand-mark {
+    padding: 8px 10px;
+    border-radius: 16px;
+  }
+
+  .auth-entry-visual__brand .brand-mark__tag {
+    display: none;
+  }
+
+  .auth-entry-visual__copy {
+    gap: 10px;
+    max-width: none;
+    margin: 0;
+  }
+
+  .auth-entry-visual__eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.13em;
+  }
+
+  .auth-entry-visual__copy h1 {
+    font-size: clamp(2rem, 10.6vw, 3rem);
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+  }
+
+  .auth-entry-visual__body {
+    max-width: 32ch;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: rgba(255, 250, 246, 0.82);
+  }
+
+  .auth-entry-visual__metrics {
+    display: none;
+  }
+
+  .auth-entry-panel-wrap {
+    min-height: auto;
+    padding: 0 14px 18px;
+    align-items: end;
+    background: transparent;
+    margin-top: -12px;
+  }
+
+  .auth-entry-panel {
+    width: 100%;
+    border-radius: 26px;
+    border: 1px solid rgba(233, 225, 217, 0.86);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 22px 56px rgba(16, 13, 11, 0.18);
+  }
+
+  .auth-panel {
+    padding: 22px 18px;
+  }
+
+  .auth-panel h2 {
+    font-size: 1.75rem;
+    line-height: 1;
+  }
+
+  .auth-entry-panel__body,
+  .auth-panel__hint,
+  .auth-panel__error,
+  .auth-panel__message {
+    font-size: 0.86rem;
+  }
+
+  .auth-panel__stack {
+    gap: 12px;
+  }
+
+  .field span {
+    font-size: 0.8rem;
+  }
+
+  .field input,
+  .field textarea,
+  .field select,
+  .password-field input {
+    min-height: 50px;
+    font-size: 0.98rem;
+    border-radius: 14px;
+  }
+
+  .password-field__toggle {
+    width: 42px;
+    height: 42px;
+    right: 6px;
+  }
+
+  .button.button--full {
+    min-height: 50px;
+    font-size: 0.95rem;
+  }
+
+  .auth-panel__actions--column {
+    gap: 10px;
+  }
+
   .get-started-topbar {
     padding: 14px 14px 8px;
   }
