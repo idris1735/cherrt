@@ -10,6 +10,15 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Chertt",
   description: "A warm, mobile-first conversational operations workspace for businesses, churches, stores, and events.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: ["/favicon.svg"],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

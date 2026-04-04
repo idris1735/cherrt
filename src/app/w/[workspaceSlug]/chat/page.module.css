@@ -269,13 +269,35 @@
   flex-shrink: 0;
 }
 
-.footName {
+.footMeta {
+  min-width: 0;
   flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.footName {
   font-size: 0.78rem;
   color: var(--ch-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.logoutBtn {
+  width: fit-content;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.69rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.14s ease;
+}
+
+.logoutBtn:hover {
+  color: var(--ch-text);
 }
 
 .themeBtn {

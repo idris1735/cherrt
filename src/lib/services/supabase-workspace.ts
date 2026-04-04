@@ -789,6 +789,14 @@ export async function subscribeToWorkspaceSnapshot(
     return () => {};
   }
 
+  const trackedConversationIds = new Set<string>();
+  if (availableTables.includes("conversations") || availableTables.includes("messages")) {
+    const { data: conversationRows } = await supabase.from("conversations").select("id").eq("workspace_id", workspaceRow.id);
+    for (const row of (conversationRows as Array<{ id: string }> | null) ?? []) {
+      trackedConversationIds.add(row.id);
+    }
+  }
+
   let refreshScheduled = false;
   let unsubscribed = false;
 
@@ -814,14 +822,43 @@ export async function subscribeToWorkspaceSnapshot(
   const channel: RealtimeChannel = supabase.channel(`workspace-sync:${workspaceRow.id}-${Date.now()}`);
 
   for (const table of availableTables) {
-    const filter =
-      table === "messages"
-        ? undefined
-        : table === "conversations"
-          ? `workspace_id=eq.${workspaceRow.id}`
-          : `workspace_id=eq.${workspaceRow.id}`;
+    if (table === "messages") {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, (payload: { new?: { conversation_id?: string }; old?: { conversation_id?: string } }) => {
+        const conversationId = payload.new?.conversation_id ?? payload.old?.conversation_id;
+        if (conversationId && trackedConversationIds.has(conversationId)) {
+          scheduleRefresh();
+        }
+      });
+      continue;
+    }
 
-    channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, scheduleRefresh);
+    if (table === "conversations") {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter: `workspace_id=eq.${workspaceRow.id}` },
+        (payload: { eventType?: string; new?: { id?: string }; old?: { id?: string } }) => {
+          const createdId = payload.new?.id;
+          const removedId = payload.old?.id;
+
+          if (createdId) {
+            trackedConversationIds.add(createdId);
+          }
+
+          if (payload.eventType === "DELETE" && removedId) {
+            trackedConversationIds.delete(removedId);
+          }
+
+          scheduleRefresh();
+        },
+      );
+      continue;
+    }
+
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table, filter: `workspace_id=eq.${workspaceRow.id}` },
+      scheduleRefresh,
+    );
   }
 
   channel.subscribe();

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +11,9 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { useToast } from "@/components/providers/toast-provider";
 import { useTheme } from "@/components/shell/workspace-shell";
 import { formatCurrency, formatMessageTime } from "@/lib/format";
-import { deductFromWallet, getActiveUserProfile, getWallet } from "@/lib/services/profile";
+import { clearActiveUserProfile, deductFromWallet, getActiveUserProfile, getWallet } from "@/lib/services/profile";
+import { clearLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
+import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import type { AiCommandResult } from "@/lib/types";
 import styles from "@/app/w/[workspaceSlug]/chat/page.module.css";
 
@@ -99,8 +102,10 @@ export default function ChatPage() {
   const { snapshot, addMessage, applyAiResult, createConversation, renameConversation, deleteConversation, upsertDocument } = useAppState();
   const { notify } = useToast();
   const { theme, toggleTheme } = useTheme();
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(snapshot.conversations[0]?.id ?? "");
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState("");
@@ -173,6 +178,30 @@ export default function ChatPage() {
     window.addEventListener("chertt-wallet-updated", onWalletUpdate);
     return () => window.removeEventListener("chertt-wallet-updated", onWalletUpdate);
   }, []);
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // Keep demo logout resilient even if auth transport is briefly unavailable.
+    } finally {
+      clearActiveUserProfile();
+      clearLastWorkspaceSlug();
+      notify({
+        tone: "success",
+        title: "Signed out",
+        description: "Your session has been closed.",
+      });
+      router.replace("/auth/sign-in");
+      router.refresh();
+    }
+  }
 
   useEffect(() => {
     setGreetingIndex(0);
@@ -457,8 +486,12 @@ export default function ChatPage() {
 
     setLoading(true);
 
-    // Build history from current conversation (last 12 messages, excluding action card markers)
-    const rawHistory = (activeConversation?.messages ?? []).slice(-12).map((m) => ({
+    const targetConversation =
+      snapshot.conversations.find((conversation) => conversation.id === conversationId) ??
+      activeConversation;
+
+    // Build history from the target conversation (last 12 messages, excluding action card markers)
+    const rawHistory = (targetConversation?.messages ?? []).slice(-12).map((m) => ({
       speaker: m.speaker,
       text: extractActionCardFromMessage(m.text).body,
     }));
@@ -869,7 +902,12 @@ export default function ChatPage() {
           <div className={styles.footAvatar} title={`${snapshot.membership.userName} (${snapshot.membership.title})`}>
             {snapshot.membership.avatarInitials}
           </div>
-          <span className={styles.footName}>{snapshot.membership.userName}</span>
+          <div className={styles.footMeta}>
+            <span className={styles.footName}>{snapshot.membership.userName}</span>
+            <button className={styles.logoutBtn} onClick={handleLogout} type="button">
+              {loggingOut ? "Signing out..." : "Log out"}
+            </button>
+          </div>
           <Link
             aria-label="Profile settings"
             className={`${styles.themeBtn} ${styles.profileBtn}`}

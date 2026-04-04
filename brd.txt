@@ -1,0 +1,563 @@
+
+
+
+BUSINESS REQUIREMENTS DOCUMENT
+Chertt Platform
+Full Platform · All Modules · Version 1.0
+
+Document Type: Business Requirements Document (BRD)
+Scope: Business Toolkit · ChurchBase · StoreFront · Events
+Version: 1.0 — April 2026
+Classification: Confidential & Proprietary
+Prepared by: Technology Advisory
+Status: Draft — For Review
+ 
+1.  Document Control
+
+1.1  Document Information
+Document Title	Chertt Platform — Business Requirements Document
+Document Reference	CHERTT-BRD-001
+Version	1.0
+Status	Draft
+Date	April 2026
+Author	Technology Advisory
+Owner	Chertt Product Team
+Reviewers	Product Owner, Lead Developer, Commercial Lead
+
+1.2  Revision History
+Version	Date	Author	Changes
+1.0	April 2026	Technology Advisory	Initial draft — all four modules
+
+1.3  Glossary
+Term	Definition
+WABA	WhatsApp Business API — the official Meta API for business messaging on WhatsApp
+BSP	Business Solution Provider — Meta-approved partner for WABA access (e.g. 360dialog, Infobip)
+PWA	Progressive Web App — a web application with native app-like behaviour, installable without an app store
+RBAC	Role-Based Access Control — permissions system based on user roles within an organisation
+Multi-tenant	Architecture where multiple organisations (tenants) share the same platform infrastructure with data isolation
+Chat Mode	Guided, structured interaction where the system prompts the user step by step
+AI Mode	Free-text natural language interaction processed by an LLM intent classifier
+NDPR	Nigeria Data Protection Regulation — Nigerian data privacy law governing personal data processing
+PSP	Payment Service Provider — e.g. Paystack or Flutterwave
+QR Code	Quick Response code used for check-in, ticketing, and access control
+LLM	Large Language Model — AI model powering the AI Mode intent classification
+FNOL	First Notice of Loss — not applicable here; used contextually to mean first user interaction
+SLA	Service Level Agreement — agreed performance or uptime standard
+FR	Functional Requirement
+NFR	Non-Functional Requirement
+MoSCoW	Prioritisation method: Must Have, Should Have, Could Have, Won't Have (this version)
+ 
+2.  Introduction & Business Context
+
+2.1  Business Background
+Chertt is a chat-first conversational platform designed to help organisations run important day-to-day workflows through familiar communication channels — primarily WhatsApp, mobile app, and web. The product targets African SMEs, churches, and community-driven organisations that need operational efficiency without the complexity or cost of traditional enterprise software.
+The core insight driving Chertt is that for most of its target users, WhatsApp is already the operating environment. Staff communicate, coordinate, and make decisions on WhatsApp every day. Chertt meets them there — bringing workflow automation, approvals, records, payments, and access control into the conversational interface they already use.
+2.2  Business Objectives
+•	Enable organisations to run structured internal workflows — approvals, requests, inventory, reporting — through WhatsApp and mobile, without adopting complex ERP systems.
+•	Serve churches with purpose-built tools for member management, giving, child safety, and pastoral care that fit their unique operational context.
+•	Provide small retailers and service businesses with a simple, chat-based commerce capability — catalog, orders, payments, and stock — within a 20-product scope.
+•	Power event organisers with end-to-end event management from invitation through to QR-based venue access control.
+•	Establish a shared-kernel platform architecture that supports rapid expansion into adjacent verticals (Schools, Gyms, Communities) without rebuilding the foundation.
+•	Generate recurring subscription revenue from organisations on a per-tenant pricing model.
+
+2.3  Target Users
+User Segment	Primary Module	Key Needs
+SMEs & Offices (5–200 staff)	Business Toolkit	Approvals, expense logging, inventory, facility reporting, staff directory
+Churches & Faith Organisations	ChurchBase	Member management, giving, child check-in, pastoral care, first-timer follow-up
+Small Retailers & Service Biz	StoreFront	Catalog, chat orders, payment links, stock alerts, delivery tracking
+Event Organisers & Venues	Events	Registration, ticketing, RSVP management, QR gate access control
+Admin / Platform Managers	All modules	Tenant setup, user management, reporting, configuration, billing
+
+2.4  Scope Statement
+In Scope
+•	All four launch modules: Business Toolkit, ChurchBase, StoreFront, Events
+•	Shared platform kernel: Auth/IAM, Workflow Engine, Document Service, Notifications Engine, Payment Adapter, QR/Code Service, File/Media Store
+•	WhatsApp (WABA), mobile web (PWA), and web admin portal as delivery channels
+•	Chat Mode interaction (guided, structured) across all modules
+•	AI Mode (natural language, LLM-powered) as a Phase 4 capability
+•	Multi-tenant architecture supporting multiple independent organisations
+•	Admin portal for tenant and user management
+Out of Scope (Version 1.0)
+•	Native iOS and Android apps (PWA-first; native app wrapper in future phase)
+•	Direct payment processing (payment links only in v1.0; direct processing pending CBN licensing)
+•	Spin-off verticals: Chertt for Schools, Chertt for Registrations, Chertt for Communities
+•	Voice input (AI Mode voice pipeline is a Phase 4 beta feature, not a v1.0 requirement)
+•	Multi-language support beyond English (Nigerian English is the primary language target)
+•	Third-party ERP or accounting system integrations (export to spreadsheet only)
+
+2.5  Assumptions & Dependencies
+Assumptions
+•	WhatsApp Business API access will be obtained through an approved BSP before development commences
+•	A payment gateway integration agreement (Paystack or Flutterwave) will be signed before StoreFront development begins
+•	The product will be hosted on a major cloud provider (AWS or GCP) from day one
+•	Pilot organisations for Business Toolkit MVP will be identified and engaged before Phase 2 development completes
+•	Legal opinions on CBN payment licensing and NDPR child data obligations will be obtained before ChurchBase child check-in development
+•	The platform will be operated as a multi-tenant SaaS with a subscription pricing model
+Dependencies
+•	Meta WhatsApp Business API — platform cannot function without WABA access
+•	BSP partner — required for WABA provisioning and message template management
+•	Payment gateway (Paystack or Flutterwave) — required for StoreFront and Events paid ticketing
+•	LLM API (OpenAI GPT-4 or Anthropic Claude) — required for AI Mode and Smart Document drafting
+•	Cloud infrastructure (AWS/GCP) — required for all hosting, storage, and CI/CD
+•	Google Calendar / Microsoft Outlook API — required for Appointments feature in Business Toolkit
+ 
+3.  Shared Platform Requirements
+The following requirements apply to the entire Chertt platform across all modules. They form the shared kernel that every vertical module depends on. These must be designed, built, and stabilised before module-specific development begins.
+
+3.1  Authentication & Identity
+Every user on the Chertt platform is uniquely identified by their WhatsApp mobile phone number, supplemented by a secondary email address for document delivery and account recovery.
+ID	Requirement	Description	Priority
+FR-AUTH-01	Phone-Number Identity	The system shall use the user's WhatsApp phone number as their primary identity. No username/password is required.	Must Have
+FR-AUTH-02	OTP Authentication	The system shall authenticate users via a One-Time Passcode (OTP) sent to their WhatsApp number at login.[KO1.1]	Must Have
+FR-AUTH-03	PIN Fallback	Users may optionally set a 4–6 digit PIN as a secondary authentication method once initial OTP verification is complete.[KO2.1]	Should Have
+FR-AUTH-04	Multi-Tenant Isolation	Each organisation (tenant) shall be fully isolated. Users in Tenant A cannot access data, workflows, or records belonging to Tenant B.	Must Have
+FR-AUTH-05	Role-Based Access Control	Each user shall be assigned one or more roles within their organisation. Roles determine which features, data, and actions they can access.[KO3.1]	Must Have
+FR-AUTH-06	Role Hierarchy	The system shall support at minimum: Super Admin, Admin, Manager, Staff, and Read-Only roles. Module-specific roles (e.g. Store Manager, Pastoral Team) shall be configurable.	Must Have
+FR-AUTH-07	Authorised Signatory	Specific users may be designated as authorised signatories. Only these users can apply digital signatures to documents and approve certain workflow types.	Must Have
+FR-AUTH-08	Session Management	The system shall manage user session state per WhatsApp number and per web/PWA session. Sessions shall expire after a configurable inactivity period.	Must Have
+FR-AUTH-09	Audit Trail	All authentication events (login, logout, failed attempts) shall be logged with timestamp, channel (WhatsApp/web), and IP address.	Must Have
+FR-AUTH-10	Secondary Email	Users may optionally register a secondary email address for document delivery and account recovery.[KO4.1]	Should Have
+
+3.2  Workflow & Approval Engine
+The workflow engine is the most strategically important shared service. It powers approvals across documents, expense requests, inventory releases, facility reports, and all other request types. It must be configurable per organisation and per workflow type.
+ID	Requirement	Description	Priority
+FR-WF-01	Configurable Approval Chains	Each organisation shall be able to configure approval chains of 1 to N levels for each workflow type (e.g. expense requests require 2 approvals; document signing requires 1).	Must Have
+FR-WF-02	State Machine	Each workflow instance shall progress through defined states: Draft → Submitted → Under Review → Approved / Rejected / Returned.	Must Have
+FR-WF-03	Parallel & Sequential Approval	The engine shall support both sequential (one approver at a time) and parallel (all approvers simultaneously) approval modes.	Should Have
+FR-WF-04	Approval Notification	Each approver shall receive a WhatsApp notification when action is required on a workflow item, including a summary of the request and action buttons.[KO5.1][KO5.2]	Must Have
+FR-WF-05	Approval from WhatsApp	Approvers shall be able to approve or reject a workflow item directly from within the WhatsApp conversation without opening the web portal.	Must Have
+FR-WF-06	Rejection with Comments	Approvers shall be able to reject a request and provide a reason. The requester shall be notified with the rejection reason.	Must Have
+FR-WF-07	Return for Revision	Approvers shall be able to return a request to the originator for revision without rejecting it outright.	Should Have
+FR-WF-08	Timeout & Escalation	If an approver does not act within a configurable time window, the system shall send a reminder and optionally escalate to the next approver or supervisor.	Should Have
+FR-WF-09	Full Audit Log	Every state change in a workflow instance shall be recorded with: actor, action, timestamp, and any comments. This log shall be immutable and accessible to admins.	Must Have
+FR-WF-10	Requester Status Visibility	The requester shall be able to check the current status of any workflow item they initiated at any time via WhatsApp or the web portal.	Must Have
+
+3.3  Notifications Engine
+ID	Requirement	Description	Priority
+FR-NOTIF-01	WhatsApp Primary Channel	All system notifications shall be delivered via WhatsApp as the primary channel using approved WABA message templates.[KO6.1]	Must Have
+FR-NOTIF-02	Push Notifications	Users accessing Chertt via the mobile PWA shall receive push notifications for time-sensitive events (approvals pending, order status changes).	Should Have
+FR-NOTIF-03	Email Fallback	Document delivery (signed PDFs, receipts, invoices) shall be sent by email when the recipient has registered an email address.	Should Have
+FR-NOTIF-04	Template Compliance	All WhatsApp outbound messages outside the 24-hour session window shall use Meta-approved message templates. Template management shall be available in the admin portal.	Must Have
+FR-NOTIF-05	Delivery Status Tracking	The system shall track and log the delivery status of every outbound notification (sent, delivered, read, failed) and surface failures to admins.	Must Have
+FR-NOTIF-06	Notification Preferences	Users shall be able to configure which types of notifications they receive and via which channels, within the constraints of their role.	Could Have
+FR-NOTIF-07	Scheduled Notifications	The system shall support scheduled notifications (e.g. event reminders 24 hours before an event, reorder alerts).	Must Have
+
+3.4  Document Service
+ID	Requirement	Description	Priority
+FR-DOC-01	Template Registry	Organisations shall be able to upload PDF letterhead templates and invoice templates. The system shall store and version these templates per tenant.	Must Have
+FR-DOC-02	Dynamic Field Injection	The system shall inject dynamic data (recipient name, date, amount, body text) into template placeholders to generate complete documents.	Must Have
+FR-DOC-03	AI-Assisted Drafting	Users shall be able to request AI-generated document drafts by describing the content in plain language. The AI shall produce a complete draft for review before formatting.	Must Have
+FR-DOC-04	Self-Written Option	Users shall also be able to write document content manually without AI assistance.	Must Have
+FR-DOC-05	Digital Signature Overlay	When a document is approved by an authorised signatory, the system shall overlay the signatory's digital signature image onto the document PDF.[KO7.1]	Must Have
+FR-DOC-06	Two-Step Signing	A staff member not authorised to sign shall be able to initiate a document and route it to an authorised signatory for final approval and signature.	Must Have
+FR-DOC-07	Document Output	Completed signed documents shall be delivered as PDF files via WhatsApp and/or email.	Must Have
+FR-DOC-08	Document Repository	All generated documents shall be stored in a searchable, tenant-isolated document repository accessible via the web portal.	Must Have
+FR-DOC-09	Process Document Storage	Organisations shall be able to upload and tag operational documents (SOPs, policies, vehicle docs, receipts) for retrieval by staff via WhatsApp or web.	Should Have
+
+3.5  Payment Adapter
+ID	Requirement	Description	Priority
+FR-PAY-01	Abstract Adapter Pattern	The payment integration layer shall be designed as an abstract adapter, allowing the underlying PSP (Paystack, Flutterwave) to be swapped without changes to business logic.	Must Have
+FR-PAY-02	Payment Link Generation	The system shall generate a unique payment link for each transaction, routed through the configured PSP. The link shall be sent to the payer via WhatsApp.	Must Have
+FR-PAY-03	Webhook Confirmation	The system shall process payment confirmation via PSP webhook. On confirmed payment, the system shall update transaction status and trigger downstream actions (receipt, order update).	Must Have
+FR-PAY-04	Transaction Ledger	Every payment transaction shall be recorded in a per-tenant transaction ledger with: amount, payer, payee, date/time, status, PSP reference, and associated workflow item.	Must Have
+FR-PAY-05	Automatic Receipt	On payment confirmation, the system shall auto-generate a payment receipt PDF and deliver it to the payer via WhatsApp and/or email.	Must Have
+FR-PAY-06	Refund Support	The system shall support refund initiation via the admin portal, routed through the PSP API.	Should Have
+
+3.6  File & Media Store
+ID	Requirement	Description	Priority
+FR-FILE-01	Tenant-Isolated Storage	All uploaded files (images, videos, PDFs, documents) shall be stored in tenant-isolated object storage (AWS S3 or equivalent).	Must Have
+FR-FILE-02	Signed URL Access	File access shall be controlled via time-limited signed URLs. Direct public URLs shall not be used for sensitive documents.	Must Have
+FR-FILE-03	Media Type Support	The system shall support: JPEG/PNG images, MP4 video (short clips), PDF documents, and XLSX spreadsheets.	Must Have
+FR-FILE-04	WhatsApp Size Compliance	Client-side compression shall be applied to media before upload to comply with WhatsApp media size limits (images: 5MB, video: 16MB, docs: 100MB).	Must Have
+FR-FILE-05	Retention Policy	Document and media retention periods shall be configurable per tenant. Expired files shall be flagged and archived before deletion.	Should Have
+
+3.7  AI / NLP Router
+The AI/NLP Router enables AI Mode — where users interact with Chertt in natural language rather than guided menus. This is a Phase 4 feature but its data model and interface contracts must be designed upfront.
+ID	Requirement	Description	Priority
+FR-AI-01	Intent Classification	The system shall classify free-text user messages into one of the platform's defined intent categories (e.g. 'raise expense request', 'check order status', 'report facility issue').	Must Have (Ph4)
+FR-AI-02	Slot Filling	Once an intent is identified, the system shall extract required data fields (slots) from the conversation, prompting the user for missing information.	Must Have (Ph4)
+FR-AI-03	Context Management	The system shall maintain conversation context across multiple message turns within a session, allowing references to previously stated information.	Must Have (Ph4)
+FR-AI-04	Confidence Threshold	When the AI confidence score falls below a configurable threshold, the system shall fall back to Chat Mode guidance rather than proceeding with uncertain interpretation.	Must Have (Ph4)
+FR-AI-05	Chat Mode Fallback	Chat Mode shall always be available as a fallback for any user or any interaction, regardless of AI Mode availability.	Must Have
+FR-AI-06	LLM Document Drafting	The Document Service shall use an LLM API call to generate document drafts from user-provided plain language descriptions. This is distinct from the AI Mode intent classifier.	Must Have
+ 
+4.  Module: Business Toolkit
+The Business Toolkit is the flagship module and the platform's foundation. It targets SMEs, offices, and any organisation needing structured internal operations via chat. It is the most complex module and must be built and validated before other modules begin.[KO8.1]
+4.1  Module Overview
+Module Name	Chertt Business Toolkit
+Target Users	Office staff, managers, department heads, HR, accounts, facilities teams[KO9.1]
+Primary Channel	WhatsApp, web admin portal, PWA
+Key Dependency	Shared Workflow Engine (Section 3.2), Document Service (3.4), Notifications Engine (3.3)
+Build Phase	Phase 2 — Months 3–6 (after Platform Foundation)[KO10.1]
+Pilot Target	2–3 pilot organisations before general availability
+
+4.2  Functional Requirements — Smart Documents
+ID	Requirement	Description	Priority
+FR-BT-DOC-01	AI Draft Generation	Staff shall be able to describe a letter or memo in plain language and receive an AI-generated draft for review and editing before formatting.[KO11.1]	Must Have
+FR-BT-DOC-02	Self-Written Input	Staff shall also be able to type document content directly without using AI drafting.	Must Have
+FR-BT-DOC-03	Letterhead Formatting	On document approval, the system shall format the content onto the organisation's letterhead template and produce a print-ready PDF.	Must Have
+FR-BT-DOC-04	Invoice Generation	Staff shall be able to create invoices by entering: recipient, line items, quantities, and unit prices. The system shall calculate totals and format the invoice on the organisation's invoice template.[KO12.1]	Must Have
+FR-BT-DOC-05	Approval Routing	Documents and invoices created by unauthorised staff shall be routed to an authorised signatory for approval before signature and dispatch.	Must Have
+FR-BT-DOC-06	Digital Signature	On approval, the authorised signatory's digital signature shall be applied to the document automatically.	Must Have
+FR-BT-DOC-07	Delivery	Completed signed documents shall be delivered via WhatsApp (as PDF attachment) and/or email.[KO13.1]	Must Have
+
+4.3  Functional Requirements — Requests & Approvals
+ID	Requirement	Description	Priority
+FR-BT-REQ-01	Expense Requests	Staff shall be able to submit expense or purchase requests including: description, estimated amount, vendor (optional), and supporting justification.	Must Have
+FR-BT-REQ-02	Supply Requests	Staff shall be able to request office supplies from the store, specifying item name, quantity, and purpose.	Must Have
+FR-BT-REQ-03	Repair Requests	Staff shall be able to raise repair and maintenance requests for office equipment or facilities, with optional photo attachment.	Must Have
+FR-BT-REQ-04	Configurable Approval	Each request type shall have a configurable approval chain defined per organisation. Changes to approval chains shall not affect in-flight requests.	Must Have
+FR-BT-REQ-05	WhatsApp Approval Actions	Approvers shall approve, reject, or return requests directly from a WhatsApp conversation.	Must Have
+FR-BT-REQ-06	Status Tracking	Requesters shall be able to check the status of any open request at any time via WhatsApp.	Must Have
+FR-BT-REQ-07	Request History	A full history of all requests — open and closed — shall be accessible to relevant staff and managers via the web portal.	Must Have
+
+4.4  Functional Requirements — Inventory Management
+ID	Requirement	Description	Priority
+FR-BT-INV-01	Item Catalogue	Store managers shall be able to maintain a catalogue of office store items: name, description, unit, current stock level, and minimum reorder level.	Must Have
+FR-BT-INV-02	Stock Check	When a supply request is received, the store manager shall be able to check current stock availability from within the WhatsApp conversation.[KO14.1]	Must Have
+FR-BT-INV-03	Approve Release	Store managers shall approve or decline item release requests. On approval, the system shall decrement stock accordingly.	Must Have
+FR-BT-INV-04	Receive Stock	Store managers shall be able to record receipt of new stock, incrementing item quantities and logging the receipt date and source.	Must Have
+FR-BT-INV-05	Reorder Alerts	The system shall notify the store manager via WhatsApp when any item falls below its configured minimum reorder level.	Must Have
+FR-BT-INV-06	Stock Report	A stock-level report shall be available via the web portal and exportable to XLSX.	Should Have
+
+4.5  Functional Requirements — Issue & Facility Reporting
+ID	Requirement	Description	Priority
+FR-BT-FAC-01	Issue Submission	Any staff member shall be able to report a facility issue (broken equipment, plumbing, electrical, security) via WhatsApp.	Must Have
+FR-BT-FAC-02	Photo/Video Attachment	Reports shall support attachment of photos and short video clips to describe the issue.	Must Have
+FR-BT-FAC-03	Issue Categorisation	Reports shall be categorisable by type (e.g. Electrical, Plumbing, Security, IT, Furniture) and severity (Low, Medium, High, Critical).	Should Have
+FR-BT-FAC-04	Routing to Facilities	Submitted reports shall be routed to the designated facilities or maintenance team member or group.	Must Have
+FR-BT-FAC-05	Status Updates	The reporter shall receive status updates (Received, In Progress, Resolved) via WhatsApp as the issue progresses.	Must Have
+FR-BT-FAC-06	Security & Incident Reports	The same issue reporting flow shall accommodate security incidents and general incident reports with an additional narrative field.	Should Have
+FR-BT-FAC-07	Issue Log	All reported issues shall be logged in a searchable issue register accessible via the web portal, with resolution history.	Must Have
+
+4.6  Functional Requirements — Polls, Surveys & Feedback
+ID	Requirement	Description	Priority
+FR-BT-POLL-01	Poll Creation	Admins and managers shall be able to create polls with up to 10 options and distribute them to selected staff or groups via WhatsApp.	Must Have
+FR-BT-POLL-02	Survey Builder	Admins shall be able to create multi-question surveys (text, multiple choice, rating scale) for internal use or external feedback collection.	Should Have
+FR-BT-POLL-03	Graphic/Copy Approval	Polls shall be usable for approving creative assets — e.g. a manager sends a design image and staff vote to approve or request changes.[KO15.1]	Should Have
+FR-BT-POLL-04	Results View	Poll and survey results shall be viewable in the web portal, with response counts and percentages per option.	Must Have
+FR-BT-POLL-05	Anonymous Option	Survey creators shall be able to enable anonymous response mode, hiding individual respondent identities.	Could Have
+
+4.7  Functional Requirements — Petty Cash & Expense Logging
+ID	Requirement	Description	Priority
+FR-BT-EXP-01	Expense Entry	Staff shall be able to log a petty cash expense by entering: date, description, amount, category (e.g. transport, stationery), and payee.	Must Have
+FR-BT-EXP-02	Receipt Attachment	Staff shall be able to attach a photo of the physical receipt to each expense entry.[KO16.1]	Must Have
+FR-BT-EXP-03	Approval Routing	Expense logs above a configurable threshold shall require manager approval before being finalised.	Should Have
+FR-BT-EXP-04	Spreadsheet Export	All expense logs shall be exportable to XLSX format, formatted for direct use by the accounts team.	Must Have
+FR-BT-EXP-05	Expense Dashboard	Managers and accounts staff shall have access to an expense summary dashboard in the web portal.	Should Have
+
+4.8  Functional Requirements — Forms, Appointments, FAQs & Directory
+ID	Requirement	Description	Priority
+FR-BT-FORM-01	Simple Form Builder	Admins shall be able to create custom forms with configurable field types (text, number, date, dropdown, checkbox). Forms shall be distributable via WhatsApp.[KO17.1]	Must Have
+FR-BT-FORM-02	Form Response Storage	All form responses shall be stored and exportable to XLSX.	Must Have
+FR-BT-APT-01	Appointment Creation	Staff and managers shall be able to create appointments via WhatsApp, selecting participants and a time slot. Appointments shall sync to Google Calendar or Outlook.	Should Have
+FR-BT-APT-02	Appointment Reminder	Participants shall receive WhatsApp reminders at a configurable time before the appointment.	Should Have
+FR-BT-FAQ-01	FAQ Knowledge Base	Admins shall be able to maintain a knowledge base of FAQs. Staff shall be able to query the FAQ via WhatsApp using keywords.[KO18.1]	Must Have
+FR-BT-FAQ-02	Process Document Recall	Staff shall be able to search for and retrieve process documents (SOPs, policy docs, vehicle documents, payment receipts) via WhatsApp.	Must Have
+FR-BT-DIR-01	Staff Directory	A searchable directory of all staff profiles shall be accessible via WhatsApp and web portal, showing name, role, department, and contact details.	Must Have
+FR-BT-DIR-02	Click-to-Communicate	From a staff profile, users shall be able to initiate a WhatsApp chat or phone call with one tap.	Must Have
+FR-BT-OB-01	Staff Onboarding Flow	New staff members shall receive a structured onboarding message sequence via WhatsApp: welcome message, links to key resources, and a task checklist to complete.	Should Have
+FR-BT-OB-02	Onboarding Tracker	HR[KO19.1] admins shall be able to track which onboarding steps each new staff member has completed.	Could Have
+ 
+5.  Module: ChurchBase[KO20.1]
+ChurchBase extends the Business Toolkit with six church-specific capabilities. It inherits all Business Toolkit features and is targeted at faith organisations of any size. The child check-in and giving features require special legal and compliance attention before development.[KO21.1]
+5.1  Module Overview
+Module Name	Chertt ChurchBase
+Extends	Chertt Business Toolkit (all Toolkit features are included)
+Target Users	Church administrators, pastors, ushers, children's ministry, giving coordinators, pastoral care team
+Primary Channel	WhatsApp, web admin portal, PWA
+Key Dependency	Business Toolkit, Payment Adapter (for Giving), QR/Code Service (for Child Check-in)
+Build Phase	Phase 4 — Months 9–12
+Compliance Note	Child check-in requires NDPR legal framework and safeguarding policy before development begins
+
+5.2  Functional Requirements — Sunday Child Check-in
+This feature involves processing personal data for minors. A legal and data protection review must be completed before development commences. Parental consent must be obtained and recorded before any child data is processed.
+ID	Requirement	Description	Priority
+FR-CB-CHK-01	Child Profile Registration	Parents or guardians shall register each child's profile: name, date of birth, allergies/medical notes, emergency contact, and assigned class/group.[KO22.1]	Must Have
+FR-CB-CHK-02	Parental Consent Capture	The system shall capture and record explicit parental consent for data processing before creating a child profile.	Must Have
+FR-CB-CHK-03	QR Code per Child	Each registered child shall have a unique QR code assigned, printable as a tag or sticker for use at check-in.	Must Have
+FR-CB-CHK-04	Check-in via QR Scan	Ushers shall be able to check in children by scanning their QR code using a smartphone camera. The system shall confirm successful check-in on screen.	Must Have
+FR-CB-CHK-05	Manual Check-in Fallback	Ushers shall be able to search for a child by name and check them in manually if the QR code is unavailable.	Must Have
+FR-CB-CHK-06	Check-out Recording	The system shall record check-out when the child is collected. Only the registered parent/guardian or authorised pickup persons shall be able to check out a child.	Must Have
+FR-CB-CHK-07	Parent Notification	Parents shall receive a WhatsApp notification when their child is checked in and checked out.	Must Have
+FR-CB-CHK-08	Attendance Report	Children's ministry administrators shall have access to a per-service attendance report via the web portal.[KO23.1]	Should Have
+FR-CB-CHK-09	Data Retention Limits	Child data shall be subject to configurable retention limits and shall be deletable on parental request, in compliance with NDPR.	Must Have
+
+5.3  Functional Requirements — Giving
+ID	Requirement	Description	Priority
+FR-CB-GIV-01	Giving Categories	Church admins shall define giving categories (e.g. Tithes, Offerings, Building Fund, Missions). Each category may have an optional giving target.[KO24.1]	Must Have
+FR-CB-GIV-02	Giving via WhatsApp	Members shall be able to initiate a giving transaction via WhatsApp by selecting a category and amount. The system shall generate a payment link.[KO25.1]	Must Have
+FR-CB-GIV-03	Payment Confirmation	On confirmed payment, the system shall send a giving receipt to the member via WhatsApp and log the transaction.	Must Have
+FR-CB-GIV-04	Giving History per Member	Members shall be able to retrieve their personal giving history via WhatsApp.	Should Have
+FR-CB-GIV-05	Giving Summary Reports	Finance administrators shall have access to giving reports by category, period, and member (for those not giving anonymously) via the web portal.	Must Have
+FR-CB-GIV-06	Anonymous Giving Option	Members shall be able to give anonymously. Anonymous transactions shall be included in totals but not attributed to individual profiles.	Could Have
+
+5.4  Functional Requirements — First Timer Capture
+ID	Requirement	Description	Priority
+FR-CB-FT-01	First Timer Registration	Ushers or the member themselves shall be able to complete a first-timer registration form via WhatsApp[KO26.1]: name, phone number, residential area, and how they heard about the church.	Must Have
+FR-CB-FT-02	Automated Welcome Message	On registration, the system shall automatically send a welcome WhatsApp message to the first timer.	Must Have
+FR-CB-FT-03	Follow-up Sequence	The system shall trigger a configurable follow-up communication sequence (e.g. Day 1 welcome, Day 3 check-in, Day 7 invitation to next service) for each first timer.	Should Have
+FR-CB-FT-04	Pastoral Assignment	First timers may be assigned to a pastoral team member or care group for follow-up. The assigned person shall be notified.[KO27.1]	Should Have
+FR-CB-FT-05	First Timer Database	All first timer records shall be stored in a searchable CRM-lite database accessible to administrators and pastoral team via the web portal.	Must Have
+
+5.5  Functional Requirements — Prayer Requests & Pastoral Care
+ID	Requirement	Description	Priority
+FR-CB-PR-01	Prayer Request Submission	Members shall be able to submit prayer requests via WhatsApp. Requests shall include a description and an optional anonymity toggle.	Must Have
+FR-CB-PR-02	Prayer Team Routing	Submitted prayer requests shall be routed to the designated prayer team or pastoral coordinator.	Must Have
+FR-CB-PR-03	Prayer Request Acknowledgement	The submitter shall receive an acknowledgement via WhatsApp confirming their request has been received and will be prayed over.	Must Have
+FR-CB-PAC-01	Pastoral Care Request	Members shall be able to request pastoral care services via WhatsApp: types include counselling, hospital visit, bereavement support, home visit.	Must Have
+FR-CB-PAC-02	Confidentiality Controls	Pastoral care requests shall be accessible only to designated pastoral team members and the senior pastor. General administrators shall not have access.	Must Have
+FR-CB-PAC-03	Appointment Booking	Pastoral care requests shall [KO28.1]trigger an appointment booking flow, assigning a pastoral team member and scheduling a time.	Should Have
+ 
+6.  Module: StoreFront
+Chertt StoreFront is a deliberately constrained commerce module for small retailers and service businesses. It is not a full e-commerce platform — it is chat-based order management with payment link collection [KO29.1]and simple stock tracking. The 20-product catalog limit is a business policy constraint, not a technical limitation.
+6.1  Module Overview
+Module Name	Chertt StoreFront
+Target Users	Small retailers, service businesses, market vendors, informal SMEs
+Primary Channel	WhatsApp (customer-facing), web admin portal (merchant-facing)
+Catalog Limit	Up to 20 active SKUs (business policy constraint — data model supports expansion)
+Key Dependency	Payment Adapter (FR-PAY), Document Service (for invoices/receipts), Notifications Engine
+Build Phase	Phase 3 — Months 6–9 (parallel with Events)
+Payment Note	v1.0 uses payment links only. Direct payment processing requires CBN licensing — not in scope for v1.0.
+
+6.2  Functional Requirements — Product Catalog
+ID	Requirement	Description	Priority
+FR-SF-CAT-01	Product Creation	Merchant admins shall be able to create product listings with: name, description, price, SKU code, product image, and stock quantity.	Must Have
+FR-SF-CAT-02	Catalog Limit Enforcement	The system shall enforce a maximum of 20 active SKUs per tenant. Admins may deactivate existing products to make room for new ones.	Must Have
+FR-SF-CAT-03	Product Image Upload	Each product shall support one primary product image. The image shall be displayable via WhatsApp.	Must Have
+FR-SF-CAT-04	Catalog Browsing	Customers shall be able to browse the catalog via WhatsApp, receiving a formatted product list with names and prices.	Must Have
+FR-SF-CAT-05	Product Detail View	Customers shall be able to request details on a specific product and receive the product image, description, and price via WhatsApp.	Must Have
+FR-SF-CAT-06	Stock Status Display	The catalog shall display availability status (In Stock / Out of Stock) for each product. Out-of-stock items shall not be orderable.	Must Have
+
+6.3  Functional Requirements — Order Capture & Management
+ID	Requirement	Description	Priority
+FR-SF-ORD-01	Conversational Order Flow	Customers shall be able to place an order via WhatsApp by selecting products and quantities through a guided conversation.	Must Have
+FR-SF-ORD-02	Cart Management	Customers shall be able to add multiple products to a cart, review their cart, modify quantities, and remove items before confirming the order.	Must Have
+FR-SF-ORD-03	Order Total Calculation	The system shall calculate the order subtotal, applicable fees, and total, and present this to the customer before payment.	Must Have
+FR-SF-ORD-04	Order Confirmation	On customer confirmation, the system shall generate a unique order reference number and notify the merchant.	Must Have
+FR-SF-ORD-05	Delivery Code Generation	Each confirmed and paid order shall receive a unique delivery/collection code for use at fulfilment.	Must Have
+FR-SF-ORD-06	Order Status Updates	Customers shall receive WhatsApp notifications as their order progresses through: Confirmed, Payment Received, Processing, Dispatched, Ready for Collection, Delivered.	Must Have
+FR-SF-ORD-07	Order History	Merchants shall have access to a full order history with filtering by date, status, and customer, accessible via the web portal.	Must Have
+FR-SF-ORD-08	Customer Order History	Customers shall be able to retrieve their own order history via WhatsApp.	Should Have
+
+6.4  Functional Requirements — Invoicing, Receipts & Payment
+ID	Requirement	Description	Priority
+FR-SF-PAY-01	Invoice Generation	On order confirmation, the system shall auto-generate a formatted invoice PDF and deliver it to the customer via WhatsApp and/or email.	Must Have
+FR-SF-PAY-02	Payment Link Generation	The system shall generate a unique payment link for each order and send it to the customer via WhatsApp.[KO30.1]	Must Have
+FR-SF-PAY-03	Payment Confirmation	On PSP webhook confirmation of payment, the system shall mark the order as paid and trigger the dispatch workflow.	Must Have
+FR-SF-PAY-04	Payment Receipt	On confirmed payment, the system shall auto-generate a payment receipt PDF and send it to the customer.	Must Have
+FR-SF-PAY-05	Payment Expiry	Payment links shall expire after a configurable time window (default: 24 hours). Expired unpaid orders shall be flagged and the customer notified.	Should Have
+FR-SF-PAY-06	Transaction Records	All payment transactions shall be recorded in the merchant's transaction ledger with full PSP reference data.	Must Have
+
+6.5  Functional Requirements — Stock Tracking
+ID	Requirement	Description	Priority
+FR-SF-STK-01	Automatic Stock Decrement	Stock levels shall automatically decrease by the quantity ordered when an order is confirmed and paid.	Must Have
+FR-SF-STK-02	Low Stock Alert	The system shall send a WhatsApp notification to the merchant when any product falls below a configurable minimum stock threshold.	Must Have
+FR-SF-STK-03	Manual Restock	Merchants shall be able to update stock levels manually via the web portal admin interface.	Must Have
+FR-SF-STK-04	Out-of-Stock Handling	Orders for out-of-stock items shall be blocked. The customer shall be informed and offered alternatives if available.[KO31.1]	Must Have
+FR-SF-STK-05	Stock Report	A stock-level report showing current quantities, reorder thresholds, and recent movements shall be available in the web portal and exportable to XLSX.	Should Have
+ 
+7.  Module: Events
+Chertt Events is the most self-contained module. It handles end-to-end event management from invitation through to QR-based venue access control. The QR check-in[KO32.1] system is the technical differentiator and must work reliably under crowd conditions, including offline-capable operation.
+7.1  Module Overview
+Module Name	Chertt Events
+Target Users	Event organisers, venue managers, ushers, registrants, ticketed guests
+Primary Channel	WhatsApp (guest-facing), web admin portal (organiser-facing), PWA (gate usher)
+Key Dependency	Payment Adapter (paid tickets), QR/Code Service, Notifications Engine
+Build Phase	Phase 3 — Months 6–9 (parallel with StoreFront)
+Critical Feature	QR check-in must support offline-capable operation for venue use with unreliable connectivity[KO33.1]
+
+7.2  Functional Requirements — Event Setup & Registration
+ID	Requirement	Description	Priority
+FR-EV-SET-01	Event Creation	Organisers shall be able to create an event with: name, date, time, venue, description, capacity, and banner image.	Must Have
+FR-EV-SET-02	Custom Registration Form	Organisers shall be able to configure the registration form fields for each event (e.g. name, email, phone, dietary requirements, table preference).	Must Have
+FR-EV-SET-03	Registration via WhatsApp	Guests shall be able to register for an event via WhatsApp by completing the registration form in a guided conversation.	Must Have
+FR-EV-SET-04	Registration via Web Link	A shareable web registration link shall also be available for guests preferring to register on a browser.	Should Have
+FR-EV-SET-05	Capacity Management	The system shall enforce the event capacity limit. When capacity is reached, registration shall close automatically and a waitlist shall be offered.	Must Have
+FR-EV-SET-06	Registration Confirmation	On successful registration, guests shall receive a WhatsApp confirmation with: event details, their ticket/QR code, and any organisational instructions.	Must Have
+FR-EV-SET-07	Registrant Database	All registrations shall be stored in a searchable registrant database accessible to organisers via the web portal.	Must Have
+
+7.3  Functional Requirements — Ticketing
+ID	Requirement	Description	Priority
+FR-EV-TKT-01	Free Ticket Issuance	For free events, a unique QR-coded digital ticket shall be generated and sent to each registrant via WhatsApp on registration confirmation.	Must Have
+FR-EV-TKT-02	Paid Ticket Issuance	For paid events, a ticket shall be issued only after payment is confirmed. A payment link shall be sent to the registrant immediately on registration.	Must Have
+FR-EV-TKT-03	Multiple Ticket Types	Events shall support multiple ticket types with different pricing (e.g. Early Bird, Standard, VIP). Each type may have its own capacity allocation.[KO34.1]	Should Have
+FR-EV-TKT-04	Ticket Resend	Guests shall be able to request their ticket to be resent via WhatsApp at any time.[KO35.1]	Must Have
+FR-EV-TKT-05	Ticket Transfer	Organisers shall optionally enable ticket transfer, allowing a registered guest to transfer their ticket to another person.	Could Have
+FR-EV-TKT-06	Ticket Validation State	Each ticket shall have a validation state: Issued, Checked In, or Invalidated. Invalidated tickets cannot be used for entry.	Must Have
+
+7.4  Functional Requirements — RSVP & Communication
+ID	Requirement	Description	Priority
+FR-EV-RSVP-01	RSVP Tracking	The system shall track RSVP status for each registered guest[KO36.1]: Registered, Confirmed Attending, Declined, No Response.	Must Have
+FR-EV-RSVP-02	RSVP Reminder	The system shall send configurable reminder messages to registered guests at set intervals before the event (e.g. 1 week, 24 hours, 2 hours).	Must Have
+FR-EV-RSVP-03	Guest-Specific Details	Guest-specific information (table number/name, seat allocation, parking pass, dress code notes) shall be sent to each guest individually via WhatsApp.	Should Have
+FR-EV-RSVP-04	Bulk Messaging	Organisers shall be able to send a bulk WhatsApp message to all or filtered registrant groups (e.g. VIP only, paid attendees only).	Must Have
+FR-EV-RSVP-05	Venue & Logistics Info	A pre-event logistics message (venue address, parking details, directions, arrival time) shall be sent to all confirmed attendees.	Must Have
+
+7.5  Functional Requirements — QR Check-in & Access Control
+This is the highest-complexity feature in the Events module and the platform's key operational differentiator. It must be designed for reliability under real venue conditions.
+ID	Requirement	Description	Priority
+FR-EV-QR-01	QR Code Scanning	Ushers shall be able to scan guest QR codes using any smartphone camera via the Chertt PWA check-in interface.	Must Have
+FR-EV-QR-02	Real-Time Lookup	On QR scan, the system shall retrieve the ticket record in real time and confirm or deny entry, displaying guest name and ticket type on screen.	Must Have
+FR-EV-QR-03	Offline-Capable Mode	The check-in interface shall support an offline-capable mode where ticket data is pre-cached. Offline check-ins shall sync to the server when connectivity is restored.	Must Have
+FR-EV-QR-04	Duplicate Check-in Prevention	If a ticket has already been scanned, the system shall display a 'Already Checked In' alert and deny re-entry.	Must Have
+FR-EV-QR-05	Manual Lookup Fallback	Ushers shall be able to search for a guest by name or email and check them in manually if their QR code is unavailable.	Must Have
+FR-EV-QR-06	Capacity Tracking	The check-in interface shall display real-time current attendance vs event capacity.	Should Have
+FR-EV-QR-07	Attendance Report	A final attendance report shall be generated post-event, showing total check-ins, no-shows, and check-in timeline.	Must Have
+FR-EV-QR-08	Multiple Entry Points	Multiple ushers at different entry points shall be able to scan simultaneously without conflict, all updating the same attendance record.	Must Have
+ 
+8.  Non-Functional Requirements
+Non-functional requirements (NFRs) apply across all modules and define the quality, performance, security, and compliance standards the platform must meet. These are not optional and must be incorporated into the architecture and development standards from day one.
+8.1  Performance
+Category	Requirement	Target Metric
+API Response Time	All API responses for non-AI operations shall be returned within the target time under normal load	< 500ms at p95
+AI Mode Latency	AI Mode intent classification responses shall complete within the target time	< 3 seconds at p95
+QR Check-in Latency	QR scan to pass/fail result shall be returned within the target time in online mode	< 800ms
+Concurrent Users	Platform shall support concurrent active users per tenant without degradation	500 concurrent users per tenant
+WhatsApp Message Delivery	Outbound WhatsApp notifications shall be dispatched within the target time of triggering event	< 30 seconds
+Document Generation	PDF generation (letterhead, invoice, receipt) shall complete within the target time	< 10 seconds
+Uptime SLA	Platform availability shall meet the target monthly uptime excluding planned maintenance windows	99.5% monthly uptime
+
+8.2  Security
+Category	Requirement	Standard / Target
+Encryption at Rest	All data at rest — database, object storage, backups — shall be encrypted	AES-256
+Encryption in Transit	All data in transit between clients and servers and between services shall be encrypted	TLS 1.2 minimum; TLS 1.3 preferred
+Tenant Data Isolation	Row-level security shall be enforced at the database layer. Application-layer tenant_id filtering alone is insufficient.	PostgreSQL RLS enforced
+OWASP Top 10	All web interfaces and APIs shall be designed and tested against the OWASP Top 10 vulnerability categories	OWASP Top 10 compliance
+API Authentication	All API endpoints shall require valid authentication tokens. No unauthenticated endpoints shall exist except OTP initiation.	JWT / OAuth 2.0
+Penetration Testing	An independent penetration test shall be conducted before any public launch	Annual pen test minimum
+Secrets Management	API keys, credentials, and secrets shall not be stored in code repositories. A secrets management service shall be used.	AWS Secrets Manager or equivalent
+Child Data Protection	Child records shall be accessible only by authorised ChurchBase users with explicit child data permissions. Separate access log required.	Elevated access controls
+
+8.3  Compliance
+Regulation	Requirement	Action Required
+NDPR (Nigeria)	All personal data collected, stored, and processed shall comply with the Nigeria Data Protection Regulation. A privacy notice and consent mechanism shall be presented to all users.	Privacy notice, consent records, DPO appointment
+WhatsApp / Meta ToS	All WABA usage shall comply with Meta's WhatsApp Business Policy and Messaging Policy. Template messages shall be submitted for approval.	Template pre-approval, usage policy adherence
+CBN Regulations	Payment processing shall comply with Central Bank of Nigeria regulations. v1.0 uses payment links only. Direct processing requires separate licensing.	Legal opinion; no direct processing in v1.0
+Data Residency	For Nigerian users, preference shall be given to data residency within Nigeria or a country with equivalent data protection standards.	Cloud region selection (AWS Lagos preferred)
+Child Data	Processing of children's data requires explicit parental consent and heightened protection under NDPR. A safeguarding policy shall be documented.	Legal review before ChurchBase child check-in build
+
+8.4  Scalability & Reliability
+•	The platform shall be designed to scale horizontally — adding capacity through additional server instances rather than requiring larger single servers.
+•	Database connection pooling shall be implemented to support high concurrency without connection exhaustion.
+•	The WhatsApp message dispatch queue shall be designed to handle bursts (e.g. bulk event invitations) without blocking other system operations.
+•	Automated database backups shall run daily, with point-in-time recovery capability to within 1 hour of any data loss event.
+•	All critical services shall have health check endpoints monitored by an automated alerting system (e.g. PagerDuty or equivalent).
+•	Planned maintenance windows shall be communicated to tenant admins at least 48 hours in advance.
+
+8.5  Usability
+•	All WhatsApp interactions shall be designed to complete any end-to-end task in no more than 7 message turns.
+•	All guided (Chat Mode) flows shall be testable by a non-technical user with no training in under 5 minutes.
+•	Error messages across all channels (WhatsApp, web, PWA) shall be plain-language and action-oriented, not technical.
+•	The admin web portal shall be accessible on Chrome, Safari, Firefox, and Edge (latest two major versions of each).
+•	The QR check-in PWA shall function on any Android or iOS smartphone with a camera, without requiring app installation.
+ 
+9.  Acceptance Criteria
+The following acceptance criteria define the minimum conditions for each module to be considered ready for production launch. All Must Have functional requirements for the relevant module must be implemented and pass user acceptance testing (UAT) before a module may be released.
+9.1  Platform Foundation Acceptance
+•	Multi-tenant data isolation is verified: data from Tenant A cannot be accessed by Tenant B users under any test condition
+•	WhatsApp OTP authentication completes successfully for a new user registration in under 60 seconds
+•	A workflow with 3-level approval chain completes correctly: submission → approval 1 → approval 2 → approval 3 → completion, with full audit log
+•	A rejection at any approval level correctly notifies the requester with the rejection reason within 60 seconds
+•	Escalation fires correctly when an approver does not act within the configured timeout window
+•	All system notifications are delivered to the correct WhatsApp recipient(s) within 30 seconds of the triggering event
+•	Payment link generation and webhook-based payment confirmation function end-to-end with the configured PSP in the production environment
+
+9.2  Business Toolkit Acceptance
+•	A staff member can initiate an AI-drafted letter, route it for approval, have it signed by an authorised signatory, and receive the signed PDF on WhatsApp — all without leaving WhatsApp
+•	An invoice created by a staff member and approved by a manager is correctly formatted on the organisation's invoice template with accurate totals
+•	A supply request is submitted, routed to the store manager, stock is verified, and release is approved — with all parties notified at each step via WhatsApp
+•	An issue report with a photo attachment is submitted, routed to the facilities team, and status updates are sent to the reporter at each stage
+•	An expense log with receipt photo is submitted and exported correctly to an XLSX file with all required fields
+•	A custom form created in the admin portal is distributed via WhatsApp and responses are captured and exportable to XLSX
+•	The staff directory is searchable by name and department, and click-to-chat initiates a WhatsApp conversation correctly
+
+9.3  ChurchBase Acceptance
+•	A child profile is created with parental consent recorded. The child's QR code is generated and functional at check-in
+•	Child check-in and check-out correctly notifies the registered parent via WhatsApp with timestamp
+•	A giving transaction is initiated via WhatsApp, a payment link is generated, payment is confirmed, and a giving receipt is delivered to the member
+•	A first-timer registration triggers the automated welcome message within 60 seconds and the follow-up sequence activates correctly
+•	A prayer request submitted with anonymity toggled on does not reveal the requester's identity to the pastoral team
+•	A pastoral care request is visible only to designated pastoral team members and not to general admin users
+•	Child data is confirmed to be accessible only by users with explicit child data permissions — verified by attempting access with a non-authorised account
+
+9.4  StoreFront Acceptance
+•	A customer can browse the catalog, place an order for multiple products, receive a payment link, complete payment, and receive an invoice and receipt — entirely via WhatsApp
+•	Stock levels correctly decrement on order confirmation and the out-of-stock block prevents ordering when stock reaches zero
+•	A low-stock alert is sent to the merchant when product quantity falls to the configured threshold
+•	A payment link that is not paid within the expiry window correctly expires, and the customer is notified
+•	An order status update (e.g. Dispatched) is received by the customer via WhatsApp within 60 seconds of the merchant updating the status
+•	The stock report and order history are accurate and match the recorded transactions in the system
+
+9.5  Events Acceptance
+•	A guest can register for a paid event via WhatsApp, receive a payment link, complete payment, and receive their QR-coded ticket — all without leaving WhatsApp
+•	A QR code scan at a venue check-in point returns a pass/fail result in under 800ms in online mode
+•	A QR code that has already been scanned returns an 'Already Checked In' result and denies re-entry
+•	The offline-capable check-in mode functions correctly without internet connectivity and syncs correctly on reconnection
+•	Two ushers scanning at simultaneous entry points do not create duplicate check-in records for the same ticket
+•	The post-event attendance report accurately reflects all check-in records
+•	Guest-specific RSVP details (table number, parking) are sent only to the correct individual guest
+ 
+10.  Appendices
+Appendix A — Requirement ID Reference
+All functional requirements follow the naming convention: FR-[MODULE]-[FEATURE]-[NUMBER]
+Prefix	Scope
+FR-AUTH-xx	Shared: Authentication & Identity
+FR-WF-xx	Shared: Workflow & Approval Engine
+FR-NOTIF-xx	Shared: Notifications Engine
+FR-DOC-xx	Shared: Document Service
+FR-PAY-xx	Shared: Payment Adapter
+FR-FILE-xx	Shared: File & Media Store
+FR-AI-xx	Shared: AI / NLP Router
+FR-BT-DOC-xx	Business Toolkit: Smart Documents
+FR-BT-REQ-xx	Business Toolkit: Requests & Approvals
+FR-BT-INV-xx	Business Toolkit: Inventory Management
+FR-BT-FAC-xx	Business Toolkit: Facility Reporting
+FR-BT-POLL-xx	Business Toolkit: Polls & Surveys
+FR-BT-EXP-xx	Business Toolkit: Expense Logging
+FR-BT-FORM-xx	Business Toolkit: Forms
+FR-BT-APT-xx	Business Toolkit: Appointments
+FR-BT-FAQ-xx	Business Toolkit: FAQs & Document Recall
+FR-BT-DIR-xx	Business Toolkit: Staff Directory
+FR-BT-OB-xx	Business Toolkit: Staff Onboarding
+FR-CB-CHK-xx	ChurchBase: Child Check-in
+FR-CB-GIV-xx	ChurchBase: Giving
+FR-CB-FT-xx	ChurchBase: First Timer
+FR-CB-PR-xx	ChurchBase: Prayer Requests
+FR-CB-PAC-xx	ChurchBase: Pastoral Care
+FR-SF-CAT-xx	StoreFront: Product Catalog
+FR-SF-ORD-xx	StoreFront: Order Management
+FR-SF-PAY-xx	StoreFront: Payments & Invoicing
+FR-SF-STK-xx	StoreFront: Stock Tracking
+FR-EV-SET-xx	Events: Setup & Registration
+FR-EV-TKT-xx	Events: Ticketing
+FR-EV-RSVP-xx	Events: RSVP & Communication
+FR-EV-QR-xx	Events: QR Check-in & Access Control
+
+Appendix B — MoSCoW Priority Summary
+Priority	Meaning	Count (approx)
+Must Have	Non-negotiable. The platform cannot launch without this requirement. Failure to deliver = product failure.	~62
+Should Have	High value. Should be included in the launch phase but can be deferred to a fast-follow release without blocking launch.	~24
+Could Have	Desirable but not critical. Will be included if time and budget permit.	~8
+Won't Have (v1.0)	Out of scope for version 1.0 but acknowledged for future roadmap.	Documented separately
+
+Appendix C — Open Questions
+The following questions require resolution by the product owner or legal counsel before or during development:
+Q1 — WABA BSP Selection
+Which BSP (360dialog, Infobip, Twilio) will be used for WhatsApp Business API access? This determines onboarding timeline and per-message pricing.
+Q2 — PSP Selection
+Will Paystack or Flutterwave be the primary payment service provider? This affects settlement timelines, fee structure, and integration effort.
+Q3 — CBN Licensing
+Has legal counsel confirmed the regulatory pathway for eventual direct payment processing? This determines the StoreFront roadmap beyond v1.0.
+Q4 — Child Data Legal Framework
+Has a NDPR-compliant child data processing policy been prepared and reviewed by a data protection officer? This is a blocker for ChurchBase child check-in development.
+Q5 — Cloud Region
+Will AWS Lagos (af-south-1) or another region be used? This affects data residency compliance and latency for Nigerian users.
+Q6 — Tenant Pricing Model
+What is the subscription pricing model per tenant, per module? This affects tenant onboarding flow design and billing integration scope.
+Q7 — Pilot Organisations
+Which 2–3 organisations have been identified as Business Toolkit MVP pilot partners? Pilot selection should influence feature prioritisation within Must Have scope.
+
+
+
+CHERTT-BRD-001 · Version 1.0 · April 2026 · Confidential & Proprietary · Technology Advisory

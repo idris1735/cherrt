@@ -278,6 +278,7 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
 interface AppStateContextValue {
   snapshot: WorkspaceSnapshot;
   primaryConversation: Conversation;
+  workspaceHydrated: boolean;
   approveRequest: (requestId: string) => void;
   createConversation: (mode?: Conversation["mode"]) => string;
   renameConversation: (conversationId: string, title: string) => void;
@@ -345,6 +346,7 @@ export function AppStateProvider({
   const [snapshot, dispatch] = useReducer(reducer, initialSnapshot);
   const [profileTick, setProfileTick] = useState(0);
   const [profileReady, setProfileReady] = useState(false);
+  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const snapshotRef = useRef(snapshot);
 
   useEffect(() => {
@@ -378,17 +380,23 @@ export function AppStateProvider({
     let unsubscribe: (() => void) | undefined;
 
     async function hydrateFromSupabase() {
-      const remoteSnapshot = await loadWorkspaceSnapshotFromSupabase(initialSnapshot.workspace.slug);
+      try {
+        const remoteSnapshot = await loadWorkspaceSnapshotFromSupabase(initialSnapshot.workspace.slug);
 
-      if (!cancelled && remoteSnapshot) {
-        dispatch({ type: "hydrate", snapshot: remoteSnapshot });
-      }
-
-      unsubscribe = await subscribeToWorkspaceSnapshot(initialSnapshot.workspace.slug, (nextSnapshot) => {
-        if (!cancelled) {
-          dispatch({ type: "hydrate", snapshot: nextSnapshot });
+        if (!cancelled && remoteSnapshot) {
+          dispatch({ type: "hydrate", snapshot: remoteSnapshot });
         }
-      });
+
+        unsubscribe = await subscribeToWorkspaceSnapshot(initialSnapshot.workspace.slug, (nextSnapshot) => {
+          if (!cancelled) {
+            dispatch({ type: "hydrate", snapshot: nextSnapshot });
+          }
+        });
+      } finally {
+        if (!cancelled) {
+          setWorkspaceHydrated(true);
+        }
+      }
     }
 
     void hydrateFromSupabase();
@@ -409,6 +417,7 @@ const value = useMemo<AppStateContextValue>(
       snapshot: personalizedSnapshot,
       primaryConversation:
         personalizedSnapshot.conversations[0] ?? { id: "fallback-conversation", title: "New chat", mode: "ai", messages: [] },
+      workspaceHydrated,
       approveRequest: (requestId) => {
         dispatch({ type: "approve-request", requestId });
         void persistApprovedRequest(snapshotRef.current, requestId);
@@ -466,7 +475,7 @@ const value = useMemo<AppStateContextValue>(
         dispatch({ type: "add-inventory-item", item });
       },
     }),
-    [personalizedSnapshot],
+    [personalizedSnapshot, workspaceHydrated],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
