@@ -66,7 +66,7 @@ export default function ChatInterface() {
             </button>
           </div>
           <p className="text-xs text-muted-foreground text-center mt-3">
-            Cherrt can make mistakes. Consider checking important information.
+            Chertt can make mistakes. Consider checking important information.
           </p>
         </div>
       </div>

@@ -1,4 +1,4 @@
-# Cherrt — Product & Engineering Status
+# Chertt — Product & Engineering Status
 
 > Last updated: April 2026  
 > Status: Active development — MVP phase
@@ -298,7 +298,7 @@ src/
 docs/
   modules-engine.md              — AI engine documentation
 
-CHERRT_STATUS.md                 — This file
+CHERTT_STATUS.md                 — This file
 ```
 
 ---

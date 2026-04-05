@@ -18,7 +18,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white font-bold text-sm">
               C
             </div>
-            <span className="font-semibold text-foreground">Cherrt</span>
+            <span className="font-semibold text-foreground">Chertt</span>
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
               <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white font-bold text-sm">
                 C
               </div>
-              <span className="font-semibold text-foreground">Cherrt</span>
+              <span className="font-semibold text-foreground">Chertt</span>
             </div>
             <button
               onClick={onToggle}

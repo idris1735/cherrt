@@ -34,7 +34,8 @@ const ALL_SUGGESTION_CARDS = [
 
 const suggestionCards = ALL_SUGGESTION_CARDS.slice(0, 4);
 
-const ACTION_CARD_PREFIX = "[[cherrt-card:";
+const ACTION_CARD_PREFIX = "[[chertt-card:";
+const LEGACY_ACTION_CARD_PREFIX = "[[cherrt-card:";
 const ACTION_CARD_SUFFIX = "]]";
 
 type ActionCard = {
@@ -56,13 +57,14 @@ function appendActionCardToMessage(text: string, card?: ActionCard) {
 }
 
 function extractActionCardFromMessage(text: string): { body: string; card?: ActionCard } {
-  const markerStart = text.lastIndexOf(ACTION_CARD_PREFIX);
+  const markerStart = Math.max(text.lastIndexOf(ACTION_CARD_PREFIX), text.lastIndexOf(LEGACY_ACTION_CARD_PREFIX));
   if (markerStart < 0) return { body: text };
 
   const markerEnd = text.indexOf(ACTION_CARD_SUFFIX, markerStart);
   if (markerEnd < 0) return { body: text };
 
-  const encoded = text.slice(markerStart + ACTION_CARD_PREFIX.length, markerEnd);
+  const matchedPrefix = text.startsWith(ACTION_CARD_PREFIX, markerStart) ? ACTION_CARD_PREFIX : LEGACY_ACTION_CARD_PREFIX;
+  const encoded = text.slice(markerStart + matchedPrefix.length, markerEnd);
 
   try {
     const card = JSON.parse(decodeURIComponent(encoded)) as Partial<ActionCard>;
