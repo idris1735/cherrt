@@ -9057,3 +9057,16 @@ main {
     font-size: 0.88rem;
   }
 }
+
+/* ─── Status badge (minimal detail cards) ───────────────────── */
+.tk-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: oklch(0.95 0.01 55);
+  color: oklch(0.45 0.06 55);
+}
