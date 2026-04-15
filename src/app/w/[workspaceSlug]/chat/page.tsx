@@ -112,8 +112,6 @@ export default function ChatPage() {
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [greetingIndex, setGreetingIndex] = useState(0);
-  const [greetingChars, setGreetingChars] = useState(0);
   const [draftCanvas, setDraftCanvas] = useState<DraftCanvasState | null>(null);
   const [canvasOpen, setCanvasOpen] = useState(false);
   const [canvasPreview, setCanvasPreview] = useState(true);
@@ -140,15 +138,6 @@ export default function ChatPage() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const conversations = snapshot.conversations;
-  const firstName = snapshot.membership.userName.split(" ").filter(Boolean)[0] || "there";
-  const greetingFrames = useMemo(
-    () => [
-      `What can I help with, ${firstName}?`,
-      "Draft a letter. Make a report. Raise a request.",
-      "Ask Chertt in plain language.",
-    ],
-    [firstName],
-  );
   const activeConversation =
     conversations.find((c) => c.id === activeConversationId) ?? conversations[0];
 
@@ -205,25 +194,6 @@ export default function ChatPage() {
       router.refresh();
     }
   }
-
-  useEffect(() => {
-    setGreetingIndex(0);
-    setGreetingChars(0);
-  }, [greetingFrames]);
-
-  useEffect(() => {
-    const line = greetingFrames[greetingIndex];
-    let timeout: ReturnType<typeof setTimeout>;
-    if (greetingChars < line.length) {
-      timeout = setTimeout(() => setGreetingChars((n) => n + 1), 32);
-    } else {
-      timeout = setTimeout(() => {
-        setGreetingIndex((n) => (n + 1) % greetingFrames.length);
-        setGreetingChars(0);
-      }, 1700);
-    }
-    return () => clearTimeout(timeout);
-  }, [greetingChars, greetingFrames, greetingIndex]);
 
   function beginConversationRename(conversationId: string, currentTitle: string) {
     setEditingConversationId(conversationId);
@@ -661,7 +631,6 @@ export default function ChatPage() {
     transcript[0]?.speaker === "assistant" &&
     transcript[0]?.text.startsWith("This is Chertt AI.");
   const isLanding = !hasMessages || isSeedIntroOnly;
-  const animatedGreeting = greetingFrames[greetingIndex].slice(0, greetingChars);
   const speakerClass: Record<"assistant" | "user" | "system" | "teammate", string> = {
     assistant: styles.messageAssistant,
     user: styles.messageUser,
@@ -959,10 +928,7 @@ export default function ChatPage() {
         {isLanding ? (
           <div className={styles.landingShell}>
             <div className={styles.emptyWrap}>
-              <h1>
-                {animatedGreeting}
-                <span className={styles.caret}>|</span>
-              </h1>
+              <h1>What can I help with?</h1>
             </div>
 
             <div className={styles.suggestionGrid}>
