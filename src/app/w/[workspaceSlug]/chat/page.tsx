@@ -132,7 +132,7 @@ export default function ChatPage() {
     href: string;
     cta: string;
   } | null>(null);
-const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
