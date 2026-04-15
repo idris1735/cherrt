@@ -24,7 +24,7 @@ function buildRecordRows(snapshot: WorkspaceSnapshot, workspaceSlug: string): Re
     rows.push({ id: doc.id, title: doc.title, type: "Document", status: doc.status, module: "toolkit", href: `${base}/documents/${doc.id}` });
   }
   for (const req of snapshot.requests) {
-    rows.push({ id: req.id, title: req.title, type: "Request", status: req.status, module: req.module, href: `${base}/requests/${req.id}` });
+    rows.push({ id: req.id, title: req.title, type: "Request", status: req.status, module: req.module, href: `/w/${workspaceSlug}/modules/${req.module}/requests/${req.id}` });
   }
   for (const expense of snapshot.expenses) {
     rows.push({ id: expense.id, title: expense.title, type: "Expense", status: expense.status, module: "toolkit", href: `${base}/expenses/${expense.id}` });
