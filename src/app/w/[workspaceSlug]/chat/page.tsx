@@ -150,7 +150,9 @@ export default function ChatPage() {
     cta: string;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [activeModule, setActiveModule] = useState<ModuleKey>("toolkit");
+  const [activeModule, setActiveModule] = useState<ModuleKey>(
+    () => (snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit"
+  );
   const activeSuggestionCards = MODULE_SUGGESTION_CARDS[activeModule];
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -856,6 +858,7 @@ export default function ChatPage() {
                   .map((key) => (
                     <button
                       key={key}
+                      aria-pressed={activeModule === key}
                       className={`${styles.modulePill} ${activeModule === key ? styles.modulePillActive : ""}`}
                       onClick={() => setActiveModule(key)}
                       type="button"
