@@ -778,6 +778,22 @@ export default function ChatPage() {
           ))}
         </div>
 
+        {/* Records nav link */}
+        <div className={styles.sidebarRecordsLink}>
+          <Link
+            className={styles.recordsNavItem}
+            href={`/w/${snapshot.workspace.slug}/modules`}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <rect x="2" y="2" width="5" height="5" rx="1" />
+              <rect x="9" y="2" width="5" height="5" rx="1" />
+              <rect x="2" y="9" width="5" height="5" rx="1" />
+              <rect x="9" y="9" width="5" height="5" rx="1" />
+            </svg>
+            Records
+          </Link>
+        </div>
+
         {/* Balance chip */}
         {walletBalance !== null ? (
           <div className={styles.walletChip}>

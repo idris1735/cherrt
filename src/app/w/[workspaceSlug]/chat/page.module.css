@@ -1543,3 +1543,34 @@
 .moduleBadgeClear:hover {
   color: var(--ch-text);
 }
+
+/* ─── Records sidebar nav ───────────────────────────────────── */
+
+.sidebarRecordsLink {
+  padding: 4px 10px;
+}
+
+.recordsNavItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--ch-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.recordsNavItem svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.recordsNavItem:hover {
+  background: var(--ch-surface-soft);
+  color: var(--ch-text);
+}
