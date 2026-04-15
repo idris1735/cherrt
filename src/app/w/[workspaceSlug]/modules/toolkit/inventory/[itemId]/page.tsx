@@ -31,6 +31,7 @@ export default function ToolkitInventoryDetailPage() {
       <div className="tk-card">
         <div className="tk-card-head">
           <Link className="tk-inline-link" href={chatHref}>← Back to chat</Link>
+          {/* InventoryItem has no status field — badge intentionally omitted */}
         </div>
         <p className="tk-eyebrow">Inventory</p>
         <h2 className="tk-card-title">{item.name}</h2>
