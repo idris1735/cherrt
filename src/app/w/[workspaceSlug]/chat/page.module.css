@@ -469,7 +469,7 @@
   width: min(720px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: end;
   border: 1px solid var(--ch-border);
