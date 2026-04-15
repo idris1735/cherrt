@@ -407,6 +407,8 @@
   padding: 0 20px;
   display: grid;
   gap: 16px;
+  overflow-y: auto;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 .emptyWrap {
@@ -474,6 +476,7 @@
   border-radius: 16px;
   background: var(--ch-surface);
   padding: 8px 10px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 .composer:focus-within {
@@ -1417,8 +1420,8 @@
   }
 
   .chatSidebarOpen .edgeToggle {
-    opacity: 0;
-    pointer-events: none;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .chatColumn {
