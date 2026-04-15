@@ -503,6 +503,7 @@ export default function ChatPage() {
             userTitle: (typeof window !== "undefined" ? getActiveUserProfile()?.jobTitle : undefined) ?? snapshot.membership.title,
             userOrganization: (typeof window !== "undefined" ? getActiveUserProfile()?.organization : undefined) ?? snapshot.workspace.name,
           },
+          activeModule,
           history: rawHistory,
           memoryContext: buildMemoryContext(),
         }),
@@ -889,6 +890,17 @@ export default function ChatPage() {
                   <path d="M13 7l-5 5a3 3 0 01-4.24-4.24l5-5a2 2 0 012.83 2.83L6.5 10.5a1 1 0 01-1.41-1.41L10 4" strokeLinecap="round" />
                 </svg>
               </button>
+              <div className={styles.moduleBadge}>
+                <span>{MODULE_LABELS[activeModule]}</span>
+                <button
+                  aria-label="Clear module"
+                  className={styles.moduleBadgeClear}
+                  onClick={() => setActiveModule((snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit")}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
               <textarea
                 ref={composerRef}
                 value={prompt}
