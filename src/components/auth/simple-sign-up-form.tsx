@@ -10,7 +10,6 @@ import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 export function SimpleSignUpForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
-  const [age, setAge] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,18 +21,12 @@ export function SimpleSignUpForm() {
     event.preventDefault();
 
     const safeName = fullName.trim();
-    const safeAge = Number(age);
     const normalizedEmail = email.trim().toLowerCase();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
     if (!safeName || safeName.length < 2) {
       setError("Enter your full name to continue.");
-      return;
-    }
-
-    if (!Number.isFinite(safeAge) || safeAge < 13 || safeAge > 120) {
-      setError("Age must be between 13 and 120.");
       return;
     }
 
@@ -64,7 +57,6 @@ export function SimpleSignUpForm() {
         emailRedirectTo: redirectTo,
         data: {
           full_name: safeName,
-          age: safeAge,
         },
       },
     });
@@ -87,7 +79,6 @@ export function SimpleSignUpForm() {
 
     const profile = buildUserProfile({
       fullName: safeName,
-      age: safeAge,
       email: normalizedEmail,
     });
     setActiveUserProfile(profile);
@@ -107,17 +98,6 @@ export function SimpleSignUpForm() {
           required
           type="text"
           value={fullName}
-        />
-      </label>
-      <label className="field">
-        <span>Age</span>
-        <input
-          min={1}
-          onChange={(event) => setAge(event.target.value)}
-          placeholder="e.g. 28"
-          required
-          type="number"
-          value={age}
         />
       </label>
       <label className="field">
@@ -169,7 +149,7 @@ export function SimpleSignUpForm() {
       <div className="auth-panel__actions auth-panel__actions--column">
         <button
           className="button button--primary button--full"
-          disabled={loading || !fullName.trim() || !age || !email.trim() || !password}
+          disabled={loading || !fullName.trim() || !email.trim() || !password}
           type="submit"
         >
           {loading ? "Creating account..." : "Continue"}

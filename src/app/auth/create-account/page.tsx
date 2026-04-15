@@ -25,7 +25,7 @@ export default function CreateAccountPage() {
             <p className="auth-entry-visual__eyebrow">Get started</p>
             <h1>Create your account.</h1>
             <p className="auth-entry-visual__body">
-              Share your name, age, email, and password. We&apos;ll take you into workspace setup right after signup.
+              Share your name, email, and password. We&apos;ll take you into workspace setup right after.
             </p>
           </div>
         </div>
