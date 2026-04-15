@@ -14,25 +14,42 @@ import { formatCurrency, formatMessageTime } from "@/lib/format";
 import { clearActiveUserProfile, deductFromWallet, getActiveUserProfile, getWallet } from "@/lib/services/profile";
 import { clearLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
-import type { AiCommandResult } from "@/lib/types";
+import type { AiCommandResult, ModuleKey } from "@/lib/types";
 import styles from "@/app/w/[workspaceSlug]/chat/page.module.css";
 
-const ALL_SUGGESTION_CARDS = [
-  { label: "Draft letter",      hint: "Create and route for signature",     prompt: "Draft a formal letter to our fuel vendor requesting an extension on payment terms." },
-  { label: "Raise request",     hint: "Expenses, supplies, repairs",        prompt: "Raise an expense request for diesel top-up — ₦45,000 for the generator tonight." },
-  { label: "Report issue",      hint: "Facility or security incident",      prompt: "Log a high-severity facility issue: generator room has a water leak." },
-  { label: "Pay church tithe",  hint: "Send offering to your church",       prompt: "I want to pay my tithe of ₦20,000 to Harbour Church." },
-  { label: "Schedule meeting",  hint: "Book an appointment",                prompt: "Schedule a vendor review meeting for next Monday at 10am." },
-  { label: "Create event form", hint: "Registration for an event",          prompt: "Create a registration form for our annual staff dinner event." },
-  { label: "Log expense",       hint: "Record petty cash or receipt",       prompt: "Log a petty cash expense of ₦8,500 for office stationery from the admin store." },
-  { label: "Add staff",         hint: "Staff contact and directory",        prompt: "Add a new staff member: Sandra Eke, Admin Officer in Operations, phone 08012345678." },
-  { label: "Church giving",     hint: "Record an offering or donation",     prompt: "Record a donation of ₦50,000 to Grace Assembly for their building fund." },
-  { label: "Store order",       hint: "Capture a product order",           prompt: "Capture a store order for 5 branded notebooks and 3 pens for the front desk." },
-  { label: "Staff feedback",    hint: "Pulse check or survey",             prompt: "Create a weekly pulse poll to check staff morale and flag any concerns." },
-  { label: "Prepare invoice",   hint: "Bill a client or vendor",           prompt: "Prepare an invoice for Greenfield Partners for consulting services — ₦180,000." },
-];
+const MODULE_SUGGESTION_CARDS: Record<ModuleKey, { label: string; hint: string; prompt: string }[]> = {
+  toolkit: [
+    { label: "Draft letter",         hint: "Create and route for signature",     prompt: "Draft a formal letter to our fuel vendor requesting an extension on payment terms." },
+    { label: "Raise request",        hint: "Expenses, supplies, repairs",        prompt: "Raise an expense request for diesel top-up — ₦45,000 for the generator tonight." },
+    { label: "Report issue",         hint: "Facility or security incident",      prompt: "Log a high-severity facility issue: generator room has a water leak." },
+    { label: "Log expense",          hint: "Record petty cash or receipt",       prompt: "Log a petty cash expense of ₦8,500 for office stationery from the admin store." },
+  ],
+  church: [
+    { label: "Record giving",        hint: "Tithes, offerings, donations",       prompt: "Record a donation of ₦50,000 to Grace Assembly for their building fund." },
+    { label: "Log prayer request",   hint: "Capture pastoral need",              prompt: "Log a prayer request for the Johnson family going through a health crisis." },
+    { label: "Register first timer", hint: "New visitor workflow",               prompt: "Register a first-time visitor: Sandra Eke, visited Sunday service, needs a follow-up call." },
+    { label: "Pastoral care",        hint: "Care visit or follow-up",            prompt: "Log a pastoral care visit for the Okafor family — bereavement follow-up needed." },
+  ],
+  store: [
+    { label: "Capture order",        hint: "New customer order",                 prompt: "Capture a store order for 5 branded notebooks and 3 pens for the front desk." },
+    { label: "Add product",          hint: "Add to your catalogue",              prompt: "Add a new product to the catalogue: Chertt branded mug, ₦2,500 each, 50 units." },
+    { label: "Create invoice",       hint: "Bill a client",                      prompt: "Prepare an invoice for Greenfield Partners for consulting services — ₦180,000." },
+    { label: "Check stock",          hint: "View inventory levels",              prompt: "Check current stock levels for office supplies and flag anything below minimum." },
+  ],
+  events: [
+    { label: "Register guest",       hint: "Add RSVP or attendee",               prompt: "Register a guest for the annual dinner: Dr Emeka Nwosu, table 4, VIP ticket." },
+    { label: "Issue ticket",         hint: "Generate event ticket",              prompt: "Issue a ticket for the leadership summit to Adaeze Obi, standard admission." },
+    { label: "Send invites",         hint: "Invite guests to an event",          prompt: "Send event invitations for the Sunday gala to all confirmed RSVP guests." },
+    { label: "Manage RSVP",          hint: "Review guest list",                  prompt: "Show me the current RSVP list for the upcoming event and flag any outstanding confirmations." },
+  ],
+};
 
-const suggestionCards = ALL_SUGGESTION_CARDS.slice(0, 4);
+const MODULE_LABELS: Record<ModuleKey, string> = {
+  toolkit: "🗂 Toolkit",
+  church:  "⛪ Church",
+  store:   "🛍 Store",
+  events:  "🎟 Events",
+};
 
 const ACTION_CARD_PREFIX = "[[chertt-card:";
 const LEGACY_ACTION_CARD_PREFIX = "[[cherrt-card:";
@@ -133,6 +150,8 @@ export default function ChatPage() {
     cta: string;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [activeModule, setActiveModule] = useState<ModuleKey | null>("toolkit");
+  const activeSuggestionCards = activeModule ? MODULE_SUGGESTION_CARDS[activeModule] : MODULE_SUGGESTION_CARDS.toolkit;
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -829,8 +848,26 @@ export default function ChatPage() {
               <h1>What can I help with?</h1>
             </div>
 
+            {/* Module pills */}
+            {snapshot.workspace.modules.length > 0 ? (
+              <div className={styles.modulePills}>
+                {(["toolkit", "church", "store", "events"] as ModuleKey[])
+                  .filter((key) => snapshot.workspace.modules.includes(key))
+                  .map((key) => (
+                    <button
+                      key={key}
+                      className={`${styles.modulePill} ${activeModule === key ? styles.modulePillActive : ""}`}
+                      onClick={() => setActiveModule(activeModule === key ? null : key)}
+                      type="button"
+                    >
+                      {MODULE_LABELS[key]}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+
             <div className={styles.suggestionGrid}>
-              {suggestionCards.map((item) => (
+              {activeSuggestionCards.map((item) => (
                 <button className={styles.suggestionCard} key={item.label} onClick={() => handleSuggestionClick(item.prompt)} type="button">
                   <strong>{item.label}</strong>
                   <p>{item.hint}</p>

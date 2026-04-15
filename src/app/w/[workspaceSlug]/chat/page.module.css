@@ -1470,3 +1470,43 @@
 .fileInput {
   display: none;
 }
+
+/* ─── Module pills ──────────────────────────────────────────── */
+
+.modulePills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.modulePill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--ch-border);
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  white-space: nowrap;
+}
+
+.modulePill:hover {
+  border-color: var(--ch-text);
+  color: var(--ch-text);
+}
+
+.modulePillActive {
+  background: var(--ch-text);
+  color: var(--ch-bg);
+  border-color: var(--ch-text);
+  font-weight: 600;
+}
+
+.modulePillActive:hover {
+  background: var(--ch-text);
+  color: var(--ch-bg);
+}
