@@ -150,8 +150,8 @@ export default function ChatPage() {
     cta: string;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [activeModule, setActiveModule] = useState<ModuleKey | null>("toolkit");
-  const activeSuggestionCards = activeModule ? MODULE_SUGGESTION_CARDS[activeModule] : MODULE_SUGGESTION_CARDS.toolkit;
+  const [activeModule, setActiveModule] = useState<ModuleKey>("toolkit");
+  const activeSuggestionCards = MODULE_SUGGESTION_CARDS[activeModule];
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -857,7 +857,7 @@ export default function ChatPage() {
                     <button
                       key={key}
                       className={`${styles.modulePill} ${activeModule === key ? styles.modulePillActive : ""}`}
-                      onClick={() => setActiveModule(activeModule === key ? null : key)}
+                      onClick={() => setActiveModule(key)}
                       type="button"
                     >
                       {MODULE_LABELS[key]}
