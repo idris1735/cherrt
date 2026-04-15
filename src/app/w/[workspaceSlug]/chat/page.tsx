@@ -137,6 +137,7 @@ export default function ChatPage() {
   const [recordsOpen, setRecordsOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const conversations = snapshot.conversations;
   const firstName = snapshot.membership.userName.split(" ").filter(Boolean)[0] || "there";
@@ -641,7 +642,8 @@ export default function ChatPage() {
   }
 
   function handleSuggestionClick(suggestionPrompt: string) {
-    void sendPrompt(suggestionPrompt);
+    setPrompt(suggestionPrompt);
+    composerRef.current?.focus();
   }
 
   function handleAttachClick() {
@@ -984,6 +986,7 @@ export default function ChatPage() {
                 </svg>
               </button>
               <textarea
+                ref={composerRef}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handleComposerKeyDown}
@@ -1094,6 +1097,7 @@ export default function ChatPage() {
                   </svg>
                 </button>
                 <textarea
+                  ref={composerRef}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyDown={handleComposerKeyDown}
