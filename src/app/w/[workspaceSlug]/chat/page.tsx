@@ -132,8 +132,7 @@ export default function ChatPage() {
     href: string;
     cta: string;
   } | null>(null);
-  const [recordsOpen, setRecordsOpen] = useState(false);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -755,107 +754,6 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Records panel */}
-        <div className={styles.recordsSection}>
-          <button
-            className={styles.recordsToggle}
-            onClick={() => setRecordsOpen((o) => !o)}
-            type="button"
-          >
-            <span>Records</span>
-            <svg aria-hidden="true" className={recordsOpen ? styles.recordsChevronOpen : ""} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {recordsOpen ? (
-            <div className={styles.recordsList}>
-              {snapshot.documents.length > 0 && (
-                <div className={styles.recordsGroup}>
-                  <p className={styles.recordsGroupLabel}>Documents</p>
-                  {snapshot.documents.slice(0, 6).map((d) => (
-                    <Link
-                      className={styles.recordsItem}
-                      href={`/w/${snapshot.workspace.slug}/modules/toolkit/documents/${d.id}`}
-                      key={d.id}
-                      onClick={() => setRecordsOpen(false)}
-                    >
-                      <span>{d.title}</span>
-                      <span className={styles.recordsItemStatus}>{d.status}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {snapshot.requests.filter((r) => r.module === "toolkit").length > 0 && (
-                <div className={styles.recordsGroup}>
-                  <p className={styles.recordsGroupLabel}>Requests</p>
-                  {snapshot.requests.filter((r) => r.module === "toolkit").slice(0, 6).map((r) => (
-                    <Link
-                      className={styles.recordsItem}
-                      href={`/w/${snapshot.workspace.slug}/modules/toolkit/requests/${r.id}`}
-                      key={r.id}
-                      onClick={() => setRecordsOpen(false)}
-                    >
-                      <span>{r.title}</span>
-                      <span className={styles.recordsItemStatus}>{r.status}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {snapshot.expenses.length > 0 && (
-                <div className={styles.recordsGroup}>
-                  <p className={styles.recordsGroupLabel}>Expenses</p>
-                  {snapshot.expenses.slice(0, 6).map((e) => (
-                    <Link
-                      className={styles.recordsItem}
-                      href={`/w/${snapshot.workspace.slug}/modules/toolkit/expenses/${e.id}`}
-                      key={e.id}
-                      onClick={() => setRecordsOpen(false)}
-                    >
-                      <span>{e.title}</span>
-                      <span className={styles.recordsItemStatus}>{formatCurrency(e.amount, snapshot.workspace.currency)}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {snapshot.issues.length > 0 && (
-                <div className={styles.recordsGroup}>
-                  <p className={styles.recordsGroupLabel}>Issues</p>
-                  {snapshot.issues.slice(0, 6).map((i) => (
-                    <Link
-                      className={styles.recordsItem}
-                      href={`/w/${snapshot.workspace.slug}/modules/toolkit/issues/${i.id}`}
-                      key={i.id}
-                      onClick={() => setRecordsOpen(false)}
-                    >
-                      <span>{i.title}</span>
-                      <span className={styles.recordsItemStatus}>{i.severity}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {snapshot.appointments.length > 0 && (
-                <div className={styles.recordsGroup}>
-                  <p className={styles.recordsGroupLabel}>Appointments</p>
-                  {snapshot.appointments.slice(0, 6).map((a) => (
-                    <Link
-                      className={styles.recordsItem}
-                      href={`/w/${snapshot.workspace.slug}/modules/toolkit/appointments/${a.id}`}
-                      key={a.id}
-                      onClick={() => setRecordsOpen(false)}
-                    >
-                      <span>{a.title}</span>
-                      <span className={styles.recordsItemStatus}>{a.when}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {snapshot.documents.length === 0 && snapshot.requests.length === 0 && snapshot.expenses.length === 0 && snapshot.issues.length === 0 && snapshot.appointments.length === 0 && (
-                <p className={styles.recordsEmpty}>Nothing created yet. Ask Chertt to get started.</p>
-              )}
-            </div>
-          ) : null}
         </div>
 
         {/* Balance chip */}
