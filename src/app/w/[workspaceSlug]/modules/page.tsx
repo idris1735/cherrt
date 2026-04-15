@@ -102,8 +102,8 @@ export default function RecordsPage() {
       {filtered.length === 0 ? (
         <div className="tk-card">
           <div className="tk-soft-tile">
-            <strong>Nothing created yet.</strong>
             <p>
+              Nothing created yet.{" "}
               <Link href={`/w/${params.workspaceSlug}/chat`}>Go to chat to get started.</Link>
             </p>
           </div>
