@@ -560,35 +560,14 @@
 
 /* ─── Chat thread ─────────────────────────────────────────────── */
 
-.chatWorkarea {
+.chatMain {
   min-height: 0;
   height: 100%;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  overflow: hidden;
-}
-
-.chatColumn {
-  flex: 1 1 0;
-  min-width: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 10px;
   padding: 0 16px 0;
-}
-
-/* Canvas outer wrapper — animates the width */
-.canvasPaneWrap {
-  flex-shrink: 0;
-  width: 0;
   overflow: hidden;
-  transition: width 0.32s cubic-bezier(0.2, 0, 0, 1);
-}
-
-.canvasPaneWrapOpen {
-  width: clamp(300px, 36vw, 460px);
-  padding-right: 16px;
 }
 
 .thread {
@@ -794,6 +773,99 @@
   margin-top: 2px;
   font-size: 0.73rem;
   font-weight: 620;
+}
+
+/* ─── Inline document card (GPT-style) ───────────────────────── */
+
+.inlineDocCard {
+  width: min(600px, 100%);
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ch-border);
+  background: var(--ch-surface);
+  overflow: hidden;
+}
+
+.inlineDocHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ch-border);
+}
+
+.inlineDocType {
+  font-size: 0.72rem;
+  font-weight: 660;
+  text-transform: capitalize;
+  color: var(--ch-muted);
+  letter-spacing: 0.04em;
+}
+
+.inlineDocActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inlineDocBtn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ch-border);
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.inlineDocBtn:hover {
+  background: var(--ch-surface-soft);
+  color: var(--ch-text);
+  border-color: var(--ch-border);
+}
+
+.inlineDocBtnSign {
+  color: var(--ch-accent);
+  border-color: color-mix(in oklch, var(--ch-accent) 40%, var(--ch-border));
+}
+
+.inlineDocBtnSign:hover {
+  background: color-mix(in oklch, var(--ch-accent) 10%, transparent);
+  color: var(--ch-accent);
+}
+
+.inlineDocSigned {
+  font-size: 0.75rem;
+  color: oklch(0.58 0.15 145);
+  font-weight: 600;
+}
+
+.inlineDocBody {
+  padding: 16px;
+  font-size: 0.84rem;
+  line-height: 1.65;
+  color: var(--ch-text);
+  max-height: 480px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ch-border) transparent;
+}
+
+.inlineDocBody p { margin: 0 0 0.6em; }
+.inlineDocBody p:last-child { margin-bottom: 0; }
+.inlineDocBody strong { font-weight: 660; }
+.inlineDocBody h1, .inlineDocBody h2, .inlineDocBody h3 {
+  font-size: 0.88rem;
+  font-weight: 660;
+  margin: 0.8em 0 0.3em;
+}
+.inlineDocBody hr {
+  border: none;
+  border-top: 1px solid var(--ch-border);
+  margin: 0.8em 0;
 }
 
 /* ─── Canvas pane ─────────────────────────────────────────────── */
@@ -1425,7 +1497,7 @@
     pointer-events: auto;
   }
 
-  .chatColumn {
+  .chatMain {
     padding: 0 12px 0;
   }
 
@@ -1435,15 +1507,6 @@
 
   .suggestionGrid {
     grid-template-columns: 1fr;
-  }
-
-  .canvasPaneWrapOpen {
-    width: 100%;
-    padding-right: 0;
-  }
-
-  .chatWorkarea {
-    flex-direction: column;
   }
 
   .canvasPane {

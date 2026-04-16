@@ -103,19 +103,6 @@ function extractActionCardFromMessage(text: string): { body: string; card?: Acti
   }
 }
 
-type DraftCanvasState = {
-  id: string;
-  title: string;
-  type: "letter" | "invoice" | "memo";
-  body: string;
-  preparedBy: string;
-  status: "draft" | "pending" | "approved" | "in-progress" | "completed" | "flagged";
-  awaitingSignatureFrom?: string;
-  amount?: number;
-  createdAtLabel: string;
-  dirty: boolean;
-  lastSavedLabel: string;
-};
 
 export default function ChatPage() {
   const { snapshot, addMessage, applyAiResult, createConversation, renameConversation, deleteConversation, upsertDocument } = useAppState();
@@ -129,9 +116,6 @@ export default function ChatPage() {
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [draftCanvas, setDraftCanvas] = useState<DraftCanvasState | null>(null);
-  const [canvasOpen, setCanvasOpen] = useState(false);
-  const [canvasPreview, setCanvasPreview] = useState(true);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     summary: string;
     actionKey: string;
@@ -384,26 +368,6 @@ export default function ChatPage() {
     return undefined;
   }
 
-  useEffect(() => {
-    if (!draftCanvas || !draftCanvas.dirty) return;
-    const timeout = window.setTimeout(() => {
-      upsertDocument({
-        id: draftCanvas.id,
-        title: draftCanvas.title,
-        type: draftCanvas.type,
-        body: draftCanvas.body,
-        status: draftCanvas.status,
-        preparedBy: draftCanvas.preparedBy,
-        awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
-        amount: draftCanvas.amount,
-        createdAtLabel: draftCanvas.createdAtLabel,
-      });
-      setDraftCanvas((curr) =>
-        curr && curr.id === draftCanvas.id ? { ...curr, dirty: false, lastSavedLabel: "Saved now" } : curr,
-      );
-    }, 700);
-    return () => window.clearTimeout(timeout);
-  }, [draftCanvas, upsertDocument]);
 
   function buildMemoryContext(): string {
     const { documents, requests, expenses, issues, appointments, paymentLinks, giving, careRequests } = snapshot;
@@ -544,22 +508,8 @@ export default function ChatPage() {
         renameConversation(conversationId, actionCard.title);
       }
 
-      if (payload.generatedDocument) {
-        setDraftCanvas({
-          id: payload.generatedDocument.id,
-          title: payload.generatedDocument.title,
-          type: payload.generatedDocument.type,
-          body: payload.generatedDocument.body,
-          preparedBy: payload.generatedDocument.preparedBy,
-          status: payload.generatedDocument.status,
-          awaitingSignatureFrom: payload.generatedDocument.awaitingSignatureFrom,
-          amount: payload.generatedDocument.amount,
-          createdAtLabel: payload.generatedDocument.createdAtLabel,
-          dirty: false,
-          lastSavedLabel: "Just now",
-        });
-        setCanvasOpen(true);
-      }
+      // Document is saved to snapshot via applyAiResult above;
+      // it renders inline in the thread via the action card.
     } catch {
       const errNow = Date.now();
       addMessage(conversationId, {
@@ -598,26 +548,6 @@ export default function ChatPage() {
   function openSheet(card: NonNullable<typeof sheetContent>) {
     setSheetContent(card);
     setSheetOpen(true);
-  }
-
-  function openDraftFromCard(recordId?: string) {
-    if (!recordId) return;
-    const doc = snapshot.documents.find((d) => d.id === recordId);
-    if (!doc) return;
-    setDraftCanvas({
-      id: doc.id,
-      title: doc.title,
-      type: doc.type,
-      body: doc.body,
-      preparedBy: doc.preparedBy,
-      status: doc.status,
-      awaitingSignatureFrom: doc.awaitingSignatureFrom,
-      amount: doc.amount,
-      createdAtLabel: doc.createdAtLabel,
-      dirty: false,
-      lastSavedLabel: "Loaded",
-    });
-    setCanvasOpen(true);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -932,9 +862,8 @@ export default function ChatPage() {
             </form>
           </div>
         ) : (
-          <div className={styles.chatWorkarea}>
-            <div className={styles.chatColumn}>
-              <div className={styles.thread} ref={threadRef}>
+          <div className={styles.chatMain}>
+            <div className={styles.thread} ref={threadRef}>
                 {transcript.map((msg, index) => (
                   <article
                     className={`${styles.message} ${speakerClass[msg.speaker]}`}
@@ -957,21 +886,40 @@ export default function ChatPage() {
                             </div>
                           ) : null}
                           {card ? (
-                            card.kind === "document" && card.recordId ? (
-                              <button
-                                className={styles.inlineActionCard}
-                                onClick={() => {
-                                  openDraftFromCard(card.recordId);
-                                  openSheet(card);
-                                }}
-                                type="button"
-                              >
-                                <span className={styles.inlineActionKind}>{card.kind}</span>
-                                <strong className={styles.inlineActionTitle}>{card.title}</strong>
-                                {card.note ? <p className={styles.inlineActionNote}>{card.note}</p> : null}
-                                <span className={styles.inlineActionCta}>Open in canvas →</span>
-                              </button>
-                            ) : (
+                            card.kind === "document" && card.recordId ? (() => {
+                              const doc = snapshot.documents.find((d) => d.id === card.recordId);
+                              if (!doc) return null;
+                              return (
+                                <div className={styles.inlineDocCard}>
+                                  <div className={styles.inlineDocHead}>
+                                    <span className={styles.inlineDocType}>{doc.type}</span>
+                                    <div className={styles.inlineDocActions}>
+                                      <button
+                                        className={styles.inlineDocBtn}
+                                        onClick={() => void navigator.clipboard.writeText(doc.body)}
+                                        type="button"
+                                      >
+                                        Copy
+                                      </button>
+                                      {doc.awaitingSignatureFrom && doc.status === "pending" ? (
+                                        <button
+                                          className={`${styles.inlineDocBtn} ${styles.inlineDocBtnSign}`}
+                                          onClick={() => upsertDocument({ ...doc, status: "approved", awaitingSignatureFrom: undefined })}
+                                          type="button"
+                                        >
+                                          Sign off ✓
+                                        </button>
+                                      ) : doc.status === "approved" ? (
+                                        <span className={styles.inlineDocSigned}>✓ Signed</span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <div className={styles.inlineDocBody}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.body}</ReactMarkdown>
+                                  </div>
+                                </div>
+                              );
+                            })() : (
                               <button
                                 className={styles.inlineActionCard}
                                 onClick={() => openSheet(card)}
@@ -1041,120 +989,6 @@ export default function ChatPage() {
                   </svg>
                 </button>
               </form>
-            </div>
-
-            <div className={`${styles.canvasPaneWrap} ${canvasOpen && draftCanvas ? styles.canvasPaneWrapOpen : ""}`}>
-            {draftCanvas ? (
-              <aside className={styles.canvasPane}>
-                <div className={styles.canvasHead}>
-                  <div>
-                    <p className={styles.canvasEyebrow}>Writing Canvas</p>
-                    <strong className={styles.canvasTitle}>{draftCanvas.title}</strong>
-                    <span className={styles.canvasMeta}>{draftCanvas.type} · {draftCanvas.lastSavedLabel}</span>
-                  </div>
-                  <div className={styles.canvasActions}>
-                    <div className={styles.canvasViewToggle}>
-                      <button
-                        className={`${styles.canvasViewBtn} ${canvasPreview ? styles.canvasViewBtnActive : ""}`}
-                        onClick={() => setCanvasPreview(true)}
-                        type="button"
-                      >
-                        Preview
-                      </button>
-                      <button
-                        className={`${styles.canvasViewBtn} ${!canvasPreview ? styles.canvasViewBtnActive : ""}`}
-                        onClick={() => setCanvasPreview(false)}
-                        type="button"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    {!canvasPreview ? (
-                      <button
-                        className={styles.canvasButton}
-                        onClick={() => {
-                          upsertDocument({
-                            id: draftCanvas.id,
-                            title: draftCanvas.title,
-                            type: draftCanvas.type,
-                            body: draftCanvas.body,
-                            status: draftCanvas.status,
-                            preparedBy: draftCanvas.preparedBy,
-                            awaitingSignatureFrom: draftCanvas.awaitingSignatureFrom,
-                            amount: draftCanvas.amount,
-                            createdAtLabel: draftCanvas.createdAtLabel,
-                          });
-                          setDraftCanvas((c) => (c ? { ...c, dirty: false, lastSavedLabel: "Saved now" } : c));
-                        }}
-                        type="button"
-                      >
-                        Save
-                      </button>
-                    ) : null}
-                    <button className={styles.canvasButton} onClick={() => setCanvasOpen(false)} type="button">
-                      Close
-                    </button>
-                  </div>
-                </div>
-
-                {canvasPreview ? (
-                  <div className={styles.canvasPreviewWrap}>
-                    <div className={styles.canvasPreviewDoc}>
-                      <span className={styles.canvasDocTypeBadge}>{draftCanvas.type}</span>
-                      <div className={styles.canvasDocBody}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {draftCanvas.body}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-
-                    {/* Sign-off section */}
-                    {draftCanvas.awaitingSignatureFrom && draftCanvas.status === "pending" ? (
-                      <div className={styles.canvasSignRow}>
-                        <p className={styles.canvasSignInfo}>
-                          Awaiting signature from <strong>{draftCanvas.awaitingSignatureFrom}</strong>
-                        </p>
-                        <button
-                          className={styles.canvasSignBtn}
-                          onClick={() => {
-                            const next = {
-                              id: draftCanvas.id,
-                              title: draftCanvas.title,
-                              type: draftCanvas.type,
-                              body: draftCanvas.body,
-                              status: "approved" as const,
-                              preparedBy: draftCanvas.preparedBy,
-                              awaitingSignatureFrom: undefined,
-                              amount: draftCanvas.amount,
-                              createdAtLabel: draftCanvas.createdAtLabel,
-                            };
-                            upsertDocument(next);
-                            setDraftCanvas((c) => c ? { ...c, status: "approved", awaitingSignatureFrom: undefined, dirty: false, lastSavedLabel: "Signed" } : c);
-                          }}
-                          type="button"
-                        >
-                          Sign off ✓
-                        </button>
-                      </div>
-                    ) : draftCanvas.status === "approved" ? (
-                      <div className={styles.canvasSignRow}>
-                        <p className={styles.canvasSignApproved}>✓ Signed and approved</p>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <textarea
-                    className={styles.canvasTextarea}
-                    onChange={(e) =>
-                      setDraftCanvas((c) => c ? { ...c, body: e.target.value, dirty: true, lastSavedLabel: "Saving..." } : c)
-                    }
-                    spellCheck={false}
-                    value={draftCanvas.body}
-                  />
-                )}
-              </aside>
-            ) : null}
-            </div>
           </div>
         )}
       </section>
