@@ -669,10 +669,10 @@ export default function ChatPage() {
       <aside className={styles.sidebar}>
         {/* Brand row */}
         <div className={styles.sidebarBrand}>
-          <div className={styles.brandMark}>
+          <Link className={styles.brandMark} href="/" title="Home">
             <Image alt="Chertt" className={styles.brandLogo} height={22} priority src="/logo.png" width={22} />
             <span className={styles.brandName}>Chertt</span>
-          </div>
+          </Link>
           <button
             aria-label="Close sidebar"
             className={styles.sidebarToggleBtn}

@@ -7197,7 +7197,7 @@ main {
 }
 
 .button--primary {
-  background: var(--accent);
+  background: var(--ch-accent, var(--accent));
   color: #fff;
 }
 
@@ -9069,4 +9069,65 @@ main {
   letter-spacing: 0.06em;
   background: oklch(0.95 0.01 55);
   color: oklch(0.45 0.06 55);
+}
+
+/* ─── Dark mode overrides for workspace shell surfaces ──────── */
+[data-chertt-theme="dark"] .tk-card {
+  background: var(--ch-surface);
+  border-color: var(--ch-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+[data-chertt-theme="dark"] .tk-detail-stat {
+  background: var(--ch-surface-soft);
+  border-color: var(--ch-border);
+}
+
+[data-chertt-theme="dark"] .tk-detail-stat span {
+  color: var(--ch-muted);
+}
+
+[data-chertt-theme="dark"] .tk-detail-stat strong {
+  color: var(--ch-text);
+}
+
+[data-chertt-theme="dark"] .tk-status-badge {
+  background: var(--ch-surface-soft);
+  color: var(--ch-muted);
+}
+
+[data-chertt-theme="dark"] .tk-inline-link {
+  background: var(--ch-surface-soft);
+  border-color: var(--ch-border);
+  color: var(--ch-text);
+}
+
+[data-chertt-theme="dark"] .tk-inline-link:hover {
+  background: var(--ch-surface);
+  border-color: var(--ch-accent);
+  color: var(--ch-accent);
+}
+
+[data-chertt-theme="dark"] .tk-eyebrow {
+  color: var(--ch-muted);
+}
+
+[data-chertt-theme="dark"] .tk-card-title {
+  color: var(--ch-text);
+}
+
+[data-chertt-theme="dark"] .tk-page-title {
+  color: var(--ch-text);
+}
+
+[data-chertt-theme="dark"] .button--ghost {
+  background: var(--ch-surface-soft);
+  border-color: var(--ch-border);
+  color: var(--ch-text);
+}
+
+[data-chertt-theme="dark"] .button--ghost:hover {
+  background: var(--ch-surface);
+  border-color: var(--ch-accent);
+  color: var(--ch-accent);
 }
