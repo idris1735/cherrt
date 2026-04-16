@@ -19,8 +19,8 @@ const quickActions: HomeLink[] = [
     href: "/chat",
     label: "Draft a letter",
     hint: "Letters, memos, and signed documents",
-    accent: "#d85e2f",
-    tint: "#fff2ea",
+    accent: "#fa8300",
+    tint: "#fff3e0",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M8 4.5h5l3 3V19.5H8A2.5 2.5 0 0 1 5.5 17V7A2.5 2.5 0 0 1 8 4.5Z" />
@@ -73,8 +73,8 @@ const capabilityLinks: HomeLink[] = [
     href: "/chat",
     label: "AI command",
     hint: "Turn natural language into tracked work",
-    accent: "#d85e2f",
-    tint: "#fff2ea",
+    accent: "#fa8300",
+    tint: "#fff3e0",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
@@ -86,7 +86,7 @@ const capabilityLinks: HomeLink[] = [
     label: "Smart documents",
     hint: "Letters, invoices, signatures, and templates",
     accent: "#a14f2d",
-    tint: "#fff1ea",
+    tint: "#fff3e0",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M8 4.5h5l3 3V19.5H8A2.5 2.5 0 0 1 5.5 17V7A2.5 2.5 0 0 1 8 4.5Z" />
@@ -163,8 +163,8 @@ const capabilityLinks: HomeLink[] = [
     href: "/forms",
     label: "Simple forms",
     hint: "Custom internal forms for changing workflows",
-    accent: "#d85e2f",
-    tint: "#fff2ea",
+    accent: "#fa8300",
+    tint: "#fff3e0",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M7.5 5.5h9A2.5 2.5 0 0 1 19 8v8.5A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5V8A2.5 2.5 0 0 1 7.5 5.5Z" />
@@ -215,8 +215,8 @@ const capabilityLinks: HomeLink[] = [
     href: "/directory",
     label: "Staff directory",
     hint: "People, roles, units, and contact details",
-    accent: "#d85e2f",
-    tint: "#fff2ea",
+    accent: "#fa8300",
+    tint: "#fff3e0",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="8.5" r="3" />

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(cat C:/Users/Admin/desktop/cherrt/src/app/w/[workspaceSlug]/modules/toolkit/documents/[documentId]/page.tsx)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git worktree *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(bash *)",
+      "Bash(cat /c/Users/Admin/desktop/cherrt/.superpowers/brainstorm/*/state/server-info)",
+      "Bash(xargs cat *)",
+      "Bash(npx vitest *)",
+      "Bash(grep -n \"ModuleKey\" src/lib/types.ts)",
+      "Bash(grep -rn \"ModuleKey\" src/lib/)",
+      "Bash(xargs grep *)",
+      "Bash(ls C:/Users/Admin/desktop/cherrt/src/app/w/[workspaceSlug]/)",
+      "Bash(grep -n \"hardcoded\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\\\\|rgba\\\\|rgb\\(\\\\|oklch\\\\|hsl\\\\|white\\\\|black\\\\|background:\" C:/Users/Admin/desktop/cherrt/src/app/w/\\\\[workspaceSlug\\\\]/chat/page.module.css)"
+    ]
+  }
+}

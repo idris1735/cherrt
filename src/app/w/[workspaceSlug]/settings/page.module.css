@@ -7,11 +7,11 @@
   --settings-title: #171412;
   --settings-text: #271f1b;
   --settings-muted: #72665d;
-  --settings-accent: #d85e2f;
-  --settings-accent-soft: rgba(216, 94, 47, 0.1);
+  --settings-accent: #fa8300;
+  --settings-accent-soft: rgba(250, 131, 0, 0.1);
   --settings-input-bg: rgba(255, 255, 255, 0.9);
   --settings-panel-dark: linear-gradient(160deg, #201916 0%, #2c221d 100%);
-  --settings-panel-dark-text: #fff7f1;
+  --settings-panel-dark-text: #fff8f0;
   --settings-panel-dark-muted: rgba(255, 247, 241, 0.72);
   display: flex;
   flex-direction: column;
@@ -29,7 +29,7 @@
   --settings-text: #f1e8df;
   --settings-muted: rgba(241, 232, 223, 0.68);
   --settings-accent: #f08a4b;
-  --settings-accent-soft: rgba(240, 138, 75, 0.14);
+  --settings-accent-soft: rgba(250, 131, 0, 0.14);
   --settings-input-bg: rgba(255, 255, 255, 0.04);
   --settings-panel-dark: linear-gradient(180deg, #241d19 0%, #1d1714 100%);
   --settings-panel-dark-text: #fff8f3;

@@ -19,7 +19,7 @@ function requestTheme(request: WorkflowRequest) {
 
   if (request.status === "pending") {
     return {
-      accent: "#d85e2f",
+      accent: "#fa8300",
       tint: "#fff4ee",
       label: "Waiting for action",
     };

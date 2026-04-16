@@ -1,0 +1,118 @@
+<h2>When you tap a module pill — what happens?</h2>
+<p class="subtitle">E.g. user taps "🛍 Store" on the landing screen</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:20px;font-family:system-ui;min-height:200px;display:flex;flex-direction:column;align-items:center;gap:12px">
+        <p style="color:#fff;font-size:13px;font-weight:600;margin:0">What can I help with?</p>
+        <div style="display:flex;gap:5px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🗂 Toolkit</div>
+          <div style="background:#fff;border-radius:20px;padding:5px 10px;color:#000;font-size:9px;font-weight:700">🛍 Store</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">⛪ Church</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🎟 Events</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;max-width:260px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Add product</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Add to your catalogue</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Capture order</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">New customer order</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Create invoice</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Bill a client</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Check stock</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">View inventory levels</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:260px;display:flex;align-items:center;gap:8px">
+          <span style="color:#555;font-size:10px;flex:1">Message Chertt...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center"><span style="color:#000;font-size:9px">↑</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Swap suggestion cards only</h3>
+      <p>Pill highlights, suggestion cards swap to that module's actions. Input bar stays plain. No navigation — just context. You're still in the same chat.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:20px;font-family:system-ui;min-height:200px;display:flex;flex-direction:column;align-items:center;gap:12px">
+        <p style="color:#fff;font-size:13px;font-weight:600;margin:0">What can I help with?</p>
+        <div style="display:flex;gap:5px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🗂 Toolkit</div>
+          <div style="background:#fff;border-radius:20px;padding:5px 10px;color:#000;font-size:9px;font-weight:700">🛍 Store</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">⛪ Church</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🎟 Events</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;max-width:260px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Capture order</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">New customer order</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Create invoice</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Bill a client</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:260px;display:flex;align-items:center;gap:8px">
+          <div style="background:#222;border:1px solid #333;border-radius:6px;padding:2px 7px;display:flex;align-items:center;gap:4px">
+            <span style="font-size:9px">🛍</span>
+            <span style="color:#fff;font-size:9px;font-weight:600">Store</span>
+            <span style="color:#555;font-size:9px;cursor:pointer">×</span>
+          </div>
+          <span style="color:#555;font-size:10px;flex:1">Message Chertt...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center"><span style="color:#000;font-size:9px">↑</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Swap cards + badge in input bar</h3>
+      <p>Pill highlights, suggestion cards swap, AND a "🛍 Store ×" badge appears inside the input bar so Chertt knows which module context you're in. AI gets the module hint with every message. Tap × to clear.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:20px;font-family:system-ui;min-height:200px;display:flex;flex-direction:column;align-items:center;gap:12px">
+        <p style="color:#fff;font-size:13px;font-weight:600;margin:0">What can I help with?</p>
+        <div style="display:flex;gap:5px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🗂 Toolkit</div>
+          <div style="background:#fff;border-radius:20px;padding:5px 10px;color:#000;font-size:9px;font-weight:700">🛍 Store</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">⛪ Church</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#666;font-size:9px">🎟 Events</div>
+        </div>
+        <div style="background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:14px;width:100%;max-width:260px">
+          <p style="color:#aaa;font-size:10px;margin:0 0 8px;font-weight:600">STOREFRONT</p>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#fff;font-size:10px">3 orders pending fulfilment</span>
+              <span style="color:#f59e0b;font-size:9px">→</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#fff;font-size:10px">2 products low stock</span>
+              <span style="color:#f59e0b;font-size:9px">→</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:260px;display:flex;align-items:center;gap:8px">
+          <span style="color:#555;font-size:10px;flex:1">Ask about Store...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center"><span style="color:#000;font-size:9px">↑</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Module summary card replaces suggestions</h3>
+      <p>Tapping a pill collapses the suggestion grid and shows a live status card for that module (pending orders, low stock, etc.). Input placeholder changes to "Ask about Store...". Richer but needs real data to be useful.</p>
+    </div>
+  </div>
+
+</div>

@@ -12,7 +12,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
     currency: "USD",
     modules: ["toolkit", "church", "store", "events"],
     brand: {
-      accent: "#d85e2f",
+      accent: "#fa8300",
       secondary: "#1f1f1f",
       paper: "#f7f3ee",
       highlight: "#f1c38f",

@@ -1,0 +1,121 @@
+<h2>Chat landing screen — which feel is right?</h2>
+<p class="subtitle">What should a user see when they open Chertt with no active conversation?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:24px 20px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:system-ui">
+        <div style="text-align:center">
+          <div style="width:28px;height:28px;background:#fff;border-radius:6px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000">C</div>
+          <p style="color:#fff;font-size:17px;font-weight:600;margin:0 0 4px">What can I help with?</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;max-width:280px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Draft letter</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Create and route for signature</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Raise request</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Expenses, supplies, repairs</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Report issue</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Facility or security incident</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Log expense</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Record petty cash or receipt</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:280px;display:flex;align-items:center;gap:8px">
+          <span style="color:#555;font-size:10px;flex:1">Message Chertt...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <span style="color:#000;font-size:9px">↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Pure chat (recommended)</h3>
+      <p>Logo, static heading, 4 suggestion cards, input bar. Nothing else. Exactly like Claude.ai or ChatGPT. Clean, focused, mobile-perfect. This is the current direction — suggestion cards now fill the input instead of auto-sending.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:24px 20px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:system-ui">
+        <div style="text-align:center">
+          <div style="width:28px;height:28px;background:#fff;border-radius:6px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000">C</div>
+          <p style="color:#fff;font-size:17px;font-weight:600;margin:0 0 2px">What can I help with?</p>
+          <p style="color:#555;font-size:10px;margin:0">Business Toolkit · 7 active records</p>
+        </div>
+        <div style="display:flex;gap:6px;max-width:280px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#aaa;font-size:9px;white-space:nowrap">🗂 Toolkit</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#aaa;font-size:9px;white-space:nowrap">⛪ Church</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#aaa;font-size:9px;white-space:nowrap">🛍 Store</div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:5px 10px;color:#aaa;font-size:9px;white-space:nowrap">🎟 Events</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;max-width:280px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Draft letter</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Create and route</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px">
+            <div style="color:#fff;font-size:10px;font-weight:600">Raise request</div>
+            <div style="color:#666;font-size:9px;margin-top:2px">Expenses, supplies</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:280px;display:flex;align-items:center;gap:8px">
+          <span style="color:#555;font-size:10px;flex:1">Message Chertt...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <span style="color:#000;font-size:9px">↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Chat with module context pills</h3>
+      <p>Same as A but with a row of module filter pills (Toolkit / Church / Store / Events) below the heading. Tapping a pill changes the suggestion cards shown. Adds context but introduces navigation into a chat-first screen.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;padding:24px 20px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-family:system-ui">
+        <div style="text-align:center">
+          <div style="width:28px;height:28px;background:#fff;border-radius:6px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000">C</div>
+          <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 4px">Good morning, Idris</p>
+          <p style="color:#555;font-size:10px;margin:0">3 pending approvals · 1 unread notification</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;width:100%;max-width:280px">
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="color:#fff;font-size:10px;font-weight:600">Diesel expense — ₦45,000</div>
+              <div style="color:#555;font-size:9px">Awaiting your approval</div>
+            </div>
+            <div style="color:#f59e0b;font-size:9px;font-weight:600">PENDING</div>
+          </div>
+          <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="color:#fff;font-size:10px;font-weight:600">AC repair request — Facilities</div>
+              <div style="color:#555;font-size:9px">Raised by Sandra Eke</div>
+            </div>
+            <div style="color:#f59e0b;font-size:9px;font-weight:600">PENDING</div>
+          </div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:9px 12px;width:100%;max-width:280px;display:flex;align-items:center;gap:8px">
+          <span style="color:#555;font-size:10px;flex:1">Message Chertt...</span>
+          <div style="width:22px;height:22px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <span style="color:#000;font-size:9px">↑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Personalised home with pending actions</h3>
+      <p>Greeting with name + live summary of pending approvals/notifications. No suggestion cards — instead shows items that actually need the user's attention. More powerful but requires real data to be useful. Not suitable for first-time or empty state.</p>
+    </div>
+  </div>
+
+</div>

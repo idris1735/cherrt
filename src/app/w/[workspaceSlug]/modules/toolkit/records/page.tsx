@@ -25,8 +25,8 @@ export default function ToolkitRecordsPage() {
       label: "Smart documents",
       note: "Letters, invoices, memos, and signature routing.",
       count: snapshot.documents.length,
-      accent: "#d85e2f",
-      tint: "#fff1ea",
+      accent: "#fa8300",
+      tint: "#fff3e0",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M8 4.5h5l3 3V19.5H8A2.5 2.5 0 0 1 5.5 17V7A2.5 2.5 0 0 1 8 4.5Z" />
@@ -80,8 +80,8 @@ export default function ToolkitRecordsPage() {
       label: "Simple forms",
       note: "Custom internal forms for changing workflows.",
       count: snapshot.forms.length,
-      accent: "#d85e2f",
-      tint: "#fff2ea",
+      accent: "#fa8300",
+      tint: "#fff3e0",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M7.5 5.5h9A2.5 2.5 0 0 1 19 8v8.5A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5V8A2.5 2.5 0 0 1 7.5 5.5Z" />

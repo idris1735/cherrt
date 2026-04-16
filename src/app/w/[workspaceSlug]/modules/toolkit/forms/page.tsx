@@ -17,7 +17,7 @@ const formUseCases = [
 function formTheme(form: FormDefinition) {
   if (form.submissions >= 100) return { accent: "#2f6f82", tint: "#edf7fa", label: "High usage" };
   if (form.submissions >= 40) return { accent: "#8c6734", tint: "#fcf4e7", label: "Steady usage" };
-  return { accent: "#d85e2f", tint: "#fff2ea", label: "Newer flow" };
+  return { accent: "#fa8300", tint: "#fff3e0", label: "Newer flow" };
 }
 
 export default function ToolkitFormsPage() {

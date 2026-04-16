@@ -21,7 +21,7 @@ function stockColor(item: InventoryItem): string {
 
 function inventoryTheme(item: InventoryItem) {
   const name = item.name.toLowerCase();
-  if (name.includes("paper") || name.includes("toner")) return { accent: "#d85e2f", tint: "#fff1ea", glow: "rgba(216,94,47,0.18)" };
+  if (name.includes("paper") || name.includes("toner")) return { accent: "#fa8300", tint: "#fff3e0", glow: "rgba(250,131,0,0.18)" };
   if (name.includes("microphone")) return { accent: "#8c6734", tint: "#fcf4e7", glow: "rgba(140,103,52,0.18)" };
   if (name.includes("tag")) return { accent: "#2f6f82", tint: "#ebf6fa", glow: "rgba(47,111,130,0.18)" };
   return { accent: "#705b45", tint: "#f4efe9", glow: "rgba(112,91,69,0.16)" };

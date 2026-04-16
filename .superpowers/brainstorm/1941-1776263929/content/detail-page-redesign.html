@@ -1,0 +1,129 @@
+<h2>Issue detail page — how should it look?</h2>
+<p class="subtitle">Currently: complex dashboard with progress tracker, response guide, next actions. Client said: confusing. How do we redesign it?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fafaf9;border-radius:8px;padding:16px;font-family:system-ui;min-height:220px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <button style="background:none;border:none;color:#888;font-size:9px;cursor:pointer;padding:0">← Back to chat</button>
+          <span style="background:#fef3c7;color:#92400e;font-size:8px;font-weight:700;padding:3px 8px;border-radius:20px">PENDING</span>
+        </div>
+        <div>
+          <p style="color:#888;font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 3px">Issue report</p>
+          <h3 style="color:#111;font-size:14px;font-weight:700;margin:0">Broken pipe in toilet</h3>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Severity</p>
+            <p style="color:#ef4444;font-size:10px;font-weight:700;margin:0">High</p>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Area</p>
+            <p style="color:#111;font-size:10px;font-weight:600;margin:0">Toilet</p>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Reported by</p>
+            <p style="color:#111;font-size:10px;font-weight:600;margin:0">Alex M.</p>
+          </div>
+        </div>
+        <button style="background:#111;color:#fff;border:none;border-radius:8px;padding:9px;font-size:10px;font-weight:600;cursor:pointer;width:100%">Update in chat →</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Minimal card (recommended)</h3>
+      <p>Just the facts: title, status badge, 3 key fields, one action button. "Back to chat" as the only nav. No progress tracker, no response guide, no next actions. Clean, fast, readable on mobile. Everything else happens in chat.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fafaf9;border-radius:8px;padding:16px;font-family:system-ui;min-height:220px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <button style="background:none;border:none;color:#888;font-size:9px;cursor:pointer;padding:0">← Back to chat</button>
+          <span style="background:#fef3c7;color:#92400e;font-size:8px;font-weight:700;padding:3px 8px;border-radius:20px">PENDING</span>
+        </div>
+        <div>
+          <p style="color:#888;font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 3px">Issue report</p>
+          <h3 style="color:#111;font-size:13px;font-weight:700;margin:0 0 6px">Broken pipe in toilet</h3>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Severity</p>
+            <p style="color:#ef4444;font-size:10px;font-weight:700;margin:0">High</p>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Area</p>
+            <p style="color:#111;font-size:10px;font-weight:600;margin:0">Toilet</p>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px">
+            <p style="color:#888;font-size:8px;margin:0 0 2px">Reported</p>
+            <p style="color:#111;font-size:10px;font-weight:600;margin:0">Alex M.</p>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:7px;padding:8px">
+          <p style="color:#888;font-size:8px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">Progress</p>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:7px;height:7px;background:#22c55e;border-radius:50%;flex-shrink:0"></div>
+              <span style="color:#374151;font-size:9px">Report captured</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:7px;height:7px;background:#e5e7eb;border-radius:50%;flex-shrink:0"></div>
+              <span style="color:#9ca3af;font-size:9px">Operations review</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:7px;height:7px;background:#e5e7eb;border-radius:50%;flex-shrink:0"></div>
+              <span style="color:#9ca3af;font-size:9px">Resolution follow-up</span>
+            </div>
+          </div>
+        </div>
+        <button style="background:#111;color:#fff;border:none;border-radius:8px;padding:8px;font-size:10px;font-weight:600;cursor:pointer;width:100%">Update in chat →</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Card + slim progress tracker</h3>
+      <p>Same minimal card but keeps a clean 3-step progress indicator (dots, no text noise). Shows where the issue is in its lifecycle at a glance. No response guide, no next actions. Still back-to-chat focused.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f0f0f;border-radius:8px;overflow:hidden;font-family:system-ui;min-height:220px;display:flex;flex-direction:column">
+        <div style="padding:12px 14px;border-bottom:1px solid #1f1f1f;display:flex;align-items:center;justify-content:space-between">
+          <button style="background:none;border:none;color:#666;font-size:9px;cursor:pointer;padding:0">← Back to chat</button>
+          <span style="background:#291800;color:#f59e0b;font-size:8px;font-weight:700;padding:3px 8px;border-radius:20px">PENDING</span>
+        </div>
+        <div style="padding:14px;flex:1;display:flex;flex-direction:column;gap:10px">
+          <div>
+            <p style="color:#555;font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 3px">Issue report</p>
+            <h3 style="color:#fff;font-size:13px;font-weight:700;margin:0">Broken pipe in toilet</h3>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <div style="background:#1a1a1a;border-radius:6px;padding:7px">
+              <p style="color:#555;font-size:8px;margin:0 0 2px">Severity</p>
+              <p style="color:#ef4444;font-size:10px;font-weight:700;margin:0">High</p>
+            </div>
+            <div style="background:#1a1a1a;border-radius:6px;padding:7px">
+              <p style="color:#555;font-size:8px;margin:0 0 2px">Area</p>
+              <p style="color:#fff;font-size:10px;font-weight:600;margin:0">Toilet</p>
+            </div>
+            <div style="background:#1a1a1a;border-radius:6px;padding:7px">
+              <p style="color:#555;font-size:8px;margin:0 0 2px">Reported by</p>
+              <p style="color:#fff;font-size:10px;font-weight:600;margin:0">Alex M.</p>
+            </div>
+          </div>
+          <div style="margin-top:auto">
+            <button style="background:#fff;color:#000;border:none;border-radius:8px;padding:9px;font-size:10px;font-weight:700;cursor:pointer;width:100%">Update in chat →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Same as A but dark theme</h3>
+      <p>Minimal card, dark background to match the chat interface. No visual context switch when navigating from chat to the record. Feels like the same product, not a different app.</p>
+    </div>
+  </div>
+
+</div>

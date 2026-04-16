@@ -11,7 +11,7 @@ import type { ExpenseEntry } from "@/lib/types";
 
 function expenseTheme(expense: ExpenseEntry) {
   if (expense.status === "flagged") return { accent: "#c0432a", tint: "#fff0ea", label: "Needs review" };
-  if (expense.status === "pending") return { accent: "#d85e2f", tint: "#fff2ea", label: "Awaiting approval" };
+  if (expense.status === "pending") return { accent: "#fa8300", tint: "#fff3e0", label: "Awaiting approval" };
   if (expense.status === "approved") return { accent: "#2f6f82", tint: "#edf7fa", label: "Approved" };
   return { accent: "#267a4f", tint: "#eef7f0", label: "Completed" };
 }
