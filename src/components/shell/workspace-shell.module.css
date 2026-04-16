@@ -1,13 +1,14 @@
 .shell {
-  --ch-bg: #111111;
-  --ch-surface: #1a1a1a;
-  --ch-surface-soft: #222222;
-  --ch-border: rgba(255, 255, 255, 0.09);
-  --ch-text: #ececec;
-  --ch-muted: #888888;
+  /* Dark orange brand theme — base defaults */
+  --ch-bg: #190d00;
+  --ch-surface: #251400;
+  --ch-surface-soft: #301a00;
+  --ch-border: rgba(250, 131, 0, 0.18);
+  --ch-text: #fef0d8;
+  --ch-muted: #9e7440;
   --ch-accent: #fa8300;
-  --ch-contrast: #f0f0f0;
-  --ch-contrast-text: #111111;
+  --ch-contrast: #fef0d8;
+  --ch-contrast-text: #190d00;
   min-height: 100vh;
   background: var(--ch-bg);
   color: var(--ch-text);
@@ -15,25 +16,25 @@
 }
 
 .light {
-  --ch-bg: #f5f5f0;
+  --ch-bg: #fff8f0;
   --ch-surface: #ffffff;
-  --ch-surface-soft: #f0efeb;
-  --ch-border: rgba(0, 0, 0, 0.1);
-  --ch-text: #1a1a1a;
-  --ch-muted: #666666;
+  --ch-surface-soft: #fff3e6;
+  --ch-border: rgba(250, 131, 0, 0.15);
+  --ch-text: #1a0e00;
+  --ch-muted: #7a5530;
   --ch-accent: #fa8300;
-  --ch-contrast: #1a1a1a;
-  --ch-contrast-text: #f5f5f0;
+  --ch-contrast: #1a0e00;
+  --ch-contrast-text: #fff8f0;
 }
 
 .dark {
-  --ch-bg: #111111;
-  --ch-surface: #1a1a1a;
-  --ch-surface-soft: #222222;
-  --ch-border: rgba(255, 255, 255, 0.09);
-  --ch-text: #ececec;
-  --ch-muted: #888888;
+  --ch-bg: #190d00;
+  --ch-surface: #251400;
+  --ch-surface-soft: #301a00;
+  --ch-border: rgba(250, 131, 0, 0.18);
+  --ch-text: #fef0d8;
+  --ch-muted: #9e7440;
   --ch-accent: #fa8300;
-  --ch-contrast: #f0f0f0;
-  --ch-contrast-text: #111111;
+  --ch-contrast: #fef0d8;
+  --ch-contrast-text: #190d00;
 }
