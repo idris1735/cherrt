@@ -1,13 +1,13 @@
 .shell {
-  --ch-bg: #2A1200;
-  --ch-surface: #361800;
-  --ch-surface-soft: #421E00;
-  --ch-border: rgba(255, 140, 0, 0.2);
-  --ch-text: #FFE8C0;
-  --ch-muted: #C09060;
-  --ch-accent: #fa8300;
-  --ch-contrast: #FFE8C0;
-  --ch-contrast-text: #2A1200;
+  --ch-bg: oklch(0.17 0.01 40);
+  --ch-surface: oklch(0.2 0.01 40);
+  --ch-surface-soft: oklch(0.25 0.01 40);
+  --ch-border: oklch(0.37 0.01 40 / 0.45);
+  --ch-text: oklch(0.95 0.01 50);
+  --ch-muted: oklch(0.72 0.01 50);
+  --ch-accent: oklch(0.67 0.2 45);
+  --ch-contrast: oklch(0.97 0.01 70);
+  --ch-contrast-text: oklch(0.2 0.01 40);
   min-height: 100vh;
   background: var(--ch-bg);
   color: var(--ch-text);
@@ -15,25 +15,25 @@
 }
 
 .light {
-  --ch-bg: #FFF8F0;
-  --ch-surface: #FFFFFF;
-  --ch-surface-soft: #FFF2E2;
-  --ch-border: rgba(0, 0, 0, 0.08);
-  --ch-text: #1A0800;
-  --ch-muted: #8A6040;
-  --ch-accent: #fa8300;
-  --ch-contrast: #1A0800;
-  --ch-contrast-text: #FFF8F0;
+  --ch-bg: oklch(0.97 0.01 70);
+  --ch-surface: oklch(1 0 0);
+  --ch-surface-soft: oklch(0.94 0.01 70);
+  --ch-border: oklch(0.73 0.01 60 / 0.45);
+  --ch-text: oklch(0.25 0.01 45);
+  --ch-muted: oklch(0.52 0.01 50);
+  --ch-accent: oklch(0.62 0.2 45);
+  --ch-contrast: oklch(0.24 0.01 40);
+  --ch-contrast-text: oklch(0.98 0.01 70);
 }
 
 .dark {
-  --ch-bg: #2A1200;
-  --ch-surface: #361800;
-  --ch-surface-soft: #421E00;
-  --ch-border: rgba(255, 140, 0, 0.2);
-  --ch-text: #FFE8C0;
-  --ch-muted: #C09060;
-  --ch-accent: #fa8300;
-  --ch-contrast: #FFE8C0;
-  --ch-contrast-text: #2A1200;
+  --ch-bg: oklch(0.17 0.01 40);
+  --ch-surface: oklch(0.2 0.01 40);
+  --ch-surface-soft: oklch(0.25 0.01 40);
+  --ch-border: oklch(0.37 0.01 40 / 0.45);
+  --ch-text: oklch(0.95 0.01 50);
+  --ch-muted: oklch(0.72 0.01 50);
+  --ch-accent: oklch(0.67 0.2 45);
+  --ch-contrast: oklch(0.97 0.01 70);
+  --ch-contrast-text: oklch(0.2 0.01 40);
 }
