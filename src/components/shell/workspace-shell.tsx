@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, PropsWithChildren, useContext, useEffect, useState } from "react";
+import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from "react";
 
 import type { Membership, Workspace } from "@/lib/types";
 import styles from "@/components/shell/workspace-shell.module.css";
@@ -12,7 +12,7 @@ export const useTheme = () => useContext(ThemeContext);
 export function WorkspaceShell({
   children,
   workspaceSlug: _workspaceSlug,
-  workspace: _workspace,
+  workspace,
   membership: _membership,
 }: PropsWithChildren<{ workspaceSlug: string; workspace: Workspace; membership: Membership }>) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -33,7 +33,10 @@ export function WorkspaceShell({
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")) }}>
-      <div className={`${styles.shell} ${theme === "dark" ? styles.dark : styles.light}`}>
+      <div
+        className={`${styles.shell} ${theme === "dark" ? styles.dark : styles.light}`}
+        style={{ "--ch-accent": workspace.brand.accent } as React.CSSProperties}
+      >
         {children}
       </div>
     </ThemeContext.Provider>
