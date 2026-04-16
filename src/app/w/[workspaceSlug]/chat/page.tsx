@@ -633,8 +633,7 @@ export default function ChatPage() {
   }
 
   function handleSuggestionClick(suggestionPrompt: string) {
-    setPrompt(suggestionPrompt);
-    composerRef.current?.focus();
+    void sendPrompt(suggestionPrompt);
   }
 
   function handleAttachClick() {
