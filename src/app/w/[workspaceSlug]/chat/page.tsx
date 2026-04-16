@@ -909,7 +909,7 @@ export default function ChatPage() {
               <div className={styles.moduleBadge}>
                 <span>{MODULE_LABELS[activeModule]}</span>
                 <button
-                  aria-label="Clear module"
+                  aria-label="Reset module"
                   className={styles.moduleBadgeClear}
                   onClick={() => setActiveModule((snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit")}
                   type="button"

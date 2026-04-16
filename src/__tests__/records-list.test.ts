@@ -18,7 +18,7 @@ function buildRecordRows(snapshot: WorkspaceSnapshot, workspaceSlug: string): Re
     rows.push({ id: doc.id, title: doc.title, type: "Document", status: doc.status, module: "toolkit", href: `${base}/documents/${doc.id}` });
   }
   for (const req of snapshot.requests) {
-    rows.push({ id: req.id, title: req.title, type: "Request", status: req.status, module: req.module, href: `${base}/requests/${req.id}` });
+    rows.push({ id: req.id, title: req.title, type: "Request", status: req.status, module: req.module, href: `/w/${workspaceSlug}/modules/${req.module}/requests/${req.id}` });
   }
   for (const expense of snapshot.expenses) {
     rows.push({ id: expense.id, title: expense.title, type: "Expense", status: expense.status, module: "toolkit", href: `${base}/expenses/${expense.id}` });
@@ -70,5 +70,19 @@ describe("buildRecordRows", () => {
     const rows = buildRecordRows(snap, "demo");
     expect(rows[0].type).toBe("Issue");
     expect(rows[0].href).toContain("/issues/iss-1");
+  });
+
+  it("maps church requests with correct module in href", () => {
+    const snap: WorkspaceSnapshot = {
+      ...emptySnapshot,
+      requests: [{
+        id: "req-1", title: "Pastoral care request", type: "care", description: "", requester: "Sam",
+        status: "pending" as const, module: "church" as const, createdAtLabel: "Today",
+        approvalSteps: []
+      }]
+    };
+    const rows = buildRecordRows(snap, "demo");
+    expect(rows[0].href).toBe("/w/demo/modules/church/requests/req-1");
+    expect(rows[0].href).not.toContain("toolkit");
   });
 });
