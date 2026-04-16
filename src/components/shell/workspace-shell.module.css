@@ -1,14 +1,13 @@
 .shell {
-  /* Dark orange brand theme — base defaults */
-  --ch-bg: #190d00;
-  --ch-surface: #251400;
-  --ch-surface-soft: #301a00;
-  --ch-border: rgba(250, 131, 0, 0.18);
-  --ch-text: #fef0d8;
-  --ch-muted: #9e7440;
+  --ch-bg: #111111;
+  --ch-surface: #1a1a1a;
+  --ch-surface-soft: #242424;
+  --ch-border: rgba(255, 255, 255, 0.08);
+  --ch-text: #f5f5f5;
+  --ch-muted: #888888;
   --ch-accent: #fa8300;
-  --ch-contrast: #fef0d8;
-  --ch-contrast-text: #190d00;
+  --ch-contrast: #f5f5f5;
+  --ch-contrast-text: #111111;
   min-height: 100vh;
   background: var(--ch-bg);
   color: var(--ch-text);
@@ -16,25 +15,25 @@
 }
 
 .light {
-  --ch-bg: #fff8f0;
+  --ch-bg: #ffffff;
   --ch-surface: #ffffff;
-  --ch-surface-soft: #fff3e6;
-  --ch-border: rgba(250, 131, 0, 0.15);
-  --ch-text: #1a0e00;
-  --ch-muted: #7a5530;
+  --ch-surface-soft: #f5f5f5;
+  --ch-border: rgba(0, 0, 0, 0.1);
+  --ch-text: #111111;
+  --ch-muted: #666666;
   --ch-accent: #fa8300;
-  --ch-contrast: #1a0e00;
-  --ch-contrast-text: #fff8f0;
+  --ch-contrast: #111111;
+  --ch-contrast-text: #ffffff;
 }
 
 .dark {
-  --ch-bg: #190d00;
-  --ch-surface: #251400;
-  --ch-surface-soft: #301a00;
-  --ch-border: rgba(250, 131, 0, 0.18);
-  --ch-text: #fef0d8;
-  --ch-muted: #9e7440;
+  --ch-bg: #111111;
+  --ch-surface: #1a1a1a;
+  --ch-surface-soft: #242424;
+  --ch-border: rgba(255, 255, 255, 0.08);
+  --ch-text: #f5f5f5;
+  --ch-muted: #888888;
   --ch-accent: #fa8300;
-  --ch-contrast: #fef0d8;
-  --ch-contrast-text: #190d00;
+  --ch-contrast: #f5f5f5;
+  --ch-contrast-text: #111111;
 }
