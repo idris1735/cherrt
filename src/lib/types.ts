@@ -77,6 +77,9 @@ export interface SmartDocument {
   status: WorkflowStatus;
   preparedBy: string;
   awaitingSignatureFrom?: string;
+  signedBy?: string;
+  signedAt?: string;
+  signatureData?: string; // "stamp" | base64 PNG data URL
   amount?: number;
   createdAtLabel: string;
 }
