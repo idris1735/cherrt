@@ -199,7 +199,6 @@ export default function SettingsPage() {
     if (normalized.email) {
       rememberUserProfileForEmail(normalized.email, normalized);
     }
-    setSaved(true);
   }
 
   function update(key: keyof UserProfile, value: string) {
@@ -221,6 +220,7 @@ export default function SettingsPage() {
         persistProfile(latest);
         return latest;
       });
+      setSaved(true);
     }, 450);
   }
 
@@ -250,12 +250,10 @@ export default function SettingsPage() {
   function saveDrawnSignature() {
     const canvas = sigCanvasRef.current;
     if (!canvas || !sigHasDrawn) return;
-    const data = canvas.toDataURL("image/png");
-    setProfile((prev) => {
-      const next = { ...prev, signatureImage: data };
-      persistProfile(next);
-      return next;
-    });
+    const next = { ...profile, signatureImage: canvas.toDataURL("image/png") };
+    setProfile(next);
+    persistProfile(next);
+    setSaved(true);
   }
 
   function clearSignature() {
@@ -265,11 +263,10 @@ export default function SettingsPage() {
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-    setProfile((prev) => {
-      const next = { ...prev, signatureImage: undefined };
-      persistProfile(next);
-      return next;
-    });
+    const next = { ...profile, signatureImage: undefined };
+    setProfile(next);
+    persistProfile(next);
+    setSaved(true);
   }
 
   function handleSigFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -277,12 +274,10 @@ export default function SettingsPage() {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const data = ev.target?.result as string;
-      setProfile((prev) => {
-        const next = { ...prev, signatureImage: data };
-        persistProfile(next);
-        return next;
-      });
+      const next = { ...profile, signatureImage: ev.target?.result as string };
+      setProfile(next);
+      persistProfile(next);
+      setSaved(true);
     };
     reader.readAsDataURL(file);
   }
@@ -292,18 +287,6 @@ export default function SettingsPage() {
   const displayRole = profile.jobTitle?.trim() || snapshot.membership.title;
   const displayOrg = profile.organization?.trim() || snapshot.workspace.name;
   const displaySignature = profile.signatureName?.trim() || displayName;
-  const firstName = displayName.split(/\s+/)[0] || "You";
-  const filledCount = [
-    profile.fullName,
-    profile.signatureName,
-    profile.jobTitle,
-    profile.organization,
-    profile.email,
-    profile.phone,
-    profile.city,
-    profile.bio,
-  ].filter((value) => Boolean(value?.trim())).length;
-  const readiness = Math.round((filledCount / 8) * 100);
 
   return (
     <div className={styles.page}>
