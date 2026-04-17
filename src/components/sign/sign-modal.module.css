@@ -1,0 +1,355 @@
+/* ─── Overlay ─────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  backdrop-filter: blur(2px);
+}
+
+@media (min-width: 600px) {
+  .overlay {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+/* ─── Modal ───────────────────────────────────────────────────── */
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  background: var(--ch-surface);
+  border: 1px solid var(--ch-border);
+  border-radius: 20px 20px 0 0;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: slideUp 0.22s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@media (min-width: 600px) {
+  .modal {
+    border-radius: 16px;
+    animation: fadeIn 0.18s ease both;
+  }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Header ──────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--ch-border);
+}
+
+.headerMeta {
+  display: grid;
+  gap: 2px;
+}
+
+.headerLabel {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ch-muted);
+  font-weight: 640;
+}
+
+.headerTitle {
+  font-size: 0.95rem;
+  font-weight: 640;
+  color: var(--ch-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.closeBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--ch-border);
+  background: transparent;
+  color: var(--ch-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.closeBtn svg { width: 13px; height: 13px; }
+
+.closeBtn:hover {
+  background: var(--ch-surface-soft);
+  color: var(--ch-text);
+}
+
+/* ─── Tabs ────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--ch-border);
+  padding: 0 20px;
+}
+
+.tab {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.8rem;
+  font-weight: 580;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.tabActive {
+  color: var(--ch-accent);
+  border-bottom-color: var(--ch-accent);
+  font-weight: 640;
+}
+
+.tab:hover:not(.tabActive) {
+  color: var(--ch-text);
+}
+
+/* ─── Tab body ────────────────────────────────────────────────── */
+
+.body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+
+/* ─── Canvas ──────────────────────────────────────────────────── */
+
+.canvasWrap {
+  position: relative;
+  border: 1px solid var(--ch-border);
+  border-radius: 10px;
+  background: var(--ch-surface-soft);
+  overflow: hidden;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 160px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.canvasClear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ch-border);
+  background: var(--ch-surface);
+  color: var(--ch-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.canvasClear:hover {
+  color: var(--ch-text);
+  border-color: var(--ch-text);
+}
+
+.canvasHint {
+  font-size: 0.74rem;
+  color: var(--ch-muted);
+  text-align: center;
+}
+
+/* ─── Upload ──────────────────────────────────────────────────── */
+
+.uploadPreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ch-border);
+  border-radius: 10px;
+  background: var(--ch-surface-soft);
+}
+
+.uploadSigImg {
+  max-height: 56px;
+  max-width: 180px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.uploadMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.uploadLabel {
+  font-size: 0.76rem;
+  color: var(--ch-muted);
+}
+
+.uploadChange {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ch-border);
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+  width: fit-content;
+}
+
+.uploadChange:hover {
+  color: var(--ch-text);
+  border-color: var(--ch-text);
+}
+
+.uploadDropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 20px;
+  border: 1.5px dashed var(--ch-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.14s ease;
+}
+
+.uploadDropzone:hover {
+  border-color: var(--ch-accent);
+}
+
+.uploadDropzone svg {
+  width: 24px;
+  height: 24px;
+  color: var(--ch-muted);
+}
+
+.uploadDropzoneText {
+  font-size: 0.8rem;
+  color: var(--ch-muted);
+  text-align: center;
+}
+
+.fileInput {
+  display: none;
+}
+
+/* ─── Stamp ───────────────────────────────────────────────────── */
+
+.stampPreview {
+  padding: 20px;
+  border: 1px solid var(--ch-border);
+  border-radius: 10px;
+  background: var(--ch-surface-soft);
+  display: grid;
+  gap: 4px;
+}
+
+.stampText {
+  font-size: 0.9rem;
+  color: var(--ch-text);
+  margin: 0;
+}
+
+.stampText strong {
+  font-weight: 660;
+}
+
+.stampDate {
+  font-size: 0.78rem;
+  color: var(--ch-muted);
+  margin: 0;
+}
+
+.stampNote {
+  font-size: 0.72rem;
+  color: var(--ch-muted);
+  margin-top: 4px;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--ch-border);
+}
+
+.cancelBtn {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--ch-border);
+  background: transparent;
+  color: var(--ch-muted);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.cancelBtn:hover {
+  color: var(--ch-text);
+  border-color: var(--ch-text);
+}
+
+.signBtn {
+  flex: 2;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid oklch(0.52 0.18 145);
+  background: oklch(0.52 0.18 145);
+  color: oklch(0.99 0 0);
+  font-size: 0.84rem;
+  font-weight: 640;
+  cursor: pointer;
+  transition: opacity 0.14s ease, transform 0.12s ease;
+}
+
+.signBtn:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.signBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
