@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useToast } from "@/components/providers/toast-provider";
@@ -109,7 +109,6 @@ export default function SettingsPage() {
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
   const sigFileInputRef = useRef<HTMLInputElement>(null);
   const [sigHasDrawn, setSigHasDrawn] = useState(false);
-  const [sigPreview, setSigPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const existing = getActiveUserProfile();
@@ -138,11 +137,6 @@ export default function SettingsPage() {
         clearTimeout(saveTimer.current);
       }
     };
-  }, []);
-
-  useEffect(() => {
-    const p = getActiveUserProfile();
-    if (p?.signatureImage) setSigPreview(p.signatureImage);
   }, []);
 
   useEffect(() => {
@@ -191,7 +185,9 @@ export default function SettingsPage() {
       canvas.removeEventListener("touchend", end);
       canvas.removeEventListener("touchcancel", end);
     };
-  }, []);
+  // Re-run when image status flips so the canvas gets listeners after "Remove"
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(profile.signatureImage)]);
 
   function persistProfile(nextProfile: UserProfile) {
     const normalized = {
@@ -251,51 +247,29 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSignatureUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setProfile((prev) => {
-        const next = { ...prev, signatureImage: dataUrl };
-        persistProfile(next);
-        return next;
-      });
-    };
-    reader.readAsDataURL(file);
-    // reset input so the same file can be re-uploaded
-    e.target.value = "";
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  function removeSignatureImage() {
+  function saveDrawnSignature() {
+    const canvas = sigCanvasRef.current;
+    if (!canvas || !sigHasDrawn) return;
+    const data = canvas.toDataURL("image/png");
     setProfile((prev) => {
-      const next = { ...prev, signatureImage: undefined };
+      const next = { ...prev, signatureImage: data };
       persistProfile(next);
       return next;
     });
   }
 
-  function saveDrawnSignature() {
-    const canvas = sigCanvasRef.current;
-    if (!canvas || !sigHasDrawn) return;
-    const data = canvas.toDataURL("image/png");
-    setSigPreview(data);
-    const current = getActiveUserProfile();
-    if (current) setActiveUserProfile({ ...current, signatureImage: data });
-  }
-
   function clearSignature() {
-    setSigPreview(null);
     setSigHasDrawn(false);
     const canvas = sigCanvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
-    const current = getActiveUserProfile();
-    if (current) setActiveUserProfile({ ...current, signatureImage: undefined });
+    setProfile((prev) => {
+      const next = { ...prev, signatureImage: undefined };
+      persistProfile(next);
+      return next;
+    });
   }
 
   function handleSigFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -304,9 +278,11 @@ export default function SettingsPage() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const data = ev.target?.result as string;
-      setSigPreview(data);
-      const current = getActiveUserProfile();
-      if (current) setActiveUserProfile({ ...current, signatureImage: data });
+      setProfile((prev) => {
+        const next = { ...prev, signatureImage: data };
+        persistProfile(next);
+        return next;
+      });
     };
     reader.readAsDataURL(file);
   }
@@ -415,9 +391,9 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {sigPreview ? (
+          {profile.signatureImage ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, border: "1px solid var(--ch-border)", borderRadius: 10, background: "var(--ch-surface-soft)" }}>
-              <img alt="Your signature" src={sigPreview} style={{ maxHeight: 56, maxWidth: 200, objectFit: "contain", objectPosition: "left center" }} />
+              <img alt="Your signature" src={profile.signatureImage} style={{ maxHeight: 56, maxWidth: 200, objectFit: "contain", objectPosition: "left center" }} />
               <div style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: "0.74rem", color: "var(--ch-muted)" }}>Saved signature</span>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -456,7 +432,7 @@ export default function SettingsPage() {
                   style={{ position: "absolute", top: 8, right: 8, height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--ch-border)", background: "var(--ch-surface)", color: "var(--ch-muted)", fontSize: "0.72rem", cursor: "pointer" }}
                   type="button"
                 >
-                  Clear
+                  Clear canvas
                 </button>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
