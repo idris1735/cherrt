@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useToast } from "@/components/providers/toast-provider";
@@ -106,6 +106,10 @@ export default function SettingsPage() {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sigCanvasRef = useRef<HTMLCanvasElement>(null);
+  const sigFileInputRef = useRef<HTMLInputElement>(null);
+  const [sigHasDrawn, setSigHasDrawn] = useState(false);
+  const [sigPreview, setSigPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const existing = getActiveUserProfile();
@@ -133,6 +137,59 @@ export default function SettingsPage() {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const p = getActiveUserProfile();
+    if (p?.signatureImage) setSigPreview(p.signatureImage);
+  }, []);
+
+  useEffect(() => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    let drawing = false;
+
+    function getPos(e: MouseEvent | TouchEvent) {
+      const r = canvas!.getBoundingClientRect();
+      if ("touches" in e) return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+      return { x: (e as MouseEvent).clientX - r.left, y: (e as MouseEvent).clientY - r.top };
+    }
+
+    function start(e: MouseEvent | TouchEvent) { e.preventDefault(); drawing = true; const p = getPos(e); ctx!.beginPath(); ctx!.moveTo(p.x, p.y); }
+    function move(e: MouseEvent | TouchEvent) { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx!.lineTo(p.x, p.y); ctx!.stroke(); setSigHasDrawn(true); }
+    function end() { drawing = false; }
+
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", move);
+    canvas.addEventListener("mouseup", end);
+    canvas.addEventListener("mouseleave", end);
+    canvas.addEventListener("touchstart", start, { passive: false });
+    canvas.addEventListener("touchmove", move, { passive: false });
+    canvas.addEventListener("touchend", end);
+    canvas.addEventListener("touchcancel", end);
+
+    return () => {
+      canvas.removeEventListener("mousedown", start);
+      canvas.removeEventListener("mousemove", move);
+      canvas.removeEventListener("mouseup", end);
+      canvas.removeEventListener("mouseleave", end);
+      canvas.removeEventListener("touchstart", start);
+      canvas.removeEventListener("touchmove", move);
+      canvas.removeEventListener("touchend", end);
+      canvas.removeEventListener("touchcancel", end);
     };
   }, []);
 
@@ -194,6 +251,66 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSignatureUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setProfile((prev) => {
+        const next = { ...prev, signatureImage: dataUrl };
+        persistProfile(next);
+        return next;
+      });
+    };
+    reader.readAsDataURL(file);
+    // reset input so the same file can be re-uploaded
+    e.target.value = "";
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  function removeSignatureImage() {
+    setProfile((prev) => {
+      const next = { ...prev, signatureImage: undefined };
+      persistProfile(next);
+      return next;
+    });
+  }
+
+  function saveDrawnSignature() {
+    const canvas = sigCanvasRef.current;
+    if (!canvas || !sigHasDrawn) return;
+    const data = canvas.toDataURL("image/png");
+    setSigPreview(data);
+    const current = getActiveUserProfile();
+    if (current) setActiveUserProfile({ ...current, signatureImage: data });
+  }
+
+  function clearSignature() {
+    setSigPreview(null);
+    setSigHasDrawn(false);
+    const canvas = sigCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    const current = getActiveUserProfile();
+    if (current) setActiveUserProfile({ ...current, signatureImage: undefined });
+  }
+
+  function handleSigFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      setSigPreview(data);
+      const current = getActiveUserProfile();
+      if (current) setActiveUserProfile({ ...current, signatureImage: data });
+    };
+    reader.readAsDataURL(file);
+  }
+
   const activeCurrency = profile.currency || snapshot.workspace.currency;
   const displayName = profile.fullName?.trim() || snapshot.membership.userName;
   const displayRole = profile.jobTitle?.trim() || snapshot.membership.title;
@@ -214,218 +331,260 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <section className={styles.intro}>
-        <div className={styles.introText}>
-          <p className={styles.kicker}>Settings</p>
-          <h1>Make Chertt sound like you.</h1>
-          <p className={styles.introBody}>
-            This is not just profile data. It is the voice, signature, contact layer, and money default that shape every response Chertt gives you.
-          </p>
+      {/* Mobile back */}
+      <Link className={styles.backBtn} href={`/w/${snapshot.workspace.slug}/chat`}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 3L5 8l5 5" />
+        </svg>
+        Back to chat
+      </Link>
+
+      {/* Page header */}
+      <div className={styles.header}>
+        <h1>Settings</h1>
+        <span className={styles.saveStatus}>{saved ? "Saved" : "Saving…"}</span>
+      </div>
+
+      {/* Profile preview */}
+      <div className={styles.profileRow}>
+        <div className={styles.avatar}>
+          {profile.initials || buildInitials(displayName) || snapshot.membership.avatarInitials}
+        </div>
+        <div className={styles.profileMeta}>
+          <strong>{displayName}</strong>
+          <span>{displayRole}{displayOrg ? ` · ${displayOrg}` : ""}</span>
+        </div>
+      </div>
+
+      {/* Profile fields — fullName, jobTitle, organization (signatureName moved to Signature section) */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Profile</h2>
+        {[FIELD_CONFIG[0], FIELD_CONFIG[2], FIELD_CONFIG[3]].map((field) => (
+          <label className={styles.field} htmlFor={`field-${field.key}`} key={field.key}>
+            <span className={styles.fieldLabel}>{field.label}</span>
+            <input
+              className={styles.input}
+              id={`field-${field.key}`}
+              onChange={(event) => update(field.key, event.target.value)}
+              placeholder={field.label}
+              type={field.type ?? "text"}
+              value={(profile[field.key] as string) ?? ""}
+            />
+            <small className={styles.helper}>{field.helper}</small>
+          </label>
+        ))}
+      </section>
+
+      {/* Signature */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Signature</h2>
+
+        {/* Preview */}
+        <div className={styles.signaturePreview}>
+          {profile.signatureImage ? (
+            <img alt="Your signature" className={styles.signatureImage} src={profile.signatureImage} />
+          ) : displaySignature ? (
+            <span className={styles.signatureTextFallback}>{displaySignature}</span>
+          ) : (
+            <span className={styles.signatureEmpty}>No signature set yet</span>
+          )}
         </div>
 
-        <div className={styles.identityPanel}>
-          <div className={styles.identityTop}>
-            <div className={styles.avatar}>{profile.initials || buildInitials(displayName) || snapshot.membership.avatarInitials}</div>
-            <div className={styles.identityMeta}>
-              <strong>{displayName}</strong>
-              <span>{displayRole}</span>
-              <p>{displayOrg}</p>
-            </div>
+        {/* Signature name */}
+        <label className={styles.field} htmlFor="field-signatureName">
+          <span className={styles.fieldLabel}>Closing name</span>
+          <input
+            className={styles.input}
+            id="field-signatureName"
+            onChange={(event) => update("signatureName", event.target.value)}
+            placeholder="e.g. Alex Morgan"
+            type="text"
+            value={profile.signatureName ?? ""}
+          />
+          <small className={styles.helper}>The name that appears at the bottom of letters and memos.</small>
+        </label>
+
+        {/* Signature canvas / upload */}
+        <div style={{ display: "grid", gap: 12, paddingTop: 8, borderTop: "1px solid var(--ch-border)" }}>
+          <div>
+            <p style={{ margin: "0 0 2px", fontSize: "0.82rem", fontWeight: 600, color: "var(--ch-text)" }}>
+              Signature image
+            </p>
+            <p style={{ margin: 0, fontSize: "0.74rem", color: "var(--ch-muted)" }}>
+              Used on letters and documents you sign. Draw or upload an image.
+            </p>
           </div>
 
-          <div className={styles.identityStrip}>
-            <span>{activeCurrency}</span>
-            <span>{readiness}% ready</span>
-            <span>{saved ? "Saved" : "Autosaving"}</span>
-          </div>
+          {sigPreview ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, border: "1px solid var(--ch-border)", borderRadius: 10, background: "var(--ch-surface-soft)" }}>
+              <img alt="Your signature" src={sigPreview} style={{ maxHeight: 56, maxWidth: 200, objectFit: "contain", objectPosition: "left center" }} />
+              <div style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: "0.74rem", color: "var(--ch-muted)" }}>Saved signature</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => sigFileInputRef.current?.click()}
+                    style={{ height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--ch-border)", background: "transparent", color: "var(--ch-muted)", fontSize: "0.72rem", cursor: "pointer" }}
+                    type="button"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    onClick={clearSignature}
+                    style={{ height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--ch-border)", background: "transparent", color: "var(--ch-muted)", fontSize: "0.72rem", cursor: "pointer" }}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ position: "relative", border: "1px solid var(--ch-border)", borderRadius: 10, background: "var(--ch-surface-soft)", overflow: "hidden" }}>
+                <canvas
+                  ref={sigCanvasRef}
+                  style={{ display: "block", width: "100%", height: 120, touchAction: "none", cursor: "crosshair" }}
+                />
+                <button
+                  onClick={() => {
+                    const canvas = sigCanvasRef.current;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext("2d");
+                    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                    setSigHasDrawn(false);
+                  }}
+                  style={{ position: "absolute", top: 8, right: 8, height: 26, padding: "0 10px", borderRadius: 6, border: "1px solid var(--ch-border)", background: "var(--ch-surface)", color: "var(--ch-muted)", fontSize: "0.72rem", cursor: "pointer" }}
+                  type="button"
+                >
+                  Clear
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  disabled={!sigHasDrawn}
+                  onClick={saveDrawnSignature}
+                  style={{ flex: 1, minHeight: 36, borderRadius: 8, border: "1px solid oklch(0.52 0.18 145)", background: "oklch(0.52 0.18 145)", color: "#fff", fontSize: "0.8rem", fontWeight: 600, cursor: sigHasDrawn ? "pointer" : "not-allowed", opacity: sigHasDrawn ? 1 : 0.4 }}
+                  type="button"
+                >
+                  Save drawn signature
+                </button>
+                <button
+                  onClick={() => sigFileInputRef.current?.click()}
+                  style={{ flex: 1, minHeight: 36, borderRadius: 8, border: "1px solid var(--ch-border)", background: "transparent", color: "var(--ch-text)", fontSize: "0.8rem", cursor: "pointer" }}
+                  type="button"
+                >
+                  Upload image
+                </button>
+              </div>
+            </div>
+          )}
+
+          <input
+            accept="image/png,image/jpeg"
+            onChange={handleSigFileChange}
+            ref={sigFileInputRef}
+            style={{ display: "none" }}
+            type="file"
+          />
         </div>
       </section>
 
-      <section className={styles.studio}>
-        <div className={styles.canvas}>
-          <div className={styles.block}>
-            <div className={styles.blockHead}>
-              <div>
-                <p className={styles.eyebrow}>Core identity</p>
-                <h2>The name and role Chertt should carry</h2>
-              </div>
-            </div>
+      {/* Contact fields */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Contact</h2>
+        {FIELD_CONFIG.slice(4, 7).map((field) => (
+          <label className={styles.field} htmlFor={`field-${field.key}`} key={field.key}>
+            <span className={styles.fieldLabel}>{field.label}</span>
+            <input
+              className={styles.input}
+              id={`field-${field.key}`}
+              onChange={(event) => update(field.key, event.target.value)}
+              placeholder={field.label}
+              type={field.type ?? "text"}
+              value={(profile[field.key] as string) ?? ""}
+            />
+            <small className={styles.helper}>{field.helper}</small>
+          </label>
+        ))}
+      </section>
 
-            <div className={styles.fieldStack}>
-              {FIELD_CONFIG.slice(0, 4).map((field) => (
-                <label className={styles.field} htmlFor={`field-${field.key}`} key={field.key}>
-                  <span className={styles.fieldLabel}>{field.label}</span>
-                  <input
-                    className={styles.input}
-                    id={`field-${field.key}`}
-                    onChange={(event) => update(field.key, event.target.value)}
-                    placeholder={field.label}
-                    type={field.type ?? "text"}
-                    value={(profile[field.key] as string) ?? ""}
-                  />
-                  <small className={styles.helper}>{field.helper}</small>
-                </label>
-              ))}
-            </div>
-          </div>
+      {/* AI context */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>AI context</h2>
+        <label className={styles.field} htmlFor="field-bio">
+          <span className={styles.fieldLabel}>Working context</span>
+          <textarea
+            className={styles.textarea}
+            id="field-bio"
+            onChange={(event) => update("bio", event.target.value)}
+            placeholder="Example: I handle operations, vendor follow-up, internal approvals, and formal communication. Keep my tone warm, direct, and professional."
+            rows={5}
+            value={profile.bio ?? ""}
+          />
+          <small className={styles.helper}>{FIELD_CONFIG[7].helper}</small>
+        </label>
+      </section>
 
-          <div className={styles.block}>
-            <div className={styles.blockHead}>
-              <div>
-                <p className={styles.eyebrow}>Contact layer</p>
-                <h2>Where people can reach you</h2>
-              </div>
-            </div>
+      {/* Preferences */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Preferences</h2>
+        <label className={styles.field} htmlFor="field-currency">
+          <span className={styles.fieldLabel}>Currency</span>
+          <select
+            className={styles.select}
+            id="field-currency"
+            onChange={(event) => update("currency", event.target.value)}
+            value={activeCurrency}
+          >
+            {CURRENCY_OPTIONS.map((currency) => (
+              <option key={currency} value={currency}>{currency}</option>
+            ))}
+          </select>
+          <small className={styles.helper}>Default for expenses, requests, invoices, and payment flows.</small>
+        </label>
+      </section>
 
-            <div className={styles.fieldStack}>
-              {FIELD_CONFIG.slice(4, 7).map((field) => (
-                <label className={styles.field} htmlFor={`field-${field.key}`} key={field.key}>
-                  <span className={styles.fieldLabel}>{field.label}</span>
-                  <input
-                    className={styles.input}
-                    id={`field-${field.key}`}
-                    onChange={(event) => update(field.key, event.target.value)}
-                    placeholder={field.label}
-                    type={field.type ?? "text"}
-                    value={(profile[field.key] as string) ?? ""}
-                  />
-                  <small className={styles.helper}>{field.helper}</small>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.block}>
-            <div className={styles.blockHead}>
-              <div>
-                <p className={styles.eyebrow}>Working context</p>
-                <h2>The extra context that makes the AI smarter</h2>
-              </div>
-            </div>
-
-            <label className={styles.field} htmlFor="field-bio">
-              <span className={styles.fieldLabel}>Working context</span>
-              <textarea
-                className={styles.textarea}
-                id="field-bio"
-                onChange={(event) => update("bio", event.target.value)}
-                placeholder="Example: I handle operations, vendor follow-up, internal approvals, and formal communication. Keep my tone warm, direct, and professional."
-                rows={7}
-                value={profile.bio ?? ""}
-              />
-              <small className={styles.helper}>{FIELD_CONFIG[7].helper}</small>
-            </label>
-          </div>
+      {/* Demo wallet */}
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Demo wallet</h2>
+          <span className={styles.sectionValue}>{formatCurrency(balance, activeCurrency)}</span>
         </div>
-
-        <aside className={styles.sidebar}>
-          <div className={`${styles.panel} ${styles.previewPanel}`}>
-            <div className={styles.panelHead}>
-              <p className={styles.eyebrowAlt}>Live preview</p>
-              <span className={styles.miniTag}>Voice sample</span>
-            </div>
-
-            <div className={styles.previewLetter}>
-              <span>Hi {firstName},</span>
-              <p>
-                I have prepared this draft under <strong>{displaySignature}</strong>, {displayRole.toLowerCase()} at <strong>{displayOrg}</strong>.
-              </p>
-              <p>
-                Any money request or invoice I prepare for you will default to <strong>{activeCurrency}</strong>.
-              </p>
-              <div className={styles.previewClose}>
-                <span>Warm regards,</span>
-                <strong>{displaySignature}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.panel}>
-            <div className={styles.panelHead}>
-              <div>
-                <p className={styles.eyebrow}>Money default</p>
-                <h3>Choose your currency</h3>
-              </div>
-            </div>
-
-            <label className={styles.field} htmlFor="field-currency">
-              <span className={styles.fieldLabel}>Currency</span>
-              <select
-                className={styles.select}
-                id="field-currency"
-                onChange={(event) => update("currency", event.target.value)}
-                value={activeCurrency}
-              >
-                {CURRENCY_OPTIONS.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </select>
-              <small className={styles.helper}>This becomes the default for balances, expenses, requests, invoices, and payment flows.</small>
-            </label>
-          </div>
-
-          <div className={styles.panel}>
-            <div className={styles.panelHead}>
-              <div>
-                <p className={styles.eyebrow}>Demo wallet</p>
-                <h3>{formatCurrency(balance, activeCurrency)}</h3>
-              </div>
-            </div>
-
-            <div className={styles.actionRow}>
-              <button className={styles.softButton} onClick={() => creditWallet(100_000, "Demo top-up")} type="button">
-                Top up
-              </button>
-              <button className={styles.softButton} onClick={() => resetWalletToDemo()} type="button">
-                Reset
-              </button>
-            </div>
-
-            {transactions.length > 0 ? (
-              <div className={styles.transactionStack}>
-                {transactions.slice(0, 8).map((tx) => (
-                  <div className={styles.transaction} key={tx.id}>
-                    <div className={styles.transactionCopy}>
-                      <span className={`${styles.dot} ${tx.type === "credit" ? styles.dotCredit : styles.dotDebit}`} />
-                      <div>
-                        <strong>{tx.label}</strong>
-                        <p>{tx.type === "debit" ? "Debit" : "Credit"}</p>
-                      </div>
-                    </div>
-                    <span className={`${styles.amount} ${tx.type === "credit" ? styles.amountCredit : styles.amountDebit}`}>
-                      {tx.type === "debit" ? "-" : "+"}{formatCurrency(tx.amount, activeCurrency)}
-                    </span>
+        <div className={styles.walletActions}>
+          <button className={styles.softButton} onClick={() => creditWallet(100_000, "Demo top-up")} type="button">Top up</button>
+          <button className={styles.softButton} onClick={() => resetWalletToDemo()} type="button">Reset</button>
+        </div>
+        {transactions.length > 0 ? (
+          <div className={styles.transactionList}>
+            {transactions.slice(0, 8).map((tx) => (
+              <div className={styles.transaction} key={tx.id}>
+                <div className={styles.transactionLeft}>
+                  <span className={`${styles.dot} ${tx.type === "credit" ? styles.dotCredit : styles.dotDebit}`} />
+                  <div className={styles.transactionInfo}>
+                    <strong>{tx.label}</strong>
+                    <span>{tx.type === "debit" ? "Debit" : "Credit"}</span>
                   </div>
-                ))}
+                </div>
+                <span className={`${styles.amount} ${tx.type === "credit" ? styles.amountCredit : styles.amountDebit}`}>
+                  {tx.type === "debit" ? "−" : "+"}{formatCurrency(tx.amount, activeCurrency)}
+                </span>
               </div>
-            ) : (
-              <div className={styles.emptyBox}>
-                <strong>No wallet activity yet</strong>
-                <p>Once you test giving or payment actions, the movement will appear here.</p>
-              </div>
-            )}
+            ))}
           </div>
+        ) : (
+          <p className={styles.emptyNote}>No wallet activity yet.</p>
+        )}
+      </section>
 
-          <div className={styles.panel}>
-            <div className={styles.panelHead}>
-              <div>
-                <p className={styles.eyebrow}>Session</p>
-                <h3>Quick actions</h3>
-              </div>
-            </div>
-
-            <div className={styles.actionColumn}>
-              <Link className={styles.primaryLink} href={`/w/${snapshot.workspace.slug}/chat`}>
-                Back to chat
-              </Link>
-              <button className={styles.ghostButton} onClick={() => void handleLogout()} type="button">
-                {loggingOut ? "Signing out..." : "Log out"}
-              </button>
-            </div>
-          </div>
-        </aside>
+      {/* Session */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Session</h2>
+        <div className={styles.sessionActions}>
+          <Link className={styles.primaryLink} href={`/w/${snapshot.workspace.slug}/chat`}>Back to chat</Link>
+          <button className={styles.ghostButton} onClick={() => void handleLogout()} type="button">
+            {loggingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
       </section>
     </div>
   );
