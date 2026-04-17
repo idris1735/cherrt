@@ -31,35 +31,37 @@ function getEventPos(e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) {
 }
 
 export function SignModal({ document, signerName, onSign, onClose }: Props) {
-  const profile = getActiveUserProfile();
-  const savedSig = profile?.signatureImage ?? null;
-
-  const [tab, setTab] = useState<Tab>(savedSig ? "upload" : "draw");
+  const [tab, setTab] = useState<Tab>("draw");
   const [hasDrawn, setHasDrawn] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(savedSig);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Set canvas resolution once on mount
+  // Hydration-safe: read saved signature from localStorage after mount
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * window.devicePixelRatio;
-    canvas.height = rect.height * window.devicePixelRatio;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const p = getActiveUserProfile();
+    const saved = p?.signatureImage ?? null;
+    if (saved) {
+      setUploadedImage(saved);
+      setTab("upload");
+    }
   }, []);
 
-  // Attach drawing event listeners when Draw tab is active
+  // Size canvas and attach drawing event listeners when Draw tab is active
   useEffect(() => {
     if (tab !== "draw") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Size canvas correctly for devicePixelRatio
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.strokeStyle = "#1a1a1a";
     ctx.lineWidth = 2.2;
     ctx.lineCap = "round";
@@ -95,6 +97,7 @@ export function SignModal({ document, signerName, onSign, onClose }: Props) {
     canvas.addEventListener("touchstart", onStart, { passive: false });
     canvas.addEventListener("touchmove", onMove, { passive: false });
     canvas.addEventListener("touchend", onEnd);
+    canvas.addEventListener("touchcancel", onEnd);
 
     return () => {
       canvas.removeEventListener("mousedown", onStart);
@@ -104,6 +107,7 @@ export function SignModal({ document, signerName, onSign, onClose }: Props) {
       canvas.removeEventListener("touchstart", onStart);
       canvas.removeEventListener("touchmove", onMove);
       canvas.removeEventListener("touchend", onEnd);
+      canvas.removeEventListener("touchcancel", onEnd);
     };
   }, [tab]);
 
