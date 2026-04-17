@@ -16,6 +16,7 @@ import { clearLastWorkspaceSlug } from "@/lib/services/onboarding-draft";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import type { AiCommandResult, ModuleKey } from "@/lib/types";
 import styles from "@/app/w/[workspaceSlug]/chat/page.module.css";
+import { SignModal } from "@/components/sign/sign-modal";
 
 const MODULE_SUGGESTION_CARDS: Record<ModuleKey, { label: string; hint: string; prompt: string }[]> = {
   toolkit: [
@@ -116,6 +117,7 @@ export default function ChatPage() {
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     summary: string;
     actionKey: string;
@@ -134,6 +136,10 @@ export default function ChatPage() {
     cta: string;
   } | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editingDocBody, setEditingDocBody] = useState("");
+  const [signingDocId, setSigningDocId] = useState<string | null>(null);
+  const canSign = (["owner", "admin", "approver"] as string[]).includes(snapshot.membership.role);
   const [activeModule, setActiveModule] = useState<ModuleKey>(
     () => (snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit"
   );
@@ -144,6 +150,14 @@ export default function ChatPage() {
   const conversations = snapshot.conversations;
   const activeConversation =
     conversations.find((c) => c.id === activeConversationId) ?? conversations[0];
+
+  const filteredConversations = searchQuery.trim()
+    ? conversations.filter((c) => {
+        const q = searchQuery.toLowerCase();
+        if (c.title.toLowerCase().includes(q)) return true;
+        return c.messages.some((m) => extractActionCardFromMessage(m.text).body.toLowerCase().includes(q));
+      })
+    : conversations;
 
   useEffect(() => {
     const el = threadRef.current;
@@ -463,7 +477,7 @@ export default function ChatPage() {
           context: {
             role: snapshot.membership.role,
             enabledModules: snapshot.workspace.modules,
-            userName: snapshot.membership.userName,
+            userName: (typeof window !== "undefined" ? getActiveUserProfile()?.signatureName : undefined) || (typeof window !== "undefined" ? getActiveUserProfile()?.fullName : undefined) || snapshot.membership.userName,
             userTitle: (typeof window !== "undefined" ? getActiveUserProfile()?.jobTitle : undefined) ?? snapshot.membership.title,
             userOrganization: (typeof window !== "undefined" ? getActiveUserProfile()?.organization : undefined) ?? snapshot.workspace.name,
           },
@@ -493,6 +507,19 @@ export default function ChatPage() {
 
       addMessage(conversationId, { id: `assistant-${assistantNow}`, speaker: "assistant", text: assistantText, timeLabel: "Now", createdAt: assistantNow });
       applyAiResult(payload);
+
+      // Emit a routing bubble when a document is created
+      if (payload.generatedDocument) {
+        const awaiting = payload.generatedDocument.awaitingSignatureFrom || "Admin";
+        const routingNow = Date.now();
+        addMessage(conversationId, {
+          id: `routing-${routingNow}`,
+          speaker: "assistant",
+          text: `Routed to **${awaiting}** for signature. An authorized team member can review and sign.`,
+          timeLabel: "Now",
+          createdAt: routingNow,
+        });
+      }
 
       // Deduct from demo wallet for giving records and payment links
       if (payload.generatedGivingRecord?.amount) {
@@ -633,12 +660,46 @@ export default function ChatPage() {
           </button>
         </div>
 
+        {/* Search */}
+        <div className={styles.sidebarSearch}>
+          <div className={styles.searchWrap}>
+            <svg aria-hidden="true" className={styles.searchIcon} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <circle cx="6.5" cy="6.5" r="4" />
+              <path d="M11 11l2.5 2.5" strokeLinecap="round" />
+            </svg>
+            <input
+              aria-label="Search chats"
+              className={styles.searchInput}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search chats…"
+              type="search"
+              value={searchQuery}
+            />
+            {searchQuery ? (
+              <button
+                aria-label="Clear search"
+                className={styles.searchClear}
+                onClick={() => setSearchQuery("")}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        </div>
+
         {/* History */}
         <div className={styles.history} aria-label="Past chats">
-          {conversations.length > 0 ? (
+          {searchQuery.trim() ? (
+            <p className={styles.historyLabel}>
+              {filteredConversations.length === 0 ? "No results" : `${filteredConversations.length} result${filteredConversations.length === 1 ? "" : "s"}`}
+            </p>
+          ) : conversations.length > 0 ? (
             <p className={styles.historyLabel}>Recent</p>
           ) : null}
-          {conversations.map((conv) => (
+          {filteredConversations.map((conv) => (
             <div
               className={`${styles.historyRow} ${conv.id === activeConversation?.id ? styles.historyRowActive : ""}`}
               key={conv.id}
@@ -865,9 +926,12 @@ export default function ChatPage() {
           <div className={styles.chatMain}>
             <div className={styles.thread} ref={threadRef}>
                 {transcript.map((msg, index) => (
+                  <div
+                    className={`${styles.messageRow} ${msg.speaker === "user" ? styles.messageRowUser : ""}`}
+                    key={msg.id}
+                  >
                   <article
                     className={`${styles.message} ${speakerClass[msg.speaker]}`}
-                    key={msg.id}
                     style={{ animationDelay: `${Math.min(index * 35, 220)}ms` }}
                   >
                     {(() => {
@@ -880,43 +944,115 @@ export default function ChatPage() {
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {parsed.body}
                               </ReactMarkdown>
-                              {msg.createdAt ? (
-                                <span className={styles.messageTime}>{formatMessageTime(msg.createdAt)}</span>
-                              ) : null}
                             </div>
                           ) : null}
                           {card ? (
                             card.kind === "document" && card.recordId ? (() => {
                               const doc = snapshot.documents.find((d) => d.id === card.recordId);
                               if (!doc) return null;
+                              const isEditing = editingDocId === doc.id;
                               return (
                                 <div className={styles.inlineDocCard}>
                                   <div className={styles.inlineDocHead}>
                                     <span className={styles.inlineDocType}>{doc.type}</span>
                                     <div className={styles.inlineDocActions}>
-                                      <button
-                                        className={styles.inlineDocBtn}
-                                        onClick={() => void navigator.clipboard.writeText(doc.body)}
-                                        type="button"
-                                      >
-                                        Copy
-                                      </button>
-                                      {doc.awaitingSignatureFrom && doc.status === "pending" ? (
-                                        <button
-                                          className={`${styles.inlineDocBtn} ${styles.inlineDocBtnSign}`}
-                                          onClick={() => upsertDocument({ ...doc, status: "approved", awaitingSignatureFrom: undefined })}
-                                          type="button"
-                                        >
-                                          Sign off ✓
-                                        </button>
-                                      ) : doc.status === "approved" ? (
-                                        <span className={styles.inlineDocSigned}>✓ Signed</span>
-                                      ) : null}
+                                      {isEditing ? (
+                                        <>
+                                          <button
+                                            className={`${styles.inlineDocBtn} ${styles.inlineDocBtnSign}`}
+                                            onClick={() => {
+                                              upsertDocument({ ...doc, body: editingDocBody });
+                                              setEditingDocId(null);
+                                            }}
+                                            type="button"
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            className={styles.inlineDocBtn}
+                                            onClick={() => setEditingDocId(null)}
+                                            type="button"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            className={styles.inlineDocBtn}
+                                            onClick={() => {
+                                              setEditingDocBody(doc.body);
+                                              setEditingDocId(doc.id);
+                                            }}
+                                            type="button"
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            className={styles.inlineDocBtn}
+                                            onClick={() => void navigator.clipboard.writeText(doc.body)}
+                                            type="button"
+                                          >
+                                            Copy
+                                          </button>
+                                          {doc.awaitingSignatureFrom && doc.status === "pending" ? (
+                                            canSign ? (
+                                              <button
+                                                className={`${styles.inlineDocBtn} ${styles.inlineDocBtnSign}`}
+                                                onClick={() => setSigningDocId(doc.id)}
+                                                type="button"
+                                              >
+                                                Sign
+                                              </button>
+                                            ) : (
+                                              <span style={{ fontSize: "0.72rem", color: "var(--ch-muted)" }}>
+                                                Awaiting · {doc.awaitingSignatureFrom}
+                                              </span>
+                                            )
+                                          ) : doc.status === "approved" ? (
+                                            <span className={styles.inlineDocSigned}>
+                                              ✓ Signed{doc.signedBy ? ` by ${doc.signedBy}` : ""}
+                                            </span>
+                                          ) : null}
+                                        </>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className={styles.inlineDocBody}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.body}</ReactMarkdown>
-                                  </div>
+                                  {isEditing ? (
+                                    <textarea
+                                      autoFocus
+                                      className={styles.inlineDocEditor}
+                                      onChange={(e) => setEditingDocBody(e.target.value)}
+                                      value={editingDocBody}
+                                    />
+                                  ) : (
+                                    <div className={styles.inlineDocBody}>
+                                      {(() => {
+                                        // For letters: split closing block and inject signature image
+                                        if (doc.type === "letter" || doc.type === "memo") {
+                                          const sigImage = typeof window !== "undefined" ? getActiveUserProfile()?.signatureImage : undefined;
+                                          if (sigImage) {
+                                            // Detect closing lines: "Warm regards,\nName" or "Sincerely,\nName"
+                                            const closingMatch = doc.body.match(/([\s\S]*?\n)((?:Warm regards|Sincerely|Regards|Kind regards|Best regards|Yours faithfully|Yours sincerely)[,.]?\n)([\s\S]+)$/i);
+                                            if (closingMatch) {
+                                              const [, bodyBefore, closingLine, closingName] = closingMatch;
+                                              return (
+                                                <>
+                                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{bodyBefore.trimEnd()}</ReactMarkdown>
+                                                  <div className={styles.inlineDocSignature}>
+                                                    <span className={styles.inlineDocClosing}>{closingLine.trim()}</span>
+                                                    <img alt="Signature" className={styles.inlineDocSigImg} src={sigImage} />
+                                                    <span className={styles.inlineDocSigName}>{closingName.trim()}</span>
+                                                  </div>
+                                                </>
+                                              );
+                                            }
+                                          }
+                                        }
+                                        return <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.body}</ReactMarkdown>;
+                                      })()}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })() : (
@@ -936,6 +1072,10 @@ export default function ChatPage() {
                       );
                     })()}
                   </article>
+                  {msg.createdAt ? (
+                    <span className={styles.messageTime}>{formatMessageTime(msg.createdAt)}</span>
+                  ) : null}
+                  </div>
                 ))}
 
                 {/* Confirmation card — appears inline in thread above the composer */}
@@ -964,7 +1104,7 @@ export default function ChatPage() {
                 ) : null}
               </div>
 
-              <form className={styles.composer} onSubmit={handleSubmit}>
+              <form className={`${styles.composer} ${styles.composerChat}`} onSubmit={handleSubmit}>
                 <button
                   aria-label="Attach file"
                   className={styles.attachButton}
@@ -1207,6 +1347,44 @@ export default function ChatPage() {
           </aside>
         </>
       ) : null}
+
+      {signingDocId ? (() => {
+        const doc = snapshot.documents.find((d) => d.id === signingDocId);
+        if (!doc) return null;
+        const profile = getActiveUserProfile();
+        const signerName =
+          profile?.signatureName || profile?.fullName || snapshot.membership.userName;
+        return (
+          <SignModal
+            document={doc}
+            signerName={signerName}
+            onSign={(signatureData) => {
+              const signedDoc = {
+                ...doc,
+                status: "approved" as const,
+                signedBy: signerName,
+                signedAt: new Date().toISOString(),
+                signatureData,
+                awaitingSignatureFrom: undefined,
+              };
+              upsertDocument(signedDoc);
+              const convId = activeConversation?.id;
+              if (convId) {
+                const now = Date.now();
+                addMessage(convId, {
+                  id: `signed-${now}`,
+                  speaker: "assistant",
+                  text: `**${doc.title}** has been signed by ${signerName}. The document is now authorized and ready to send.`,
+                  timeLabel: "Now",
+                  createdAt: now,
+                });
+              }
+              setSigningDocId(null);
+            }}
+            onClose={() => setSigningDocId(null)}
+          />
+        );
+      })() : null}
     </div>
   );
 }
