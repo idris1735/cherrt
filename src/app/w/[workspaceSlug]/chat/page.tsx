@@ -885,7 +885,7 @@ export default function ChatPage() {
               ))}
             </div>
 
-            <form className={`${styles.composer} ${styles.composerLanding}`} onSubmit={handleSubmit}>
+            <form className={`${styles.composer} ${styles.composerLanding} ${!activeModule ? styles.composerChat : ""}`} onSubmit={handleSubmit}>
               <button
                 aria-label="Attach file"
                 className={styles.attachButton}
