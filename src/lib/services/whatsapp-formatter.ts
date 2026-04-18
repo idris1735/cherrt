@@ -13,8 +13,8 @@ function stripMarkdown(text: string): string {
   // Remove italic (*text*)
   result = result.replace(/\*(.+?)\*/g, "$1");
 
-  // Remove headers (## text) - including those not at start of line
-  result = result.replace(/#+\s+/g, "");
+  // Remove headers (## text) - only those at start of line
+  result = result.replace(/^#+\s+/gm, "");
 
   // Convert list items (- item) to bullets (• item)
   result = result.replace(/^-\s+/gm, "• ");
@@ -52,7 +52,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
     const { title, amount } = result.generatedRequest;
     let message = `Request logged: ${title}`;
 
-    if (amount) {
+    if (amount !== undefined) {
       message += ` — ₦${amount.toLocaleString()}`;
     }
 
@@ -78,7 +78,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
   if (result.generatedInventoryItem) {
     const { name, inStock } = result.generatedInventoryItem;
     return {
-      text: `${name}: ${inStock ?? 0} units in stock.`,
+      text: `${name}: ${inStock} units in stock.`,
     };
   }
 

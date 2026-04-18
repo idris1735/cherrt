@@ -66,18 +66,159 @@ describe("formatAiResult", () => {
 
   it("strips markdown from plain text replies", () => {
     const result: AiCommandResult = {
-      reply: "**Hello** this is a *reply* with ## headers\n- item one\n- item two",
+      reply: "**Hello** this is a *reply*\n## Headers\n- item one\n- item two",
     };
     const { text } = formatAiResult(result);
     expect(text).not.toContain("**");
-    expect(text).not.toContain("##");
+    expect(text).not.toContain("*reply*");
     expect(text).toContain("Hello");
     expect(text).toContain("• item one");
+    // Headers at line start should be stripped
+    expect(text).not.toContain("## Headers");
   });
 
   it("returns fallback for empty result", () => {
     const result: AiCommandResult = { reply: "" };
     const { text } = formatAiResult(result);
     expect(text).toContain("Something went wrong");
+  });
+
+  it("formats generated request", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedRequest: {
+        id: "req-1",
+        title: "Diesel supply request",
+        type: "supply",
+        status: "pending",
+        requester: "Guest",
+        amount: 50000,
+        description: "Request for diesel",
+        module: "toolkit",
+        createdAtLabel: "Today",
+        approvalSteps: [],
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Diesel supply request");
+    expect(text).toContain("50,000");
+  });
+
+  it("formats generated issue report", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedIssueReport: {
+        id: "issue-1",
+        title: "AC broken in main hall",
+        area: "Main Hall",
+        severity: "high",
+        status: "pending",
+        reportedBy: "Guest",
+        mediaCount: 0,
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("AC broken in main hall");
+    expect(text).toContain("notified");
+  });
+
+  it("formats generated inventory item", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedInventoryItem: {
+        id: "item-1",
+        name: "Generator Diesel",
+        location: "Store",
+        inStock: 45,
+        minLevel: 10,
+        reserved: 0,
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Generator Diesel");
+    expect(text).toContain("45");
+  });
+
+  it("formats generated poll", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedPoll: {
+        id: "poll-1",
+        title: "Office hours preference",
+        lane: "pulse",
+        audience: "all",
+        owner: "Guest",
+        questionCount: 1,
+        responseCount: 0,
+        targetCount: 50,
+        status: "active",
+        updatedAtLabel: "Today",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Office hours preference");
+  });
+
+  it("formats generated appointment", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedAppointment: {
+        id: "apt-1",
+        title: "Board meeting",
+        when: "Monday 10am",
+        owner: "Guest",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Board meeting");
+    expect(text).toContain("Monday 10am");
+  });
+
+  it("formats generated payment link", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedPaymentLink: {
+        id: "link-1",
+        label: "Invoice #001",
+        amount: 25000,
+        status: "generated",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Payment link ready");
+  });
+
+  it("formats generated person", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedPerson: {
+        id: "person-1",
+        name: "John Doe",
+        title: "Finance Manager",
+        unit: "Finance",
+        phone: "+234701234567",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("John Doe");
+    expect(text).toContain("Finance Manager");
+    expect(text).toContain("+234701234567");
+  });
+
+  it("formats generated giving record", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedGivingRecord: {
+        id: "giving-1",
+        donor: "Alice Smith",
+        amount: 10000,
+        channel: "bank_transfer",
+        service: "Sunday Service",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Giving recorded");
+    expect(text).toContain("10,000");
+    expect(text).toContain("Alice Smith");
   });
 });
