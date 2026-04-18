@@ -63,7 +63,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
   // 4. generatedExpenseEntry
   if (result.generatedExpenseEntry) {
     const { amount, title } = result.generatedExpenseEntry;
-    let message = `Expense recorded: ₦${amount.toLocaleString()} for ${title}`;
+    const message = `Expense recorded: ₦${amount.toLocaleString()} for ${title}`;
     return { text: message };
   }
 
