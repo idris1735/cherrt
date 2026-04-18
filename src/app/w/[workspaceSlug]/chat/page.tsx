@@ -140,10 +140,10 @@ export default function ChatPage() {
   const [editingDocBody, setEditingDocBody] = useState("");
   const [signingDocId, setSigningDocId] = useState<string | null>(null);
   const canSign = (["owner", "admin", "approver"] as string[]).includes(snapshot.membership.role);
-  const [activeModule, setActiveModule] = useState<ModuleKey>(
+  const [activeModule, setActiveModule] = useState<ModuleKey | null>(
     () => (snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit"
   );
-  const activeSuggestionCards = MODULE_SUGGESTION_CARDS[activeModule];
+  const activeSuggestionCards = activeModule ? MODULE_SUGGESTION_CARDS[activeModule] : [];
   const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -867,7 +867,7 @@ export default function ChatPage() {
                       key={key}
                       aria-pressed={activeModule === key}
                       className={`${styles.modulePill} ${activeModule === key ? styles.modulePillActive : ""}`}
-                      onClick={() => setActiveModule(key)}
+                      onClick={() => setActiveModule((prev) => prev === key ? null : key)}
                       type="button"
                     >
                       {MODULE_LABELS[key]}
@@ -896,17 +896,19 @@ export default function ChatPage() {
                   <path d="M13 7l-5 5a3 3 0 01-4.24-4.24l5-5a2 2 0 012.83 2.83L6.5 10.5a1 1 0 01-1.41-1.41L10 4" strokeLinecap="round" />
                 </svg>
               </button>
-              <div className={styles.moduleBadge}>
-                <span>{MODULE_LABELS[activeModule]}</span>
-                <button
-                  aria-label="Reset module"
-                  className={styles.moduleBadgeClear}
-                  onClick={() => setActiveModule((snapshot.workspace.modules[0] as ModuleKey) ?? "toolkit")}
-                  type="button"
-                >
-                  ×
-                </button>
-              </div>
+              {activeModule ? (
+                <div className={styles.moduleBadge}>
+                  <span>{MODULE_LABELS[activeModule]}</span>
+                  <button
+                    aria-label="Clear module"
+                    className={styles.moduleBadgeClear}
+                    onClick={() => setActiveModule(null)}
+                    type="button"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
               <textarea
                 ref={composerRef}
                 value={prompt}
