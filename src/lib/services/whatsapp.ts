@@ -42,6 +42,7 @@ export async function downloadMedia(mediaId: string): Promise<{ buffer: Buffer; 
   });
   if (!urlRes.ok) throw new Error(`Media URL fetch failed: ${urlRes.status}`);
   const { url, mime_type } = (await urlRes.json()) as { url: string; mime_type: string };
+  if (!url) throw new Error(`Media URL missing in Graph API response for mediaId: ${mediaId}`);
 
   const mediaRes = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
