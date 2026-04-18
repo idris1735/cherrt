@@ -21,11 +21,11 @@ export const seedSnapshot: WorkspaceSnapshot = {
   membership: {
     id: "membership-1",
     workspaceId: "workspace-1",
-    userName: "Alex Morgan",
-    email: "alex@chertt.app",
+    userName: "Guest",
+    email: "guest@chertt.app",
     role: "owner",
     title: "Workspace Lead",
-    avatarInitials: "AM",
+    avatarInitials: "GU",
   },
   notifications: [
     {
@@ -76,7 +76,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
         {
           id: "step-2",
           label: "Executive approval",
-          assignee: "Alex Morgan",
+          assignee: "Guest",
           dueLabel: "Today",
           completed: false,
         },
@@ -103,7 +103,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
         {
           id: "step-5",
           label: "Admin approval",
-          assignee: "Alex Morgan",
+          assignee: "Guest",
           dueLabel: "Today",
           completed: false,
         },
@@ -155,7 +155,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       type: "letter",
       body: "Dear Northstar Studio,\n\nWe are pleased to confirm your engagement for our foyer retrofit project...",
       status: "pending",
-      preparedBy: "Alex Morgan",
+      preparedBy: "Guest",
       awaitingSignatureFrom: "Maya Chen",
       createdAtLabel: "18m ago",
     },
@@ -278,7 +278,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
     { id: "person-3", name: "Naomi Rivera", title: "Care Lead", unit: "Pastoral Care", phone: "+00 000 000 0103" },
   ],
   appointments: [
-    { id: "appt-1", title: "Conference review", when: "Today, 6:00 PM", owner: "Alex Morgan" },
+    { id: "appt-1", title: "Conference review", when: "Today, 6:00 PM", owner: "Guest" },
     { id: "appt-2", title: "Supplier document sign-off", when: "Tomorrow, 9:30 AM", owner: "Maya Chen" },
   ],
   giving: [

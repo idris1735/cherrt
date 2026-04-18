@@ -356,7 +356,7 @@ export default function SettingsPage() {
             className={styles.input}
             id="field-signatureName"
             onChange={(event) => update("signatureName", event.target.value)}
-            placeholder="e.g. Alex Morgan"
+            placeholder="e.g. Jordan Smith"
             type="text"
             value={profile.signatureName ?? ""}
           />
