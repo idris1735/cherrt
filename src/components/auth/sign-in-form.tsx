@@ -32,10 +32,8 @@ export function SignInForm({
   hideModeToggle?: boolean;
 }) {
   const router = useRouter();
-  const onboardingDraft = getOnboardingDraft();
-  const lastWorkspaceSlug = getLastWorkspaceSlug();
   const [mode, setMode] = useState<"signin" | "signup">(forcedMode ?? "signin");
-  const [email, setEmail] = useState(onboardingDraft?.fields.email || "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,6 +45,82 @@ export function SignInForm({
       setMode(forcedMode);
     }
   }, [forcedMode, mode]);
+
+  // Populate email from onboarding draft after mount (localStorage is client-only)
+  useEffect(() => {
+    const draft = getOnboardingDraft();
+    if (draft?.fields.email) setEmail(draft.fields.email);
+  }, []);
+
+  // Handle OAuth redirect-back (Google etc. lands back here with a session)
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) {
+        void handlePostAuth(session.user);
+      }
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handlePostAuth(supabaseUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null) {
+    if (!supabaseUser) return;
+    const normalizedEmail = supabaseUser.email?.trim().toLowerCase() ?? "";
+    const metadataName =
+      (typeof supabaseUser.user_metadata?.full_name === "string" && supabaseUser.user_metadata.full_name) ||
+      (typeof supabaseUser.user_metadata?.name === "string" && supabaseUser.user_metadata.name) ||
+      deriveNameFromEmail(normalizedEmail);
+    const remembered = getRememberedUserProfileForEmail(normalizedEmail);
+    const profile =
+      remembered ??
+      buildUserProfile({ fullName: metadataName, email: normalizedEmail });
+    setActiveUserProfile(profile);
+    rememberUserProfileForEmail(normalizedEmail, profile);
+
+    const onboardingDraft = getOnboardingDraft();
+    const module = onboardingDraft?.selectedModule || selectedModule;
+    if (onboardingDraft) {
+      const bootstrap = await bootstrapWorkspaceFromDraft();
+      if (bootstrap.status === "ready") {
+        router.push(`/w/${bootstrap.slug}/chat`);
+        router.refresh();
+        return;
+      }
+      if (bootstrap.status === "auth-required") {
+        router.push("/auth/sign-in");
+        router.refresh();
+        return;
+      }
+      if (bootstrap.status === "error") {
+        setError(bootstrap.message || "Could not complete workspace setup. Please try again.");
+        setLoading(false);
+        return;
+      }
+      router.push(`/auth/setup?module=${module}`);
+      router.refresh();
+      return;
+    }
+
+    const lastWorkspaceSlug = getLastWorkspaceSlug();
+    if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
+      router.push(`/w/${lastWorkspaceSlug}/chat`);
+      router.refresh();
+      return;
+    }
+
+    const workspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
+    if (workspaceSlug) {
+      rememberLastWorkspaceSlug(workspaceSlug);
+      router.push(`/w/${workspaceSlug}/chat`);
+      router.refresh();
+      return;
+    }
+
+    router.push("/auth/modules");
+    router.refresh();
+  }
 
   function mapAuthErrorMessage(raw: string) {
     const value = raw.toLowerCase();
@@ -127,72 +201,30 @@ export function SignInForm({
       return;
     }
 
-    const supabaseUser = authResponse.data.user;
-    const metadataName =
-      (typeof supabaseUser?.user_metadata?.full_name === "string" && supabaseUser.user_metadata.full_name) ||
-      (typeof supabaseUser?.user_metadata?.name === "string" && supabaseUser.user_metadata.name) ||
-      deriveNameFromEmail(normalizedEmail);
-    const metadataAgeRaw = supabaseUser?.user_metadata?.age;
-    const metadataAge =
-      typeof metadataAgeRaw === "number"
-        ? metadataAgeRaw
-        : typeof metadataAgeRaw === "string"
-          ? Number(metadataAgeRaw)
-          : undefined;
+    await handlePostAuth(authResponse.data.user);
+  }
 
-    const remembered = getRememberedUserProfileForEmail(normalizedEmail);
-    const profile =
-      remembered ??
-      buildUserProfile({
-        fullName: metadataName,
-        age: Number.isFinite(metadataAge) ? metadataAge : undefined,
-        email: normalizedEmail,
-      });
-    setActiveUserProfile(profile);
-    rememberUserProfileForEmail(normalizedEmail, profile);
-
-    const module = onboardingDraft?.selectedModule || selectedModule;
-    if (onboardingDraft) {
-      const bootstrap = await bootstrapWorkspaceFromDraft();
-      if (bootstrap.status === "ready") {
-      router.push(`/w/${bootstrap.slug}/chat`);
-      router.refresh();
-      return;
-      }
-
-      if (bootstrap.status === "auth-required") {
-        router.push("/auth/sign-in");
-        router.refresh();
-        return;
-      }
-
-      if (bootstrap.status === "error") {
-        setError(bootstrap.message || "Could not complete workspace setup. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      router.push(`/auth/setup?module=${module}`);
-      router.refresh();
-      return;
+  async function handleGoogleSignIn() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth/sign-in` : undefined;
+    setLoading(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    if (oauthError) {
+      setError(mapAuthErrorMessage(oauthError.message));
+      setLoading(false);
     }
+  }
 
-    if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
-      router.push(`/w/${lastWorkspaceSlug}/chat`);
-      router.refresh();
-      return;
-    }
-
-    const workspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
-    if (workspaceSlug) {
-      rememberLastWorkspaceSlug(workspaceSlug);
-      router.push(`/w/${workspaceSlug}/chat`);
-      router.refresh();
-      return;
-    }
-
-    router.push("/auth/modules");
-    router.refresh();
+  function handleFacebookSignIn() {
+    notify({
+      tone: "info",
+      title: "Coming soon",
+      description: "Facebook sign-in is not available yet.",
+    });
   }
 
   return (
@@ -264,6 +296,24 @@ export function SignInForm({
         <button className="button button--primary button--full" disabled={loading || !email || !password} type="submit">
           {loading ? (mode === "signin" ? "Signing in..." : "Creating account...") : mode === "signin" ? "Continue" : "Create account"}
         </button>
+        <div className="auth-divider"><span>or</span></div>
+        <div className="auth-oauth">
+          <button className="auth-oauth__btn" onClick={handleGoogleSignIn} type="button" disabled={loading}>
+            <svg className="auth-oauth__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84Z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53Z" />
+            </svg>
+            Continue with Google
+          </button>
+          <button className="auth-oauth__btn auth-oauth__btn--muted" onClick={handleFacebookSignIn} type="button">
+            <svg className="auth-oauth__icon" viewBox="0 0 24 24" aria-hidden="true" fill="#1877F2">
+              <path d="M24 12.073C24 5.41 18.627 0 12 0S0 5.41 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.885v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073Z" />
+            </svg>
+            Continue with Facebook
+          </button>
+        </div>
       </div>
     </form>
   );
