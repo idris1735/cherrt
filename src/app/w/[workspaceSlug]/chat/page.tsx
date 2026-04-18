@@ -477,7 +477,7 @@ export default function ChatPage() {
           context: {
             role: snapshot.membership.role,
             enabledModules: snapshot.workspace.modules,
-            userName: (typeof window !== "undefined" ? getActiveUserProfile()?.signatureName : undefined) || (typeof window !== "undefined" ? getActiveUserProfile()?.fullName : undefined) || snapshot.membership.userName,
+            userName: (() => { const p = typeof window !== "undefined" ? getActiveUserProfile() : null; return p?.signatureName || p?.fullName || snapshot.membership.userName; })(),
             userTitle: (typeof window !== "undefined" ? getActiveUserProfile()?.jobTitle : undefined) ?? snapshot.membership.title,
             userOrganization: (typeof window !== "undefined" ? getActiveUserProfile()?.organization : undefined) ?? snapshot.workspace.name,
           },

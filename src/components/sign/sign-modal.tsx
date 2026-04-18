@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import type { SmartDocument } from "@/lib/types";
-import { getActiveUserProfile, setActiveUserProfile } from "@/lib/services/profile";
+import { getActiveUserProfile, rememberUserProfileForEmail, setActiveUserProfile } from "@/lib/services/profile";
 import styles from "./sign-modal.module.css";
 
 type Tab = "draw" | "upload" | "stamp";
@@ -14,20 +14,13 @@ type Props = {
   onClose: () => void;
 };
 
+// ctx uses setTransform(dpr,…) so coordinates are CSS pixels — no DPR scaling needed here.
 function getEventPos(e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
   if ("touches" in e) {
-    return {
-      x: (e.touches[0].clientX - rect.left) * scaleX,
-      y: (e.touches[0].clientY - rect.top) * scaleY,
-    };
+    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
   }
-  return {
-    x: ((e as MouseEvent).clientX - rect.left) * scaleX,
-    y: ((e as MouseEvent).clientY - rect.top) * scaleY,
-  };
+  return { x: (e as MouseEvent).clientX - rect.left, y: (e as MouseEvent).clientY - rect.top };
 }
 
 export function SignModal({ document, signerName, onSign, onClose }: Props) {
@@ -120,16 +113,22 @@ export function SignModal({ document, signerName, onSign, onClose }: Props) {
     setHasDrawn(false);
   }
 
+  function persistSignatureToProfile(data: string) {
+    const current = getActiveUserProfile();
+    if (!current) return;
+    const updated = { ...current, signatureImage: data };
+    setActiveUserProfile(updated);
+    if (updated.email) rememberUserProfileForEmail(updated.email, updated);
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const data = ev.target?.result as string;
       setUploadedImage(data);
-      // Persist to profile for future use
-      const current = getActiveUserProfile();
-      if (current) setActiveUserProfile({ ...current, signatureImage: data });
+      persistSignatureToProfile(data);
     };
     reader.readAsDataURL(file);
   }
@@ -138,10 +137,8 @@ export function SignModal({ document, signerName, onSign, onClose }: Props) {
     if (tab === "draw") {
       const canvas = canvasRef.current;
       if (!canvas || !hasDrawn) return;
-      // Save drawn signature to profile
       const data = canvas.toDataURL("image/png");
-      const current = getActiveUserProfile();
-      if (current) setActiveUserProfile({ ...current, signatureImage: data });
+      persistSignatureToProfile(data);
       onSign(data);
     } else if (tab === "upload") {
       if (!uploadedImage) return;
