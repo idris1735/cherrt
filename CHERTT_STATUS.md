@@ -1,6 +1,6 @@
 # Chertt — Product & Engineering Status
 
-> Last updated: April 2026  
+> Last updated: 2026-04-17  
 > Status: Active development — MVP phase
 
 ---
@@ -127,7 +127,7 @@ The spec describes two modes: AI mode (executes automatically when confident) an
 The spec mentions voice as an input method. Not started.
 
 **11. WhatsApp adapter not built**  
-The channel adapter architecture exists but no WhatsApp implementation. Planned for after web flows are stable.
+Design spec complete (`docs/superpowers/specs/2026-04-17-whatsapp-integration-design.md`). Implementation planned next. Uses Meta Cloud API directly, deployed on Vercel.
 
 **12. Staff directory "initiate call/chat" not built**  
 Directory profiles are viewable but clicking "call" or "chat" does nothing.
@@ -202,7 +202,12 @@ Each of these needs the same treatment Business Toolkit got:
 
 ### Sprint 5 — Channels
 
-- WhatsApp adapter using the same capability registry
+- **WhatsApp integration** — spec approved, implementation next
+  - Meta Cloud API webhook (`/api/whatsapp/webhook`)
+  - Message processor → `runCherttCommand` → plain text reply
+  - CONFIRM / APPROVE / REJECT keyword flow
+  - Receipt photo + facility photo handling
+  - Web links for signing and records
 - Push notifications (web + mobile)
 - PWA installable shell
 - Voice input (Web Speech API)
@@ -215,6 +220,9 @@ Each of these needs the same treatment Business Toolkit got:
 |---|---|---|---|---|
 | **Business Toolkit** | | | | |
 | Smart documents (draft/sign/route) | ✅ | ✅ | ✅ | ⚠️ |
+| Document signing (Draw/Upload/Stamp) | ✅ | ✅ | ✅ | ⚠️ |
+| Routing bubble + post-sign bubble | ✅ | ✅ | — | — |
+| Signature profile (Settings) | ✅ | — | ✅ | ⚠️ |
 | Requests and approvals | ✅ | ✅ | ✅ | ⚠️ |
 | Inventory management | ✅ | ✅ | ✅ | ⚠️ |
 | Facility/issue reporting | ✅ | ✅ | ✅ | ⚠️ |
