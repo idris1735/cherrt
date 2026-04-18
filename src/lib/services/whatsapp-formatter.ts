@@ -113,7 +113,15 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
     };
   }
 
-  // 10. generatedAppointment
+  // 10. generatedForm
+  if (result.generatedForm) {
+    const { name } = result.generatedForm;
+    return {
+      text: `Form "${name}" created. View here: ${webLink()}`,
+    };
+  }
+
+  // 11. generatedAppointment
   if (result.generatedAppointment) {
     const { title, when } = result.generatedAppointment;
     let message = `Appointment scheduled: ${title}`;
@@ -125,7 +133,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
     return { text: message };
   }
 
-  // 11. generatedGivingRecord
+  // 12. generatedGivingRecord
   if (result.generatedGivingRecord) {
     const { amount, donor } = result.generatedGivingRecord;
     return {
@@ -133,12 +141,12 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
     };
   }
 
-  // 12. reply (non-empty string)
+  // 13. reply (non-empty string)
   if (result.reply.trim()) {
     return { text: stripMarkdown(result.reply) };
   }
 
-  // 13. fallback
+  // 14. fallback
   return {
     text: `Something went wrong. Please try again or visit ${webLink()}`,
   };

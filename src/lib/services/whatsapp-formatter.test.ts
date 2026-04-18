@@ -221,4 +221,57 @@ describe("formatAiResult", () => {
     expect(text).toContain("10,000");
     expect(text).toContain("Alice Smith");
   });
+
+  it("formats generated form", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedForm: {
+        id: "form-1",
+        name: "Volunteer Registration",
+        submissions: 0,
+        owner: "Guest",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Volunteer Registration");
+    expect(text).toContain(`${APP_URL}/w/global-hub/chat`);
+  });
+
+  it("formats generated request without amount", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedRequest: {
+        id: "req-2",
+        title: "Office supplies",
+        type: "supply",
+        status: "pending",
+        requester: "Guest",
+        description: "Request for office supplies",
+        module: "toolkit",
+        createdAtLabel: "Today",
+        approvalSteps: [],
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Office supplies");
+    expect(text).not.toContain("₦");
+  });
+
+  it("formats generated document without routing", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedDocument: {
+        id: "doc-2",
+        title: "Invoice #2024-001",
+        type: "invoice",
+        body: "Invoice details...",
+        status: "pending",
+        preparedBy: "Guest",
+        createdAtLabel: "Today",
+      },
+    };
+    const { text } = formatAiResult(result);
+    expect(text).toContain("Invoice #2024-001");
+    expect(text).not.toContain("Routed");
+  });
 });
