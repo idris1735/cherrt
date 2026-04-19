@@ -59,6 +59,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         },
       });
     }
+    // Intentional: if the confirmed AI call produces a generatedRequest (e.g. a supply request),
+    // we track it for APPROVE/REJECT so the owner can act on it inline.
     if (result.generatedRequest) {
       updateSession(from, {
         pendingApproval: {
@@ -68,9 +70,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       });
     }
     const formatted = formatAiResult(result);
-    await sendTextMessage(from, formatted.text);
-    addToHistory(from, "user", originalPrompt);
-    addToHistory(from, "assistant", formatted.text);
+    // Null guard: formatAiResult may return an empty text if the AI result has no reply.
+    const replyText = formatted.text || "Something went wrong. Please try again.";
+    await sendTextMessage(from, replyText);
+    // Note: originalPrompt was already added to history during the original first-turn call.
+    // Only add the assistant reply here to avoid double-adding the user turn.
+    addToHistory(from, "assistant", replyText);
     return;
   }
 
@@ -117,6 +122,10 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
+  // MVP note: for media-only messages with no text, prompt is a generic placeholder like
+  // "[image attachment]". The AI intent is inferred from the image itself via mediaDataUrl.
+  // If this placeholder ends up stored in pendingConfirmation.originalPrompt and the user
+  // later CONFIRMs, the re-run will pass the same placeholder — which is acceptable for MVP.
   const prompt = trimmed || `[${type} attachment]`;
 
   // 8. Add user message to history
@@ -148,6 +157,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // 11. Format and send reply
   const formatted = formatAiResult(result);
-  await sendTextMessage(from, formatted.text);
-  addToHistory(from, "assistant", formatted.text);
+  // Null guard: formatAiResult may return an empty text if the AI result has no reply.
+  const replyText = formatted.text || "Something went wrong. Please try again.";
+  await sendTextMessage(from, replyText);
+  addToHistory(from, "assistant", replyText);
 }

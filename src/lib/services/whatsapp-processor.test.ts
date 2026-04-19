@@ -97,7 +97,56 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Second message" });
 
     const secondCall = mockRun.mock.calls[1];
-    const context = secondCall[1] as { history: unknown[] };
+    const context = secondCall[1] as { history: { speaker: string; text: string }[] };
     expect(context.history.length).toBeGreaterThan(0);
+    expect(context.history[0]).toMatchObject({ speaker: "user", text: "First message" });
+  });
+
+  it("APPROVE clears pending approval and sends confirmation", async () => {
+    // First create a pending approval by simulating a request being created
+    mockRun.mockResolvedValueOnce({
+      reply: "",
+      generatedRequest: {
+        id: "req-1",
+        title: "Fuel request",
+        type: "supply",
+        status: "pending",
+        requestedBy: "Guest",
+        createdAt: "2026-04-17",
+      },
+    });
+    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
+
+    mockSend.mockClear();
+    mockRun.mockClear();
+
+    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "APPROVE" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith("2348012345678", expect.stringContaining("Approved"));
+  });
+
+  it("REJECT with reason sends rejection message", async () => {
+    // First create a pending approval
+    mockRun.mockResolvedValueOnce({
+      reply: "",
+      generatedRequest: {
+        id: "req-1",
+        title: "Fuel request",
+        type: "supply",
+        status: "pending",
+        requestedBy: "Guest",
+        createdAt: "2026-04-17",
+      },
+    });
+    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
+
+    mockSend.mockClear();
+    mockRun.mockClear();
+
+    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "REJECT budget exceeded" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith("2348012345678", expect.stringContaining("budget exceeded"));
   });
 });
