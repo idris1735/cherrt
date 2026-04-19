@@ -87,7 +87,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   // 4. REJECT keyword
-  if (/^reject/i.test(trimmed) && session.pendingApproval) {
+  if (/^reject\b/i.test(trimmed) && session.pendingApproval) {
     const reason = trimmed.replace(/^reject\s*/i, "").trim();
     const { requestTitle } = session.pendingApproval;
     clearPending(from);

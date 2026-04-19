@@ -111,8 +111,11 @@ describe("processWhatsAppMessage", () => {
         title: "Fuel request",
         type: "supply",
         status: "pending",
-        requestedBy: "Guest",
-        createdAt: "2026-04-17",
+        requester: "Guest",
+        description: "Diesel for generator",
+        module: "toolkit",
+        createdAtLabel: "Today",
+        approvalSteps: [],
       },
     });
     await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
@@ -135,8 +138,11 @@ describe("processWhatsAppMessage", () => {
         title: "Fuel request",
         type: "supply",
         status: "pending",
-        requestedBy: "Guest",
-        createdAt: "2026-04-17",
+        requester: "Guest",
+        description: "Diesel for generator",
+        module: "toolkit",
+        createdAtLabel: "Today",
+        approvalSteps: [],
       },
     });
     await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
