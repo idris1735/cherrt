@@ -45,7 +45,7 @@ describe("formatAiResult", () => {
     const { text } = formatAiResult(result);
     expect(text).toContain("Fuel Vendor Letter");
     expect(text).toContain("Admin");
-    expect(text).toContain(`${APP_URL}/w/global-hub/chat`);
+    expect(text).toContain("Dear vendor");
   });
 
   it("formats generated expense entry", () => {

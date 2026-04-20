@@ -36,15 +36,14 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
 
   // 2. generatedDocument
   if (result.generatedDocument) {
-    const { title, awaitingSignatureFrom } = result.generatedDocument;
-    let message = `Done. "${title}" is ready.`;
-
-    if (awaitingSignatureFrom) {
-      message += ` Waiting for ${awaitingSignatureFrom} to sign.`;
-    }
-
-    message += `\n\nView and sign here: ${webLink()}`;
-    return { text: message };
+    const { title, body, awaitingSignatureFrom } = result.generatedDocument;
+    const preview = body ? `\n\n${body.slice(0, 600)}${body.length > 600 ? "..." : ""}` : "";
+    const routing = awaitingSignatureFrom
+      ? `\n\nRouted to ${awaitingSignatureFrom} for signature.`
+      : "";
+    return {
+      text: `*${title}*${preview}${routing}`,
+    };
   }
 
   // 3. generatedRequest
@@ -56,7 +55,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
       message += ` — ₦${amount.toLocaleString()}`;
     }
 
-    message += `. The approver has been notified.\n\nView here: ${webLink()}`;
+    message += `. The approver has been notified.`;
     return { text: message };
   }
 
@@ -70,7 +69,7 @@ export function formatAiResult(result: AiCommandResult): FormattedReply {
   // 5. generatedIssueReport
   if (result.generatedIssueReport) {
     const { title } = result.generatedIssueReport;
-    const message = `Issue logged: "${title}". The relevant team has been notified.\n\nView here: ${webLink()}`;
+    const message = `Issue logged: "${title}". The relevant team has been notified.`;
     return { text: message };
   }
 
