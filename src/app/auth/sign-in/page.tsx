@@ -56,12 +56,10 @@ export default async function SignInPage({
           <h2>Welcome back</h2>
           <p className="auth-entry-panel__body">Use your existing account to return to your workspace.</p>
           <SignInForm hideModeToggle forcedMode="signin" selectedModule={selectedModule} />
-          <div className="auth-panel__actions auth-panel__actions--column">
-            <Link className="button button--ghost button--full" href="/auth/onboarding">
-              Back to get started
-            </Link>
-          </div>
         </div>
+        <p className="auth-entry-panel__back">
+          <Link href="/auth/onboarding">Back to get started</Link>
+        </p>
       </section>
     </main>
   );

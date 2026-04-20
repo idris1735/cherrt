@@ -5,13 +5,14 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
-import type { ModuleKey, WorkspaceSnapshot } from "@/lib/types";
+import { StatusPill } from "@/components/shared/status-pill";
+import type { ModuleKey, WorkflowStatus, WorkspaceSnapshot } from "@/lib/types";
 
 type RecordRow = {
   id: string;
   title: string;
   type: string;
-  status: string;
+  status: WorkflowStatus;
   module: ModuleKey;
   href: string;
 };
@@ -33,19 +34,20 @@ function buildRecordRows(snapshot: WorkspaceSnapshot, workspaceSlug: string): Re
     rows.push({ id: issue.id, title: issue.title, type: "Issue", status: issue.status, module: "toolkit", href: `${base}/issues/${issue.id}` });
   }
   for (const poll of snapshot.polls) {
-    rows.push({ id: poll.id, title: poll.title, type: "Poll", status: poll.status, module: "toolkit", href: `${base}/feedback/${poll.id}` });
+    const pollStatus: WorkflowStatus = poll.status === "closed" ? "completed" : "in-progress";
+    rows.push({ id: poll.id, title: poll.title, type: "Poll", status: pollStatus, module: "toolkit", href: `${base}/feedback/${poll.id}` });
   }
   for (const form of snapshot.forms) {
-    rows.push({ id: form.id, title: form.name, type: "Form", status: "active", module: "toolkit", href: `${base}/forms/${form.id}` });
+    rows.push({ id: form.id, title: form.name, type: "Form", status: "approved", module: "toolkit", href: `${base}/forms/${form.id}` });
   }
   for (const appt of snapshot.appointments) {
-    rows.push({ id: appt.id, title: appt.title, type: "Appointment", status: "scheduled", module: "toolkit", href: `${base}/appointments/${appt.id}` });
+    rows.push({ id: appt.id, title: appt.title, type: "Appointment", status: "in-progress", module: "toolkit", href: `${base}/appointments/${appt.id}` });
   }
   for (const person of snapshot.directory) {
-    rows.push({ id: person.id, title: person.name, type: "Contact", status: "active", module: "toolkit", href: `${base}/directory/${person.id}` });
+    rows.push({ id: person.id, title: person.name, type: "Contact", status: "approved", module: "toolkit", href: `${base}/directory/${person.id}` });
   }
   for (const item of snapshot.inventory) {
-    rows.push({ id: item.id, title: item.name, type: "Inventory", status: "active", module: "toolkit", href: `${base}/inventory/${item.id}` });
+    rows.push({ id: item.id, title: item.name, type: "Inventory", status: "approved", module: "toolkit", href: `${base}/inventory/${item.id}` });
   }
 
   return rows;
@@ -68,14 +70,18 @@ export default function RecordsPage() {
   const filtered = filter === "all" ? allRows : allRows.filter((row) => row.module === filter);
 
   return (
-    <div className="tk-page">
-      <div className="tk-page-head">
-        <div className="tk-page-head__copy">
-          <h1 className="tk-page-title">Records</h1>
-        </div>
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "20px 16px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <h1 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--ch-text)" }}>Records</h1>
+        <Link
+          href={`/w/${params.workspaceSlug}/chat`}
+          style={{ fontSize: "0.82rem", color: "var(--ch-muted)", textDecoration: "none" }}
+        >
+          ← Back to chat
+        </Link>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {MODULE_FILTER_LABELS.filter((item) =>
           item.key === "all" || snapshot.workspace.modules.includes(item.key as ModuleKey)
         ).map((item) => (
@@ -85,7 +91,7 @@ export default function RecordsPage() {
             type="button"
             style={{
               padding: "5px 14px",
-              borderRadius: "20px",
+              borderRadius: 20,
               border: "1px solid var(--ch-border)",
               background: filter === item.key ? "var(--ch-text)" : "transparent",
               color: filter === item.key ? "var(--ch-bg)" : "var(--ch-muted)",
@@ -100,43 +106,39 @@ export default function RecordsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="tk-card">
-          <div className="tk-soft-tile">
-            <p>
-              Nothing created yet.{" "}
-              <Link href={`/w/${params.workspaceSlug}/chat`}>Go to chat to get started.</Link>
-            </p>
-          </div>
+        <div style={{ padding: "24px 16px", textAlign: "center", border: "1px solid var(--ch-border)", borderRadius: 12, color: "var(--ch-muted)", fontSize: "0.875rem" }}>
+          Nothing created yet.{" "}
+          <Link href={`/w/${params.workspaceSlug}/chat`} style={{ color: "var(--ch-accent)" }}>
+            Go to chat to get started.
+          </Link>
         </div>
       ) : (
-        <div className="tk-card" style={{ padding: 0, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--ch-border)" }}>
-                <th style={{ padding: "10px 16px", textAlign: "left", fontSize: "0.75rem", fontWeight: 600, color: "var(--ch-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Title</th>
-                <th style={{ padding: "10px 16px", textAlign: "left", fontSize: "0.75rem", fontWeight: 600, color: "var(--ch-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Type</th>
-                <th style={{ padding: "10px 16px", textAlign: "left", fontSize: "0.75rem", fontWeight: 600, color: "var(--ch-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Status</th>
-                <th style={{ padding: "10px 16px", textAlign: "left", fontSize: "0.75rem", fontWeight: 600, color: "var(--ch-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Module</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} style={{ borderBottom: "1px solid var(--ch-border)" }}>
-                  <td style={{ padding: "11px 16px" }}>
-                    <Link
-                      href={row.href}
-                      style={{ color: "var(--ch-text)", textDecoration: "none", fontSize: "0.875rem", fontWeight: 500 }}
-                    >
-                      {row.title}
-                    </Link>
-                  </td>
-                  <td style={{ padding: "11px 16px", fontSize: "0.8rem", color: "var(--ch-muted)" }}>{row.type}</td>
-                  <td style={{ padding: "11px 16px", fontSize: "0.8rem", color: "var(--ch-muted)", textTransform: "capitalize" }}>{row.status}</td>
-                  <td style={{ padding: "11px 16px", fontSize: "0.8rem", color: "var(--ch-muted)", textTransform: "capitalize" }}>{row.module}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--ch-border)", borderRadius: 12, overflow: "hidden", background: "var(--ch-surface)" }}>
+          {filtered.map((row, i) => (
+            <Link
+              key={row.id}
+              href={row.href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "13px 16px",
+                borderBottom: i < filtered.length - 1 ? "1px solid var(--ch-border)" : "none",
+                textDecoration: "none",
+                minHeight: 56,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--ch-text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {row.title}
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--ch-muted)", marginTop: 2 }}>
+                  {row.type} · {row.module}
+                </div>
+              </div>
+              <StatusPill status={row.status} />
+            </Link>
+          ))}
         </div>
       )}
     </div>

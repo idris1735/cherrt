@@ -563,7 +563,8 @@ function extractAmountFromPrompt(prompt: string) {
   return Number.isFinite(highest) ? highest : null;
 }
 
-function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCommandResult {
+function executeNonToolkitCapability(capabilityId: string, prompt: string, context: CommandExecutionContext = {}): AiCommandResult {
+  const author = resolveAuthor(context);
   const amount = extractAmountFromPrompt(prompt);
 
   switch (capabilityId) {
@@ -620,7 +621,7 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           description: prompt,
           type: "Prayer Request",
           module: "church",
-          requester: "Chertt AI",
+          requester: author,
         }),
       });
     case "church.pastoral-care":
@@ -636,7 +637,7 @@ function executeNonToolkitCapability(capabilityId: string, prompt: string): AiCo
           description: prompt,
           type: "Pastoral Care",
           module: "church",
-          requester: "Chertt AI",
+          requester: author,
         }),
       });
     case "store.catalog":

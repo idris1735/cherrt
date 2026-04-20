@@ -295,6 +295,43 @@ const AppStateContext = createContext<AppStateContextValue | null>(null);
 const ACTIVE_PROFILE_KEY = "chertt:active-profile";
 const AUTO_TITLE_PATTERN = /^(new chat(?: \d+)?|team chat(?: \d+)?)$/i;
 
+// ── Per-user conversation deletion tracking ──────────────────────────────────
+// Stores IDs of conversations the current user has explicitly deleted.
+// Keyed by user identity + workspace so deletions survive page refreshes even
+// when Supabase is not configured and the app falls back to seed data.
+
+function deletedConvsStorageKey(workspaceSlug: string): string {
+  const profile = typeof window !== "undefined" ? getActiveUserProfile() : null;
+  const userKey = profile?.email ?? profile?.fullName ?? "anon";
+  return `chertt:deleted-convs:${userKey}:${workspaceSlug}`;
+}
+
+function getDeletedConvIds(workspaceSlug: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(deletedConvsStorageKey(workspaceSlug));
+    return new Set((JSON.parse(raw ?? "[]") as string[]));
+  } catch {
+    return new Set();
+  }
+}
+
+function markConvDeleted(workspaceSlug: string, conversationId: string) {
+  if (typeof window === "undefined") return;
+  const existing = getDeletedConvIds(workspaceSlug);
+  existing.add(conversationId);
+  window.localStorage.setItem(deletedConvsStorageKey(workspaceSlug), JSON.stringify([...existing]));
+}
+
+function filterDeletedConvs(snapshot: WorkspaceSnapshot): WorkspaceSnapshot {
+  const deleted = getDeletedConvIds(snapshot.workspace.slug);
+  if (!deleted.size) return snapshot;
+  return {
+    ...snapshot,
+    conversations: snapshot.conversations.filter((c) => !deleted.has(c.id)),
+  };
+}
+
 function applyProfile(snapshot: WorkspaceSnapshot) {
   const profile = getActiveUserProfile();
   if (!profile) {
@@ -384,12 +421,15 @@ export function AppStateProvider({
         const remoteSnapshot = await loadWorkspaceSnapshotFromSupabase(initialSnapshot.workspace.slug);
 
         if (!cancelled && remoteSnapshot) {
-          dispatch({ type: "hydrate", snapshot: remoteSnapshot });
+          dispatch({ type: "hydrate", snapshot: filterDeletedConvs(remoteSnapshot) });
+        } else if (!cancelled) {
+          // Supabase not available — filter deletions from initial seed data
+          dispatch({ type: "hydrate", snapshot: filterDeletedConvs(snapshot) });
         }
 
         unsubscribe = await subscribeToWorkspaceSnapshot(initialSnapshot.workspace.slug, (nextSnapshot) => {
           if (!cancelled) {
-            dispatch({ type: "hydrate", snapshot: nextSnapshot });
+            dispatch({ type: "hydrate", snapshot: filterDeletedConvs(nextSnapshot) });
           }
         });
       } finally {
@@ -443,6 +483,7 @@ const value = useMemo<AppStateContextValue>(
       },
       deleteConversation: (conversationId) => {
         dispatch({ type: "delete-conversation", conversationId });
+        markConvDeleted(snapshotRef.current.workspace.slug, conversationId);
         void deleteConversationFromSupabase(snapshotRef.current, conversationId);
       },
       addMessage: (conversationId, message) => {

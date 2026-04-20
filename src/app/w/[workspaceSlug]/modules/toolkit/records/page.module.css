@@ -1,0 +1,224 @@
+/* ─── Records page — mobile-first ─────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 0 40px;
+}
+
+/* Header */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headText h1 {
+  margin: 0 0 2px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ch-text, #111);
+}
+
+.headText p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ch-muted, #888);
+}
+
+.newBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--ch-accent, var(--accent, #fa8300));
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Stats — 2×2 grid, always */
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line, #e5e5e5);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  text-decoration: none;
+  transition: background 0.13s;
+}
+
+.statCard:hover {
+  background: var(--surface-soft, #faf8f5);
+}
+
+.statCard strong {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ch-text, #111);
+  line-height: 1;
+}
+
+.statCard span {
+  font-size: 0.75rem;
+  color: var(--ch-muted, #888);
+  line-height: 1.3;
+}
+
+/* Section list */
+.list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line, #e5e5e5);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line, #f0f0f0);
+  text-decoration: none;
+  min-height: 64px;
+  transition: background 0.13s;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--surface-soft, #faf8f5);
+}
+
+.rowIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-color, #fa8300) 12%, transparent);
+  color: var(--accent-color, #fa8300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rowIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowMain strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ch-text, #111);
+  line-height: 1.25;
+}
+
+.rowMain span {
+  font-size: 0.75rem;
+  color: var(--ch-muted, #999);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowCount {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ch-muted, #888);
+  min-width: 20px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rowArrow {
+  color: var(--ch-muted, #ccc);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: transform 0.13s, color 0.13s;
+}
+
+.rowArrow svg {
+  width: 14px;
+  height: 14px;
+}
+
+.row:hover .rowArrow {
+  color: var(--accent-color, #fa8300);
+  transform: translateX(2px);
+}
+
+/* ─── Dark mode ─────────────────────────────────────────────── */
+[data-chertt-theme="dark"] .statCard,
+[data-chertt-theme="dark"] .list {
+  background: var(--ch-surface, #1e1e1e);
+  border-color: var(--ch-border, #2a2a2a);
+}
+
+[data-chertt-theme="dark"] .row {
+  border-color: var(--ch-border, #2a2a2a);
+}
+
+[data-chertt-theme="dark"] .row:hover,
+[data-chertt-theme="dark"] .statCard:hover {
+  background: var(--ch-surface-soft, #252525);
+}
+
+[data-chertt-theme="dark"] .headText h1,
+[data-chertt-theme="dark"] .statCard strong,
+[data-chertt-theme="dark"] .rowMain strong {
+  color: var(--ch-text, #f0f0f0);
+}
+
+/* ─── Mobile ────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .statCard strong {
+    font-size: 1.4rem;
+  }
+
+  .statCard span {
+    font-size: 0.72rem;
+  }
+
+  .row {
+    padding: 13px 14px;
+    gap: 12px;
+  }
+
+  .rowMain span {
+    display: none;
+  }
+
+  .rowMain strong {
+    font-size: 0.875rem;
+  }
+}

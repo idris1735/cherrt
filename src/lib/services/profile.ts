@@ -14,8 +14,9 @@ export type UserProfile = {
   jobTitle?: string;       // e.g. "Executive Director"
   organization?: string;   // e.g. "Harbour Church"
   city?: string;
-  signatureName?: string;  // What appears at the bottom of letters/memos
-  bio?: string;            // Free-form context for the AI (personality, preferences, anything)
+  signatureName?: string;   // What appears at the bottom of letters/memos
+  signatureImage?: string;  // Base64 data-URL of handwritten signature image
+  bio?: string;             // Free-form context for the AI (personality, preferences, anything)
 };
 
 const ACTIVE_PROFILE_KEY = "chertt:active-profile";

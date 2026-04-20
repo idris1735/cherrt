@@ -18,12 +18,20 @@ export function WorkspaceShell({
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("chertt-theme");
-    if (saved === "dark" || saved === "light") {
-      setTheme(saved);
-      return;
+    // Read theme pre-applied by the inline script so the state matches
+    // what's already on screen — no re-render flash.
+    const preApplied = document.documentElement.getAttribute("data-chertt-theme");
+    if (preApplied === "dark" || preApplied === "light") {
+      setTheme(preApplied);
+    } else {
+      const saved = window.localStorage.getItem("chertt-theme");
+      if (saved === "dark" || saved === "light") {
+        setTheme(saved);
+      } else {
+        setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      }
     }
-    setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
   }, []);
 
   useEffect(() => {
