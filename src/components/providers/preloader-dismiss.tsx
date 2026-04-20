@@ -13,10 +13,9 @@ export function PreloaderDismiss() {
     if (el.getAttribute("data-dismissed") === "true") return;
     el.setAttribute("data-dismissed", "true");
     el.classList.add("ch-preloader-out");
+    // Hide via CSS after fade-out — do NOT removeChild, React still owns this node
     const t = setTimeout(() => {
-      if (el.parentNode) {
-        el.parentNode.removeChild(el);
-      }
+      el.style.display = "none";
     }, 350);
     return () => clearTimeout(t);
   }, []);
