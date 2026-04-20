@@ -16,18 +16,24 @@ export function GET(request: NextRequest): NextResponse {
 }
 
 // Incoming message handler — Meta sends every WhatsApp event here
+// NOTE: must await handlePayload before returning — Vercel serverless kills the
+// function as soon as the response is sent, so fire-and-forget doesn't work.
+// Meta allows up to 20s; Gemini typically responds in 2-5s, so this is fine.
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: MetaWebhookPayload | null = null;
 
   try {
     body = (await request.json()) as MetaWebhookPayload;
   } catch {
-    // Malformed JSON — still return 200 so Meta doesn't retry
+    // Malformed JSON — return 200 so Meta doesn't retry
   }
 
-  // Always return 200 immediately — Meta retries if it doesn't get 200 within 20s
   if (body) {
-    void handlePayload(body);
+    try {
+      await handlePayload(body);
+    } catch {
+      // Swallow processing errors — still return 200 to Meta
+    }
   }
 
   return new NextResponse("OK", { status: 200 });
