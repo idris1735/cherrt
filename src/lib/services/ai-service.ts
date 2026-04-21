@@ -1,5 +1,4 @@
 import { GoogleGenAI } from "@google/genai";
-import OpenAI from "openai";
 import { getCapabilityById } from "@/lib/services/command-engine/capability-registry";
 import { resolveCapabilityIntent } from "@/lib/services/command-engine/intent-router";
 import { evaluateCapabilityAccess } from "@/lib/services/command-engine/policy-guard";
@@ -279,12 +278,6 @@ function getGeminiClient() {
   return new GoogleGenAI({ apiKey });
 }
 
-function getDeepSeekClient() {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return null;
-  return new OpenAI({ baseURL: "https://api.deepseek.com/v1", apiKey });
-}
-
 async function callGemini(
   prompt: string,
   capabilityId: string,
@@ -331,51 +324,6 @@ async function callGemini(
   });
 
   const raw = response.text ?? "{}";
-  return JSON.parse(raw) as GeminiResponse;
-}
-
-async function callDeepSeek(
-  prompt: string,
-  capabilityId: string,
-  capabilityTitle: string,
-  history?: Array<{ speaker: string; text: string }>,
-  memoryContext?: string,
-  userName?: string,
-  userTitle?: string,
-  userOrganization?: string,
-): Promise<GeminiResponse> {
-  const client = getDeepSeekClient();
-  if (!client) throw new Error("DeepSeek API key not configured.");
-
-  const identityParts: string[] = [];
-  if (userName) identityParts.push(`Name: ${userName}`);
-  if (userTitle) identityParts.push(`Title: ${userTitle}`);
-  if (userOrganization) identityParts.push(`Organization: ${userOrganization}`);
-  const identityBlock = identityParts.length
-    ? `\n\n[User identity — use in all documents and records]\n${identityParts.join("\n")}`
-    : "";
-
-  const historyBlock =
-    history && history.length > 0
-      ? `\n\n[Recent conversation]\n${history.map((m) => `${m.speaker === "user" ? "User" : "Chertt"}: ${m.text.slice(0, 400)}`).join("\n")}`
-      : "";
-
-  const memoryBlock = memoryContext ? `\n\n[Workspace records]\n${memoryContext}` : "";
-
-  const systemContent = `${SYSTEM_PROMPT}${identityBlock}${historyBlock}${memoryBlock}\n\nCapability: ${capabilityId} (${capabilityTitle})`;
-
-  const response = await client.chat.completions.create({
-    model: "deepseek-chat",
-    messages: [
-      { role: "system", content: systemContent },
-      { role: "user", content: prompt },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.5,
-    max_tokens: 1200,
-  });
-
-  const raw = response.choices[0]?.message?.content ?? "{}";
   return JSON.parse(raw) as GeminiResponse;
 }
 
@@ -1238,26 +1186,14 @@ export async function runCherttCommand(
     return buildPlannedCapabilityResponse(capability.title, capability.module);
   }
 
-  const hasDeepSeek = Boolean(process.env.DEEPSEEK_API_KEY);
-  const hasGemini = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const client = getGeminiClient();
 
-  if (!hasDeepSeek && !hasGemini) {
+  if (!client) {
     return fallbackCommand(prompt, capability.id, context);
   }
 
   try {
-    const aiArgs = [
-      prompt,
-      capability.id,
-      capability.title,
-      context.history,
-      context.memoryContext,
-      context.userName,
-      context.userTitle,
-      context.userOrganization,
-    ] as const;
-
-    const gemini = hasDeepSeek ? await callDeepSeek(...aiArgs) : await callGemini(...aiArgs);
+    const gemini = await callGemini(prompt, capability.id, capability.title, context.history, context.memoryContext, context.userName, context.userTitle, context.userOrganization);
 
     const author = resolveAuthor(context);
 
@@ -1396,7 +1332,7 @@ export async function runCherttCommand(
 
     return normalizeAiCommandResult(result);
   } catch (error) {
-    console.error("AI command fallback:", error);
+    console.error("Gemini command fallback:", error);
     return fallbackCommand(prompt, capability.id, context);
   }
 }
