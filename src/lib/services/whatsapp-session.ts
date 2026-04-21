@@ -2,6 +2,7 @@ export type WhatsAppSession = {
   phoneNumber: string;
   welcomed: boolean;
   demoBalance: number;
+  userName?: string;
   pendingConfirmation?: {
     originalPrompt: string;
     artifactKind: string;

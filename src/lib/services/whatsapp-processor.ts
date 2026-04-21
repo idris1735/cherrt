@@ -18,6 +18,16 @@ export type IncomingMessage = {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
 
+// Matches "I'm Idris", "My name is Idris", "Call me Idris"
+const NAME_INTRO_RE = /^(?:i(?:'m| am)|my name is|call me)\s+([a-z][a-z\s'-]{1,30})/i;
+
+function extractName(text: string): string | null {
+  const match = NAME_INTRO_RE.exec(text.trim());
+  if (!match) return null;
+  const raw = (match[1] ?? "").trim().split(/\s+/).slice(0, 3).join(" ");
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 function buildWelcomeMessage(demoBalance: number): string {
   const balance = `₦${demoBalance.toLocaleString()}`;
   return [
@@ -52,11 +62,15 @@ function buildWelcomeMessage(demoBalance: number): string {
 }
 
 function buildDemoContext(session: ReturnType<typeof getSession>): string {
+  const name = session.userName ? `The user's name is ${session.userName}.` : "The user hasn't shared their name yet.";
   return [
-    `User is a WhatsApp guest (not onboarded). Treat them as an owner-level demo user.`,
-    `Demo balance remaining: ₦${session.demoBalance.toLocaleString()}.`,
-    `When they log an expense or raise a request with an amount, acknowledge the deduction from their demo balance in your reply.`,
-    `Encourage them to sign up for a real workspace at: ${APP_URL}/auth/sign-in`,
+    `Channel: WhatsApp. User is messaging via WhatsApp, not the web app.`,
+    `User status: Guest (not yet onboarded). Treat as owner-level for demo purposes.`,
+    name,
+    `Demo balance: ₦${session.demoBalance.toLocaleString()} remaining. Mention the updated balance when an expense or request with an amount is processed.`,
+    `Conversation awareness: If the user is chatting, greeting, or asking a general question — respond warmly and naturally. Do NOT create documents or artifacts for casual conversation. Use artifactKind "none" for anything that is not a clear work request.`,
+    `If the user introduces themselves by name, acknowledge it warmly. Use their name in document closings and records.`,
+    `Occasionally (not every message) encourage signing up: ${APP_URL}/auth/sign-in`,
   ].join(" ");
 }
 
@@ -74,6 +88,7 @@ function buildContext(
 
   return {
     role: "owner",
+    userName: session.userName,
     history,
     memoryContext: memoryParts.join("\n\n"),
   };
@@ -84,11 +99,17 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const session = getSession(from);
   const trimmed = (message.text ?? "").trim();
 
-  // First contact — send welcome message and mark as welcomed
+  // First contact — send welcome and mark as welcomed
   if (!session.welcomed) {
     updateSession(from, { welcomed: true });
     await sendTextMessage(from, buildWelcomeMessage(session.demoBalance));
     return;
+  }
+
+  // Extract name from introductions and store for future context
+  if (trimmed && !session.userName) {
+    const name = extractName(trimmed);
+    if (name) updateSession(from, { userName: name });
   }
 
   // 1. CANCEL keyword
@@ -122,7 +143,6 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         },
       });
     }
-    // Deduct from demo balance if expense or request has an amount
     const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
     if (amount) deductDemoBalance(from, amount);
 
@@ -151,19 +171,19 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
 
-  // 5. Audio messages — not supported
+  // 5. Audio — not supported
   if (type === "audio") {
     await sendTextMessage(from, "Voice messages aren't supported yet. Please type your request.");
     return;
   }
 
-  // 6. No text and no media
+  // 6. No usable content
   if (!trimmed && !message.mediaId) {
     await sendTextMessage(from, "I didn't understand that. Please type your request.");
     return;
   }
 
-  // 7. Handle image/document media
+  // 7. Download media if present
   let mediaDataUrl: string | undefined;
   if (message.mediaId && (type === "image" || type === "document")) {
     try {
@@ -180,7 +200,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // 8. Add user message to history
   addToHistory(from, "user", prompt);
 
-  // 9. Call AI
+  // 9. Call AI with full demo context
   const freshSession = getSession(from);
   const result = await runCherttCommand(prompt, buildContext(freshSession, mediaDataUrl), false);
 
@@ -204,11 +224,10 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     });
   }
 
-  // Deduct from demo balance on expense/request creation
   const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
   if (amount) deductDemoBalance(from, amount);
 
-  // 11. Format and send reply
+  // 11. Format and send
   const replyText = formatAiResult(result).text || "Something went wrong. Please try again.";
   await sendTextMessage(from, replyText);
   addToHistory(from, "assistant", replyText);
