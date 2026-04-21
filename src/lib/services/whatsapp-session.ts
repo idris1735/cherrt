@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 export type WhatsAppSession = {
   phoneNumber: string;
   welcomed: boolean;
@@ -15,47 +17,128 @@ export type WhatsAppSession = {
   history: Array<{ role: "user" | "assistant"; text: string }>;
 };
 
+type DbRow = {
+  phone_number: string;
+  welcomed: boolean;
+  demo_balance: number;
+  user_name: string | null;
+  pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
+  pending_approval: WhatsAppSession["pendingApproval"] | null;
+  history: WhatsAppSession["history"];
+};
+
 const MAX_HISTORY_ENTRIES = 20;
 const DEMO_STARTING_BALANCE = 500_000;
 
 const sessions = new Map<string, WhatsAppSession>();
 
-export function getSession(phoneNumber: string): WhatsAppSession {
-  if (!sessions.has(phoneNumber)) {
-    sessions.set(phoneNumber, {
-      phoneNumber,
-      welcomed: false,
-      demoBalance: DEMO_STARTING_BALANCE,
-      history: [],
-    });
+function getDb() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
+
+function toSession(row: DbRow): WhatsAppSession {
+  return {
+    phoneNumber: row.phone_number,
+    welcomed: row.welcomed,
+    demoBalance: row.demo_balance,
+    userName: row.user_name ?? undefined,
+    pendingConfirmation: row.pending_confirmation ?? undefined,
+    pendingApproval: row.pending_approval ?? undefined,
+    history: row.history ?? [],
+  };
+}
+
+function toDbRow(session: WhatsAppSession): DbRow {
+  return {
+    phone_number: session.phoneNumber,
+    welcomed: session.welcomed,
+    demo_balance: session.demoBalance,
+    user_name: session.userName ?? null,
+    pending_confirmation: session.pendingConfirmation ?? null,
+    pending_approval: session.pendingApproval ?? null,
+    history: session.history,
+  };
+}
+
+function persistSession(session: WhatsAppSession): void {
+  const db = getDb();
+  if (!db) return;
+  void db.from("whatsapp_sessions").upsert(toDbRow(session));
+}
+
+export async function getSession(phoneNumber: string): Promise<WhatsAppSession> {
+  if (sessions.has(phoneNumber)) {
+    return sessions.get(phoneNumber)!;
   }
-  return sessions.get(phoneNumber)!;
+
+  const db = getDb();
+  if (db) {
+    const { data } = await db
+      .from("whatsapp_sessions")
+      .select()
+      .eq("phone_number", phoneNumber)
+      .maybeSingle();
+
+    if (data) {
+      const session = toSession(data as DbRow);
+      sessions.set(phoneNumber, session);
+      return session;
+    }
+  }
+
+  const session: WhatsAppSession = {
+    phoneNumber,
+    welcomed: false,
+    demoBalance: DEMO_STARTING_BALANCE,
+    history: [],
+  };
+  sessions.set(phoneNumber, session);
+  persistSession(session);
+  return session;
 }
 
 export function updateSession(phoneNumber: string, updates: Partial<Omit<WhatsAppSession, "phoneNumber">>): void {
-  const session = getSession(phoneNumber);
-  sessions.set(phoneNumber, { ...session, ...updates });
+  const existing = sessions.get(phoneNumber) ?? {
+    phoneNumber,
+    welcomed: false,
+    demoBalance: DEMO_STARTING_BALANCE,
+    history: [],
+  };
+  const next = { ...existing, ...updates };
+  sessions.set(phoneNumber, next);
+  persistSession(next);
 }
 
 export function addToHistory(phoneNumber: string, role: "user" | "assistant", text: string): void {
-  const session = getSession(phoneNumber);
-  const history = [...session.history, { role, text }].slice(-MAX_HISTORY_ENTRIES);
-  sessions.set(phoneNumber, { ...session, history });
+  const existing = sessions.get(phoneNumber) ?? {
+    phoneNumber,
+    welcomed: false,
+    demoBalance: DEMO_STARTING_BALANCE,
+    history: [],
+  };
+  const history = [...existing.history, { role, text }].slice(-MAX_HISTORY_ENTRIES);
+  const next = { ...existing, history };
+  sessions.set(phoneNumber, next);
+  persistSession(next);
 }
 
 export function clearPending(phoneNumber: string): void {
-  const session = getSession(phoneNumber);
-  sessions.set(phoneNumber, {
-    ...session,
-    pendingConfirmation: undefined,
-    pendingApproval: undefined,
-  });
+  const session = sessions.get(phoneNumber);
+  if (!session) return;
+  const next = { ...session, pendingConfirmation: undefined, pendingApproval: undefined };
+  sessions.set(phoneNumber, next);
+  persistSession(next);
 }
 
 export function deductDemoBalance(phoneNumber: string, amount: number): void {
-  const session = getSession(phoneNumber);
-  const next = Math.max(0, session.demoBalance - amount);
-  sessions.set(phoneNumber, { ...session, demoBalance: next });
+  const session = sessions.get(phoneNumber);
+  if (!session) return;
+  const next = { ...session, demoBalance: Math.max(0, session.demoBalance - amount) };
+  sessions.set(phoneNumber, next);
+  persistSession(next);
 }
 
 export function resetSessions(): void {

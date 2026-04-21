@@ -4,6 +4,7 @@ import {
   addToHistory,
   clearPending,
   deductDemoBalance,
+  type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
 import { sendTextMessage, downloadMedia } from "@/lib/services/whatsapp";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
@@ -61,7 +62,7 @@ function buildWelcomeMessage(demoBalance: number): string {
   ].join("\n");
 }
 
-function buildDemoContext(session: ReturnType<typeof getSession>): string {
+function buildDemoContext(session: WhatsAppSession): string {
   const name = session.userName ? `The user's name is ${session.userName}.` : "The user hasn't shared their name yet.";
   return [
     `Channel: WhatsApp. User is messaging via WhatsApp, not the web app.`,
@@ -75,7 +76,7 @@ function buildDemoContext(session: ReturnType<typeof getSession>): string {
 }
 
 function buildContext(
-  session: ReturnType<typeof getSession>,
+  session: WhatsAppSession,
   mediaDataUrl?: string,
 ): CommandExecutionContext {
   const history = session.history.map((entry) => ({
@@ -96,7 +97,7 @@ function buildContext(
 
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
   const { from, type } = message;
-  const session = getSession(from);
+  const session = await getSession(from);
   const trimmed = (message.text ?? "").trim();
 
   // First contact — send welcome and mark as welcomed
@@ -123,7 +124,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) {
     const { originalPrompt } = session.pendingConfirmation;
     clearPending(from);
-    const freshSession = getSession(from);
+    const freshSession = await getSession(from);
     const result = await runCherttCommand(originalPrompt, buildContext(freshSession), true);
     if (result.pendingConfirmation) {
       updateSession(from, {
@@ -201,7 +202,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   addToHistory(from, "user", prompt);
 
   // 9. Call AI with full demo context
-  const freshSession = getSession(from);
+  const freshSession = await getSession(from);
   const result = await runCherttCommand(prompt, buildContext(freshSession, mediaDataUrl), false);
 
   // 10. Store pending states
