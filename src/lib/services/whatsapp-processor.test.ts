@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resetSessions } from "@/lib/services/whatsapp-session";
+import { resetSessions, updateSession } from "@/lib/services/whatsapp-session";
 
 vi.mock("@/lib/services/whatsapp", () => ({
   sendTextMessage: vi.fn().mockResolvedValue(undefined),
@@ -17,17 +17,36 @@ import { runCherttCommand } from "@/lib/services/ai-service";
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockRun = runCherttCommand as ReturnType<typeof vi.fn>;
 
+const PHONE = "2348012345678";
+
+// Skip the welcome flow for tests that test post-welcome behaviour
+function skipWelcome(phone = PHONE) {
+  updateSession(phone, { welcomed: true });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   resetSessions();
 });
 
 describe("processWhatsAppMessage", () => {
-  it("calls runCherttCommand and sends a reply for a text message", async () => {
+  it("sends welcome message on first contact without calling AI", async () => {
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledOnce();
+    const [, welcomeText] = mockSend.mock.calls[0] as [string, string];
+    expect(welcomeText).toContain("Welcome to Chertt");
+    expect(welcomeText).toContain("500,000");
+    expect(welcomeText).toContain("auth/sign-in");
+  });
+
+  it("calls runCherttCommand and sends a reply for a text message after welcome", async () => {
+    skipWelcome();
     mockRun.mockResolvedValue({ reply: "Here is your answer." });
 
     await processWhatsAppMessage({
-      from: "2348012345678",
+      from: PHONE,
       type: "text",
       text: "What is the inventory for diesel?",
     });
@@ -37,31 +56,44 @@ describe("processWhatsAppMessage", () => {
       expect.objectContaining({ role: "owner" }),
       false,
     );
-    expect(mockSend).toHaveBeenCalledWith("2348012345678", "Here is your answer.");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Here is your answer.");
   });
 
-  it("replies CANCEL clears pending state without calling AI", async () => {
+  it("demo context is included in AI call", async () => {
+    skipWelcome();
+    mockRun.mockResolvedValue({ reply: "Done." });
+
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Log an expense" });
+
+    const context = mockRun.mock.calls[0][1] as { memoryContext?: string };
+    expect(context.memoryContext).toContain("500,000");
+    expect(context.memoryContext).toContain("demo");
+  });
+
+  it("CANCEL clears pending state without calling AI", async () => {
+    skipWelcome();
     mockRun.mockResolvedValue({
       reply: "",
       pendingConfirmation: { summary: "Create letter", actionKey: "document", previewTitle: "Letter" },
     });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Draft a letter" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Draft a letter" });
 
     mockRun.mockClear();
     mockSend.mockClear();
 
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "cancel" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "cancel" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith("2348012345678", "Cancelled.");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Cancelled.");
   });
 
   it("CONFIRM re-runs the pending command with confirmed=true", async () => {
+    skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       pendingConfirmation: { summary: "Create letter", actionKey: "document", previewTitle: "Vendor Letter" },
     });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Draft a vendor letter" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Draft a vendor letter" });
 
     mockRun.mockResolvedValueOnce({
       reply: "",
@@ -71,30 +103,25 @@ describe("processWhatsAppMessage", () => {
       },
     });
 
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "CONFIRM" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "CONFIRM" });
 
-    expect(mockRun).toHaveBeenLastCalledWith(
-      "Draft a vendor letter",
-      expect.anything(),
-      true,
-    );
+    expect(mockRun).toHaveBeenLastCalledWith("Draft a vendor letter", expect.anything(), true);
   });
 
   it("sends 'not supported' reply for audio messages", async () => {
-    await processWhatsAppMessage({ from: "2348012345678", type: "audio" });
-    expect(mockSend).toHaveBeenCalledWith(
-      "2348012345678",
-      expect.stringContaining("Voice messages"),
-    );
+    skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "audio" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Voice messages"));
     expect(mockRun).not.toHaveBeenCalled();
   });
 
   it("includes history from previous messages in context", async () => {
+    skipWelcome();
     mockRun.mockResolvedValue({ reply: "First reply." });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "First message" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "First message" });
 
     mockRun.mockResolvedValue({ reply: "Second reply." });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Second message" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Second message" });
 
     const secondCall = mockRun.mock.calls[1];
     const context = secondCall[1] as { history: { speaker: string; text: string }[] };
@@ -103,56 +130,44 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("APPROVE clears pending approval and sends confirmation", async () => {
-    // First create a pending approval by simulating a request being created
+    skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       generatedRequest: {
-        id: "req-1",
-        title: "Fuel request",
-        type: "supply",
-        status: "pending",
-        requester: "Guest",
-        description: "Diesel for generator",
-        module: "toolkit",
-        createdAtLabel: "Today",
-        approvalSteps: [],
+        id: "req-1", title: "Fuel request", type: "supply", status: "pending",
+        requester: "Guest", description: "Diesel for generator",
+        module: "toolkit", createdAtLabel: "Today", approvalSteps: [],
       },
     });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request diesel fuel" });
 
     mockSend.mockClear();
     mockRun.mockClear();
 
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "APPROVE" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "APPROVE" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith("2348012345678", expect.stringContaining("Approved"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Approved"));
   });
 
   it("REJECT with reason sends rejection message", async () => {
-    // First create a pending approval
+    skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       generatedRequest: {
-        id: "req-1",
-        title: "Fuel request",
-        type: "supply",
-        status: "pending",
-        requester: "Guest",
-        description: "Diesel for generator",
-        module: "toolkit",
-        createdAtLabel: "Today",
-        approvalSteps: [],
+        id: "req-1", title: "Fuel request", type: "supply", status: "pending",
+        requester: "Guest", description: "Diesel for generator",
+        module: "toolkit", createdAtLabel: "Today", approvalSteps: [],
       },
     });
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "Request diesel fuel" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request diesel fuel" });
 
     mockSend.mockClear();
     mockRun.mockClear();
 
-    await processWhatsAppMessage({ from: "2348012345678", type: "text", text: "REJECT budget exceeded" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "REJECT budget exceeded" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith("2348012345678", expect.stringContaining("budget exceeded"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("budget exceeded"));
   });
 });

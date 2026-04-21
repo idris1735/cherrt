@@ -3,6 +3,7 @@ import {
   updateSession,
   addToHistory,
   clearPending,
+  deductDemoBalance,
 } from "@/lib/services/whatsapp-session";
 import { sendTextMessage, downloadMedia } from "@/lib/services/whatsapp";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
@@ -15,20 +16,66 @@ export type IncomingMessage = {
   mediaId?: string;
 };
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
+
+function buildWelcomeMessage(demoBalance: number): string {
+  const balance = `₦${demoBalance.toLocaleString()}`;
+  return [
+    `👋 *Welcome to Chertt!*`,
+    ``,
+    `You're connected as a *Guest* — you don't have a Chertt workspace yet.`,
+    ``,
+    `*Your demo account includes:*`,
+    `• Demo balance: *${balance}*`,
+    `• Full access to all Chertt features`,
+    `• AI that thinks like an ops lead, finance desk, and executive assistant`,
+    ``,
+    `*What you can do right now:*`,
+    `• Draft letters, memos, and invoices`,
+    `• Raise and approve requests`,
+    `• Log expenses and petty cash (deducted from your demo balance)`,
+    `• Report facility issues`,
+    `• Check inventory`,
+    `• Create polls and surveys`,
+    `• Ask anything — Chertt handles it all`,
+    ``,
+    `*Try saying:*`,
+    `_"Draft a payment request for ₦50,000 for office supplies"_`,
+    `_"Log an expense of ₦15,000 for transportation"_`,
+    `_"What can Chertt do for my business?"_`,
+    ``,
+    `*Ready to set up your own workspace?*`,
+    `Sign up here: ${APP_URL}/auth/sign-in`,
+    ``,
+    `Go ahead — send your first request! 🚀`,
+  ].join("\n");
+}
+
+function buildDemoContext(session: ReturnType<typeof getSession>): string {
+  return [
+    `User is a WhatsApp guest (not onboarded). Treat them as an owner-level demo user.`,
+    `Demo balance remaining: ₦${session.demoBalance.toLocaleString()}.`,
+    `When they log an expense or raise a request with an amount, acknowledge the deduction from their demo balance in your reply.`,
+    `Encourage them to sign up for a real workspace at: ${APP_URL}/auth/sign-in`,
+  ].join(" ");
+}
+
 function buildContext(
   session: ReturnType<typeof getSession>,
   mediaDataUrl?: string,
 ): CommandExecutionContext {
-  // Map session history (role: "user"|"assistant") to context history (speaker: string)
   const history = session.history.map((entry) => ({
     speaker: entry.role === "user" ? "user" : "assistant",
     text: entry.text,
   }));
 
+  const memoryParts: string[] = [buildDemoContext(session)];
+  if (mediaDataUrl) memoryParts.push(`Attached image: ${mediaDataUrl}`);
+
   return {
     role: "owner",
     history,
-    ...(mediaDataUrl ? { memoryContext: `Attached image: ${mediaDataUrl}` } : {}),
+    memoryContext: memoryParts.join("\n\n"),
   };
 }
 
@@ -37,7 +84,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const session = getSession(from);
   const trimmed = (message.text ?? "").trim();
 
-  // 1. CANCEL keyword — clear pending state without calling AI
+  // First contact — send welcome message and mark as welcomed
+  if (!session.welcomed) {
+    updateSession(from, { welcomed: true });
+    await sendTextMessage(from, buildWelcomeMessage(session.demoBalance));
+    return;
+  }
+
+  // 1. CANCEL keyword
   if (/^cancel$/i.test(trimmed)) {
     clearPending(from);
     await sendTextMessage(from, "Cancelled.");
@@ -59,8 +113,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         },
       });
     }
-    // Intentional: if the confirmed AI call produces a generatedRequest (e.g. a supply request),
-    // we track it for APPROVE/REJECT so the owner can act on it inline.
+    // Track pending approval if a request was created on confirmation
     if (result.generatedRequest) {
       updateSession(from, {
         pendingApproval: {
@@ -69,12 +122,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         },
       });
     }
-    const formatted = formatAiResult(result);
-    // Null guard: formatAiResult may return an empty text if the AI result has no reply.
-    const replyText = formatted.text || "Something went wrong. Please try again.";
+    // Deduct from demo balance if expense or request has an amount
+    const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
+    if (amount) deductDemoBalance(from, amount);
+
+    const replyText = formatAiResult(result).text || "Something went wrong. Please try again.";
     await sendTextMessage(from, replyText);
-    // Note: originalPrompt was already added to history during the original first-turn call.
-    // Only add the assistant reply here to avoid double-adding the user turn.
     addToHistory(from, "assistant", replyText);
     return;
   }
@@ -110,7 +163,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
 
-  // 7. Handle image/document with media
+  // 7. Handle image/document media
   let mediaDataUrl: string | undefined;
   if (message.mediaId && (type === "image" || type === "document")) {
     try {
@@ -122,10 +175,6 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // MVP note: for media-only messages with no text, prompt is a generic placeholder like
-  // "[image attachment]". The AI intent is inferred from the image itself via mediaDataUrl.
-  // If this placeholder ends up stored in pendingConfirmation.originalPrompt and the user
-  // later CONFIRMs, the re-run will pass the same placeholder — which is acceptable for MVP.
   const prompt = trimmed || `[${type} attachment]`;
 
   // 8. Add user message to history
@@ -135,7 +184,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const freshSession = getSession(from);
   const result = await runCherttCommand(prompt, buildContext(freshSession, mediaDataUrl), false);
 
-  // 10. Store pending states if returned
+  // 10. Store pending states
   if (result.pendingConfirmation) {
     updateSession(from, {
       pendingConfirmation: {
@@ -155,10 +204,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     });
   }
 
+  // Deduct from demo balance on expense/request creation
+  const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
+  if (amount) deductDemoBalance(from, amount);
+
   // 11. Format and send reply
-  const formatted = formatAiResult(result);
-  // Null guard: formatAiResult may return an empty text if the AI result has no reply.
-  const replyText = formatted.text || "Something went wrong. Please try again.";
+  const replyText = formatAiResult(result).text || "Something went wrong. Please try again.";
   await sendTextMessage(from, replyText);
   addToHistory(from, "assistant", replyText);
 }
