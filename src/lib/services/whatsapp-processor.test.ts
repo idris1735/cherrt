@@ -20,8 +20,8 @@ const mockRun = runCherttCommand as ReturnType<typeof vi.fn>;
 const PHONE = "2348012345678";
 
 // Skip the welcome flow for tests that test post-welcome behaviour
-function skipWelcome(phone = PHONE) {
-  updateSession(phone, { welcomed: true });
+async function skipWelcome(phone = PHONE) {
+  await updateSession(phone, { welcomed: true });
 }
 
 beforeEach(() => {
@@ -42,7 +42,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("calls runCherttCommand and sends a reply for a text message after welcome", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValue({ reply: "Here is your answer." });
 
     await processWhatsAppMessage({
@@ -60,7 +60,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("demo context is included in AI call", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValue({ reply: "Done." });
 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "Log an expense" });
@@ -71,7 +71,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("CANCEL clears pending state without calling AI", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValue({
       reply: "",
       pendingConfirmation: { summary: "Create letter", actionKey: "document", previewTitle: "Letter" },
@@ -88,7 +88,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("CONFIRM re-runs the pending command with confirmed=true", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       pendingConfirmation: { summary: "Create letter", actionKey: "document", previewTitle: "Vendor Letter" },
@@ -109,14 +109,14 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("sends 'not supported' reply for audio messages", async () => {
-    skipWelcome();
+    await skipWelcome();
     await processWhatsAppMessage({ from: PHONE, type: "audio" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Voice messages"));
     expect(mockRun).not.toHaveBeenCalled();
   });
 
   it("includes history from previous messages in context", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValue({ reply: "First reply." });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "First message" });
 
@@ -130,7 +130,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("APPROVE clears pending approval and sends confirmation", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       generatedRequest: {
@@ -151,7 +151,7 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("REJECT with reason sends rejection message", async () => {
-    skipWelcome();
+    await skipWelcome();
     mockRun.mockResolvedValueOnce({
       reply: "",
       generatedRequest: {

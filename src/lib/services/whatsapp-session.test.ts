@@ -21,15 +21,15 @@ describe("whatsapp session store", () => {
 
   it("returns the same session on repeated calls", async () => {
     await getSession("2348012345678");
-    updateSession("2348012345678", { pendingConfirmation: { originalPrompt: "test", artifactKind: "document", previewTitle: "Test Doc" } });
+    await updateSession("2348012345678", { pendingConfirmation: { originalPrompt: "test", artifactKind: "document", previewTitle: "Test Doc" } });
     const session = await getSession("2348012345678");
     expect(session.pendingConfirmation?.previewTitle).toBe("Test Doc");
   });
 
   it("adds messages to history and caps at 20 entries", async () => {
     for (let i = 0; i < 12; i++) {
-      addToHistory("2348012345678", "user", `message ${i}`);
-      addToHistory("2348012345678", "assistant", `reply ${i}`);
+      await addToHistory("2348012345678", "user", `message ${i}`);
+      await addToHistory("2348012345678", "assistant", `reply ${i}`);
     }
     const session = await getSession("2348012345678");
     expect(session.history.length).toBe(20);
@@ -37,11 +37,11 @@ describe("whatsapp session store", () => {
   });
 
   it("clearPending removes confirmation and approval state", async () => {
-    updateSession("2348012345678", {
+    await updateSession("2348012345678", {
       pendingConfirmation: { originalPrompt: "draft letter", artifactKind: "document", previewTitle: "Letter" },
       pendingApproval: { requestId: "req-1", requestTitle: "Fuel request" },
     });
-    clearPending("2348012345678");
+    await clearPending("2348012345678");
     const session = await getSession("2348012345678");
     expect(session.pendingConfirmation).toBeUndefined();
     expect(session.pendingApproval).toBeUndefined();

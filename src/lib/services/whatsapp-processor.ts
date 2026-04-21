@@ -102,7 +102,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // First contact — send welcome and mark as welcomed
   if (!session.welcomed) {
-    updateSession(from, { welcomed: true });
+    await updateSession(from, { welcomed: true });
     await sendTextMessage(from, buildWelcomeMessage(session.demoBalance));
     return;
   }
@@ -110,12 +110,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Extract name from introductions and store for future context
   if (trimmed && !session.userName) {
     const name = extractName(trimmed);
-    if (name) updateSession(from, { userName: name });
+    if (name) await updateSession(from, { userName: name });
   }
 
   // 1. CANCEL keyword
   if (/^cancel$/i.test(trimmed)) {
-    clearPending(from);
+    await clearPending(from);
     await sendTextMessage(from, "Cancelled.");
     return;
   }
@@ -123,11 +123,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // 2. CONFIRM/YES keyword — re-run pending command with confirmed=true
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) {
     const { originalPrompt } = session.pendingConfirmation;
-    clearPending(from);
+    await clearPending(from);
     const freshSession = await getSession(from);
     const result = await runCherttCommand(originalPrompt, buildContext(freshSession), true);
     if (result.pendingConfirmation) {
-      updateSession(from, {
+      await updateSession(from, {
         pendingConfirmation: {
           originalPrompt,
           artifactKind: result.pendingConfirmation.actionKey ?? "",
@@ -135,9 +135,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         },
       });
     }
-    // Track pending approval if a request was created on confirmation
     if (result.generatedRequest) {
-      updateSession(from, {
+      await updateSession(from, {
         pendingApproval: {
           requestId: result.generatedRequest.id,
           requestTitle: result.generatedRequest.title,
@@ -145,17 +144,17 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       });
     }
     const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
-    if (amount) deductDemoBalance(from, amount);
+    if (amount) await deductDemoBalance(from, amount);
 
     const replyText = formatAiResult(result).text || "Something went wrong. Please try again.";
     await sendTextMessage(from, replyText);
-    addToHistory(from, "assistant", replyText);
+    await addToHistory(from, "assistant", replyText);
     return;
   }
 
   // 3. APPROVE keyword
   if (/^approve$/i.test(trimmed) && session.pendingApproval) {
-    clearPending(from);
+    await clearPending(from);
     await sendTextMessage(from, "Approved. The requester will be notified.");
     return;
   }
@@ -164,7 +163,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (/^reject\b/i.test(trimmed) && session.pendingApproval) {
     const reason = trimmed.replace(/^reject\s*/i, "").trim();
     const { requestTitle } = session.pendingApproval;
-    clearPending(from);
+    await clearPending(from);
     const rejectMsg = reason
       ? `Rejected: "${requestTitle}". Reason: ${reason}`
       : `Rejected: "${requestTitle}".`;
@@ -199,7 +198,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const prompt = trimmed || `[${type} attachment]`;
 
   // 8. Add user message to history
-  addToHistory(from, "user", prompt);
+  await addToHistory(from, "user", prompt);
 
   // 9. Call AI with full demo context
   const freshSession = await getSession(from);
@@ -207,7 +206,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // 10. Store pending states
   if (result.pendingConfirmation) {
-    updateSession(from, {
+    await updateSession(from, {
       pendingConfirmation: {
         originalPrompt: prompt,
         artifactKind: result.pendingConfirmation.actionKey ?? "",
@@ -217,7 +216,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   if (result.generatedRequest) {
-    updateSession(from, {
+    await updateSession(from, {
       pendingApproval: {
         requestId: result.generatedRequest.id,
         requestTitle: result.generatedRequest.title,
@@ -226,10 +225,10 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
-  if (amount) deductDemoBalance(from, amount);
+  if (amount) await deductDemoBalance(from, amount);
 
   // 11. Format and send
   const replyText = formatAiResult(result).text || "Something went wrong. Please try again.";
   await sendTextMessage(from, replyText);
-  addToHistory(from, "assistant", replyText);
+  await addToHistory(from, "assistant", replyText);
 }

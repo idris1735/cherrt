@@ -63,10 +63,10 @@ function toDbRow(session: WhatsAppSession): DbRow {
   };
 }
 
-function persistSession(session: WhatsAppSession): void {
+async function persistSession(session: WhatsAppSession): Promise<void> {
   const db = getDb();
   if (!db) return;
-  void db.from("whatsapp_sessions").upsert(toDbRow(session));
+  await db.from("whatsapp_sessions").upsert(toDbRow(session));
 }
 
 export async function getSession(phoneNumber: string): Promise<WhatsAppSession> {
@@ -96,11 +96,11 @@ export async function getSession(phoneNumber: string): Promise<WhatsAppSession> 
     history: [],
   };
   sessions.set(phoneNumber, session);
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 
-export function updateSession(phoneNumber: string, updates: Partial<Omit<WhatsAppSession, "phoneNumber">>): void {
+export async function updateSession(phoneNumber: string, updates: Partial<Omit<WhatsAppSession, "phoneNumber">>): Promise<void> {
   const existing = sessions.get(phoneNumber) ?? {
     phoneNumber,
     welcomed: false,
@@ -109,10 +109,10 @@ export function updateSession(phoneNumber: string, updates: Partial<Omit<WhatsAp
   };
   const next = { ...existing, ...updates };
   sessions.set(phoneNumber, next);
-  persistSession(next);
+  await persistSession(next);
 }
 
-export function addToHistory(phoneNumber: string, role: "user" | "assistant", text: string): void {
+export async function addToHistory(phoneNumber: string, role: "user" | "assistant", text: string): Promise<void> {
   const existing = sessions.get(phoneNumber) ?? {
     phoneNumber,
     welcomed: false,
@@ -122,23 +122,23 @@ export function addToHistory(phoneNumber: string, role: "user" | "assistant", te
   const history = [...existing.history, { role, text }].slice(-MAX_HISTORY_ENTRIES);
   const next = { ...existing, history };
   sessions.set(phoneNumber, next);
-  persistSession(next);
+  await persistSession(next);
 }
 
-export function clearPending(phoneNumber: string): void {
+export async function clearPending(phoneNumber: string): Promise<void> {
   const session = sessions.get(phoneNumber);
   if (!session) return;
   const next = { ...session, pendingConfirmation: undefined, pendingApproval: undefined };
   sessions.set(phoneNumber, next);
-  persistSession(next);
+  await persistSession(next);
 }
 
-export function deductDemoBalance(phoneNumber: string, amount: number): void {
+export async function deductDemoBalance(phoneNumber: string, amount: number): Promise<void> {
   const session = sessions.get(phoneNumber);
   if (!session) return;
   const next = { ...session, demoBalance: Math.max(0, session.demoBalance - amount) };
   sessions.set(phoneNumber, next);
-  persistSession(next);
+  await persistSession(next);
 }
 
 export function resetSessions(): void {
