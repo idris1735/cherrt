@@ -181,6 +181,9 @@ export default function ToolkitDocumentDetailPage() {
           <StatusPill status={document.status} />
         </div>
         <p className="tk-eyebrow">Smart document · {document.type}</p>
+        <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 4, marginBottom: 0 }}>
+          ⚠️ AI-drafted — review all details carefully before official use. Chertt is not a substitute for legal or professional advice.
+        </p>
 
         <div className="tk-detail-stat-grid">
           <div className="tk-detail-stat">

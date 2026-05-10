@@ -41,7 +41,8 @@ export function formatAiResult(
     const preview = body ? `\n\n${body.slice(0, 500)}${body.length > 500 ? "..." : ""}` : "";
     const sig = awaitingSignatureFrom ? `\n\n_Routed to ${awaitingSignatureFrom} for signature._` : "";
     const saved = isWorkspace ? "\n\n✅ Saved to your workspace." : `\n\nView it here: ${webLink()}`;
-    return { text: `${typeLabel}\n*${title}*${preview}${sig}${saved}` };
+    const disclaimer = `\n\n_⚠️ AI-drafted — review all details before official use._`;
+    return { text: `${typeLabel}\n*${title}*${preview}${sig}${saved}${disclaimer}` };
   }
 
   // 3. generatedRequest
@@ -57,7 +58,7 @@ export function formatAiResult(
     ].filter(Boolean);
 
     if (isWorkspace) {
-      lines.push(``, `⏳ Your approver has been notified via WhatsApp.`);
+      lines.push(``, `⏳ Saved to the approval queue.`);
     } else {
       lines.push(``, `⏳ Pending approval.`);
       if (amount && session) {

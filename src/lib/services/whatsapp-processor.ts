@@ -194,6 +194,8 @@ function buildGuestWelcome(demoBalance: number): string {
     "Ready for your own workspace? Sign up: " + APP_URL + "/auth/sign-in",
     "",
     "Go ahead — send your first request! 🚀",
+    "",
+    "_📋 Privacy notice: This is a demo session. No data is linked to a real organisation. Chertt stores session messages only to power this conversation. Data is not shared with third parties._",
   ].join("\n");
 }
 
@@ -215,6 +217,8 @@ function buildWorkspaceWelcome(link: PhoneLink): string {
     "• Send a voice note — Chertt will understand it",
     "",
     "Type *status* anytime to see what is pending.",
+    "",
+    "_📋 Data notice: All actions you take are recorded and visible to your workspace administrators. Chertt stores your messages to power these features in line with your organisation's data policy. Reply *privacy* anytime to learn more._",
   ].join("\n");
 }
 
@@ -475,12 +479,12 @@ async function handleReceiptImage(from: string, receipt: ReceiptInfo, session: W
       reply: "",
       generatedExpenseEntry: { id: crypto.randomUUID(), title: description, department: "General", amount, receiptCount: 1, status: "pending", attachments: [] },
     });
-    const lines = ["🧾 *Receipt scanned*", "", "• Merchant: " + merchant, "• Amount: *" + fmt(amount) + "*", items ? "• Items: " + items : null, "", "✅ Logged to your workspace expenses."].filter(Boolean);
+    const lines = ["🧾 *Receipt scanned*", "", "• Merchant: " + merchant, "• Amount: *" + fmt(amount) + "*", items ? "• Items: " + items : null, "", "✅ Logged to your workspace expenses.", "_Please verify the extracted amount is correct._"].filter(Boolean);
     await sendTextMessage(from, lines.join("\n"));
   } else {
     await deductDemoBalance(from, amount);
     const freshSession = await getSession(from);
-    const lines = ["🧾 *Receipt scanned*", "", "• Merchant: " + merchant, "• Amount: *" + fmt(amount) + "*", items ? "• Items: " + items : null, "", "✅ Expense logged.", "💰 Demo balance: *" + fmt(freshSession.demoBalance) + "* remaining"].filter(Boolean);
+    const lines = ["🧾 *Receipt scanned*", "", "• Merchant: " + merchant, "• Amount: *" + fmt(amount) + "*", items ? "• Items: " + items : null, "", "✅ Expense logged.", "💰 Demo balance: *" + fmt(freshSession.demoBalance) + "* remaining", "_Please verify the extracted amount is correct._"].filter(Boolean);
     await sendTextMessage(from, lines.join("\n"));
   }
   await addToHistory(from, "user", "[Receipt] " + merchant + " " + fmt(amount));
@@ -508,6 +512,19 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
+  if (/^privacy$/i.test(trimmed)) {
+    await sendTextMessage(from, [
+      "*Chertt Privacy Notice*",
+      "",
+      "• Your messages are stored to power conversation features.",
+      "• Workspace actions (expenses, requests, documents) are visible to your workspace administrators.",
+      "• Demo session data is temporary and not linked to any real organisation.",
+      "• Your data is never sold or shared with third parties.",
+      "• To request deletion of your data, contact your workspace admin or email support@chertt.app.",
+      "• Chertt complies with the Nigeria Data Protection Regulation (NDPR).",
+    ].join("\n"));
+    return;
+  }
   if (/^cancel$/i.test(trimmed)) { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) { await handleConfirm(from, session, link); return; }
   if (/^no$/i.test(trimmed)) {
