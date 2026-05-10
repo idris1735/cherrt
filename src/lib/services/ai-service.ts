@@ -73,6 +73,7 @@ type GeminiResponse = {
   pollLane: "pulse" | "approval" | "guest" | "";
   pollAudience: string;
   pollOwner: string;
+  pollOptions: string[];
   pollQuestionCount: number | null;
   directoryName: string;
   directoryTitle: string;
@@ -182,6 +183,7 @@ Use this exact shape:
   "pollLane": "pulse" | "approval" | "guest" | "",
   "pollAudience": "string",
   "pollOwner": "string",
+  "pollOptions": ["option 1", "option 2"],
   "pollQuestionCount": null or number,
   "directoryName": "string",
   "directoryTitle": "string",
@@ -202,7 +204,7 @@ Rules:
 - Adding or updating stock items -> artifactKind "inventory"
 - Logging facility incidents or faults -> artifactKind "issue"
 - Logging petty cash or ledger expenses -> artifactKind "expense-log"
-- Creating surveys, polls, or feedback forms -> artifactKind "poll"
+- Creating surveys, polls, or feedback forms -> artifactKind "poll". Always extract or infer answer options from the message (e.g. "rice or beans" → pollOptions: ["Rice", "Beans"], "yes or no" → ["Yes", "No"]). If you cannot infer at least 2 options, set artifactKind "none" and ask for the options in the reply before creating.
 - Adding a staff contact card -> artifactKind "directory"
 - Paying tithes, offerings, or donations to a church -> artifactKind "giving"
 - Directory lookup, FAQ, or process recall without creating a new record -> artifactKind "none"
@@ -484,6 +486,7 @@ function buildPoll(opts: {
   lane?: FeedbackPoll["lane"];
   audience?: string;
   owner?: string;
+  options?: string[];
   questionCount?: number | null;
 }): FeedbackPoll {
   return {
@@ -492,7 +495,8 @@ function buildPoll(opts: {
     lane: opts.lane || "pulse",
     audience: opts.audience || "All staff",
     owner: opts.owner || "You",
-    questionCount: typeof opts.questionCount === "number" ? Math.max(1, Math.round(opts.questionCount)) : 5,
+    options: Array.isArray(opts.options) && opts.options.length > 0 ? opts.options : [],
+    questionCount: typeof opts.questionCount === "number" ? Math.max(1, Math.round(opts.questionCount)) : 1,
     responseCount: 0,
     targetCount: 40,
     status: "active",
@@ -1339,6 +1343,7 @@ export async function runCherttCommand(
         lane: (gemini.pollLane as FeedbackPoll["lane"]) || "pulse",
         audience: gemini.pollAudience,
         owner: gemini.pollOwner || author,
+        options: Array.isArray(gemini.pollOptions) ? gemini.pollOptions.filter((o) => typeof o === "string" && o.trim()) : [],
         questionCount: gemini.pollQuestionCount,
       });
     }

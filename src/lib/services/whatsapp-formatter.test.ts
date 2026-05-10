@@ -178,6 +178,7 @@ describe("formatAiResult", () => {
         lane: "pulse",
         audience: "all",
         owner: "Guest",
+        options: ["8am–5pm", "9am–6pm"],
         questionCount: 1,
         responseCount: 0,
         targetCount: 50,

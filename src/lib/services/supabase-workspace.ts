@@ -298,6 +298,7 @@ function mapPoll(row: PollRow): FeedbackPoll {
     lane: row.lane,
     audience: row.audience,
     owner: row.owner,
+    options: [],
     questionCount: row.question_count,
     responseCount: row.response_count,
     targetCount: row.target_count,

@@ -40,6 +40,7 @@ describe("normalizeAiCommandResult", () => {
         lane: "pulse",
         audience: "",
         owner: "",
+        options: [],
         questionCount: -3,
         responseCount: -9,
         targetCount: -5,

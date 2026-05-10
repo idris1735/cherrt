@@ -195,6 +195,7 @@ function normalizePoll(poll: FeedbackPoll | undefined) {
     title,
     audience: toCleanString(poll.audience, "All staff"),
     owner: toCleanString(poll.owner, "You"),
+    options: Array.isArray(poll.options) ? poll.options.filter((o) => typeof o === "string" && o.trim()) : [],
     questionCount: typeof poll.questionCount === "number" && Number.isFinite(poll.questionCount) ? Math.max(1, Math.round(poll.questionCount)) : 1,
     responseCount: typeof poll.responseCount === "number" && Number.isFinite(poll.responseCount) ? Math.max(0, Math.round(poll.responseCount)) : 0,
     targetCount: typeof poll.targetCount === "number" && Number.isFinite(poll.targetCount) ? Math.max(0, Math.round(poll.targetCount)) : 0,

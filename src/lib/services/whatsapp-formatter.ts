@@ -137,10 +137,11 @@ export function formatAiResult(
 
   // 9. generatedPoll
   if (result.generatedPoll) {
-    const { title, lane } = result.generatedPoll;
+    const { title, lane, options } = result.generatedPoll;
     const typeLabel = lane === "approval" ? "Approval poll" : lane === "guest" ? "Guest feedback" : "Staff pulse";
+    const optionLines = options.length > 0 ? [``, `Options:`, ...options.map((o) => `  • ${o}`)] : [];
     return {
-      text: [`📊 *${typeLabel} created*`, ``, `*${title}*`, ``, isWorkspace ? `✅ Shared with your workspace.` : `View here: ${webLink()}`].join("\n"),
+      text: [`📊 *${typeLabel} created*`, ``, `*${title}*`, ...optionLines, ``, isWorkspace ? `✅ Shared with your workspace.` : `View here: ${webLink()}`].join("\n"),
     };
   }
 

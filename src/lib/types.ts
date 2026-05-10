@@ -127,6 +127,7 @@ export interface FeedbackPoll {
   lane: "pulse" | "approval" | "guest";
   audience: string;
   owner: string;
+  options: string[];
   questionCount: number;
   responseCount: number;
   targetCount: number;
