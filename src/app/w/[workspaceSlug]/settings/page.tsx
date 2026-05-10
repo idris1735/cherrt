@@ -20,6 +20,14 @@ import {
   type WalletTransaction,
 } from "@/lib/services/profile";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
+import {
+  loadWorkspaceMemberSettings,
+  loadWorkspaceProfileSettings,
+  saveWorkspaceMemberSettings,
+  saveWorkspaceProfileSettings,
+  type WorkspaceMemberSettings,
+  type WorkspaceProfileSettings,
+} from "@/lib/services/workspace-settings";
 import styles from "@/app/w/[workspaceSlug]/settings/page.module.css";
 
 const CURRENCY_OPTIONS = ["NGN", "USD", "GBP", "EUR", "GHS", "KES"] as const;
@@ -112,7 +120,11 @@ export default function SettingsPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
   const sigFileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [sigHasDrawn, setSigHasDrawn] = useState(false);
+  const [workspaceProfile, setWorkspaceProfile] = useState<WorkspaceProfileSettings>(() => loadWorkspaceProfileSettings(snapshot.workspace));
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMemberSettings[]>([]);
+  const [memberDraft, setMemberDraft] = useState({ name: "", email: "", role: "member", phone: "" });
 
   useEffect(() => {
     const existing = getActiveUserProfile();
@@ -121,7 +133,9 @@ export default function SettingsPage() {
       currency: existing?.currency ?? snapshot.workspace.currency,
       ...existing,
     });
-  }, [snapshot.workspace.currency]);
+    setWorkspaceProfile(loadWorkspaceProfileSettings(snapshot.workspace));
+    setWorkspaceMembers(loadWorkspaceMemberSettings(snapshot.workspace.id));
+  }, [snapshot.workspace]);
 
   useEffect(() => {
     function syncWallet() {
@@ -226,6 +240,53 @@ export default function SettingsPage() {
       });
       setSaved(true);
     }, 450);
+  }
+
+  function updateWorkspaceProfile(key: keyof WorkspaceProfileSettings, value: string | undefined) {
+    setWorkspaceProfile((current) => {
+      const next = { ...current, [key]: value };
+      saveWorkspaceProfileSettings(snapshot.workspace.id, next);
+      return next;
+    });
+    setSaved(true);
+  }
+
+  function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      updateWorkspaceProfile("logoDataUrl", ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addWorkspaceMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!memberDraft.name.trim()) return;
+    const nextMember: WorkspaceMemberSettings = {
+      id: crypto.randomUUID(),
+      name: memberDraft.name.trim(),
+      email: memberDraft.email.trim(),
+      role: memberDraft.role.trim() || "member",
+      phone: memberDraft.phone.trim(),
+    };
+    setWorkspaceMembers((current) => {
+      const next = [nextMember, ...current];
+      saveWorkspaceMemberSettings(snapshot.workspace.id, next);
+      return next;
+    });
+    setMemberDraft({ name: "", email: "", role: "member", phone: "" });
+    setSaved(true);
+  }
+
+  function removeWorkspaceMember(memberId: string) {
+    setWorkspaceMembers((current) => {
+      const next = current.filter((member) => member.id !== memberId);
+      saveWorkspaceMemberSettings(snapshot.workspace.id, next);
+      return next;
+    });
+    setSaved(true);
   }
 
   const loadWaPhone = useCallback(async () => {
@@ -394,6 +455,80 @@ export default function SettingsPage() {
             <small className={styles.helper}>{field.helper}</small>
           </label>
         ))}
+      </section>
+
+      {/* Workspace */}
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Workspace</h2>
+          <span className={styles.sectionValue}>{workspaceMembers.length} saved member{workspaceMembers.length === 1 ? "" : "s"}</span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, border: "1px solid var(--ch-border)", borderRadius: 10, background: "var(--ch-surface-soft)" }}>
+          <div style={{ width: 48, height: 48, borderRadius: 10, border: "1px solid var(--ch-border)", background: "var(--ch-surface)", display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0 }}>
+            {workspaceProfile.logoDataUrl ? (
+              <img alt="Workspace logo" src={workspaceProfile.logoDataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--ch-muted)" }}>{workspaceProfile.name.slice(0, 2).toUpperCase()}</span>
+            )}
+          </div>
+          <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
+            <strong style={{ fontSize: "0.86rem" }}>{workspaceProfile.name}</strong>
+            <span style={{ color: "var(--ch-muted)", fontSize: "0.74rem" }}>{workspaceProfile.city} - {workspaceProfile.timezone}</span>
+          </div>
+          <button className={styles.softButton} onClick={() => logoFileInputRef.current?.click()} type="button">Logo</button>
+          <input accept="image/png,image/jpeg" onChange={handleLogoFileChange} ref={logoFileInputRef} style={{ display: "none" }} type="file" />
+        </div>
+
+        <label className={styles.field} htmlFor="workspace-name">
+          <span className={styles.fieldLabel}>Organization name</span>
+          <input className={styles.input} id="workspace-name" onChange={(event) => updateWorkspaceProfile("name", event.target.value)} value={workspaceProfile.name} />
+        </label>
+        <label className={styles.field} htmlFor="workspace-legal-name">
+          <span className={styles.fieldLabel}>Legal name</span>
+          <input className={styles.input} id="workspace-legal-name" onChange={(event) => updateWorkspaceProfile("legalName", event.target.value)} value={workspaceProfile.legalName} />
+        </label>
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          <label className={styles.field} htmlFor="workspace-city">
+            <span className={styles.fieldLabel}>City</span>
+            <input className={styles.input} id="workspace-city" onChange={(event) => updateWorkspaceProfile("city", event.target.value)} value={workspaceProfile.city} />
+          </label>
+          <label className={styles.field} htmlFor="workspace-timezone">
+            <span className={styles.fieldLabel}>Timezone</span>
+            <input className={styles.input} id="workspace-timezone" onChange={(event) => updateWorkspaceProfile("timezone", event.target.value)} value={workspaceProfile.timezone} />
+          </label>
+          <label className={styles.field} htmlFor="workspace-accent">
+            <span className={styles.fieldLabel}>Accent</span>
+            <input className={styles.input} id="workspace-accent" onChange={(event) => updateWorkspaceProfile("accent", event.target.value)} type="color" value={workspaceProfile.accent} />
+          </label>
+        </div>
+
+        <form onSubmit={addWorkspaceMember} style={{ display: "grid", gap: 10, paddingTop: 10, borderTop: "1px solid var(--ch-border)" }}>
+          <p style={{ margin: 0, fontSize: "0.82rem", fontWeight: 600, color: "var(--ch-text)" }}>Team roster</p>
+          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+            <input className={styles.input} onChange={(event) => setMemberDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Name" value={memberDraft.name} />
+            <input className={styles.input} onChange={(event) => setMemberDraft((current) => ({ ...current, email: event.target.value }))} placeholder="Email" value={memberDraft.email} />
+            <input className={styles.input} onChange={(event) => setMemberDraft((current) => ({ ...current, role: event.target.value }))} placeholder="Role" value={memberDraft.role} />
+            <input className={styles.input} onChange={(event) => setMemberDraft((current) => ({ ...current, phone: event.target.value }))} placeholder="WhatsApp" value={memberDraft.phone} />
+          </div>
+          <button className={styles.softButton} disabled={!memberDraft.name.trim()} style={{ justifySelf: "start" }} type="submit">Add member</button>
+        </form>
+
+        {workspaceMembers.length ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {workspaceMembers.map((member) => (
+              <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", border: "1px solid var(--ch-border)", borderRadius: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ display: "block", fontSize: "0.82rem" }}>{member.name}</strong>
+                  <span style={{ color: "var(--ch-muted)", fontSize: "0.72rem" }}>{member.role}{member.email ? ` - ${member.email}` : ""}{member.phone ? ` - ${member.phone}` : ""}</span>
+                </div>
+                <button onClick={() => removeWorkspaceMember(member.id)} style={{ background: "transparent", border: "none", color: "var(--ch-muted)", cursor: "pointer", fontSize: "0.74rem", textDecoration: "underline" }} type="button">Remove</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.emptyNote}>No extra workspace members saved yet.</p>
+        )}
       </section>
 
       {/* Signature */}

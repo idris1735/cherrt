@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { StatusPill } from "@/components/shared/status-pill";
 import { formatCurrency } from "@/lib/format";
+import { downloadCsv } from "@/lib/services/csv-export";
 import type { ExpenseEntry } from "@/lib/types";
 
 function expenseTheme(expense: ExpenseEntry) {
@@ -40,6 +41,17 @@ export default function ToolkitExpensesPage() {
     ? snapshot.requests.find((r) => r.title.toLowerCase().includes(selected.title.toLowerCase().split(" ").slice(0, 2).join(" ")) && r.module === "toolkit")
     : null;
 
+  function exportExpenses() {
+    downloadCsv("toolkit-expenses.csv", expenses, [
+      { header: "Title", value: (expense) => expense.title },
+      { header: "Department", value: (expense) => expense.department },
+      { header: "Amount", value: (expense) => expense.amount },
+      { header: "Receipt count", value: (expense) => expense.receiptCount },
+      { header: "Status", value: (expense) => expense.status },
+      { header: "Attachments", value: (expense) => expense.attachments.join("; ") },
+    ]);
+  }
+
   return (
     <>
       <div className="tk-page">
@@ -52,9 +64,12 @@ export default function ToolkitExpensesPage() {
               {pendingCount > 0 ? ` ${pendingCount} awaiting approval.` : ""}
             </p>
           </div>
-          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-            Log expense
-          </Link>
+          <div className="tk-requests-toolbar">
+            <button className="button button--ghost" disabled={!expenses.length} onClick={exportExpenses} type="button">Export CSV</button>
+            <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
+              Log expense
+            </Link>
+          </div>
         </div>
 
         <div className="tk-requests-summary">
@@ -240,4 +255,3 @@ export default function ToolkitExpensesPage() {
     </>
   );
 }
-

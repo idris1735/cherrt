@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { StatusPill } from "@/components/shared/status-pill";
 import { formatCurrency } from "@/lib/format";
+import { downloadCsv } from "@/lib/services/csv-export";
 import type { WorkflowRequest } from "@/lib/types";
 
 function requestTheme(request: WorkflowRequest) {
@@ -58,6 +59,19 @@ export default function ToolkitRequestsPage() {
   const latestRaised = requests[0];
   const latestApproved = requests.find((request) => request.status === "approved");
 
+  function exportRequests() {
+    downloadCsv("toolkit-requests.csv", requests, [
+      { header: "Title", value: (request) => request.title },
+      { header: "Type", value: (request) => request.type },
+      { header: "Requester", value: (request) => request.requester },
+      { header: "Status", value: (request) => request.status },
+      { header: "Amount", value: (request) => request.amount ?? "" },
+      { header: "Created", value: (request) => request.createdAtLabel },
+      { header: "Description", value: (request) => request.description },
+      { header: "Approval steps", value: (request) => request.approvalSteps.map((step) => `${step.label}: ${step.assignee}`).join("; ") },
+    ]);
+  }
+
   return (
     <div className="tk-page tk-requests-page">
       <section className="tk-requests-intro">
@@ -69,9 +83,12 @@ export default function ToolkitRequestsPage() {
               Raise work in chat, then follow ownership, amount, and approval pressure from one clean queue.
             </p>
           </div>
-          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-            Raise request
-          </Link>
+          <div className="tk-requests-toolbar">
+            <button className="button button--ghost" disabled={!requests.length} onClick={exportRequests} type="button">Export CSV</button>
+            <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
+              Raise request
+            </Link>
+          </div>
         </div>
 
         <div className="tk-requests-summary" aria-label="Request status summary">
@@ -258,4 +275,3 @@ export default function ToolkitRequestsPage() {
     </div>
   );
 }
-

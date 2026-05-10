@@ -28,6 +28,7 @@ type DbRow = {
   pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
   pending_approval: WhatsAppSession["pendingApproval"] | null;
   history: WhatsAppSession["history"];
+  updated_at?: string;
 };
 
 const MAX_HISTORY_ENTRIES = 20;
@@ -60,6 +61,7 @@ function toDbRow(session: WhatsAppSession): DbRow {
     pending_confirmation: session.pendingConfirmation ?? null,
     pending_approval: session.pendingApproval ?? null,
     history: session.history,
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -69,11 +71,7 @@ async function persistSession(session: WhatsAppSession): Promise<void> {
   await db.from("whatsapp_sessions").upsert(toDbRow(session));
 }
 
-export async function getSession(phoneNumber: string): Promise<WhatsAppSession> {
-  if (sessions.has(phoneNumber)) {
-    return sessions.get(phoneNumber)!;
-  }
-
+async function loadSessionFromDb(phoneNumber: string): Promise<WhatsAppSession | null> {
   const db = getDb();
   if (db) {
     const { data } = await db
@@ -83,10 +81,21 @@ export async function getSession(phoneNumber: string): Promise<WhatsAppSession> 
       .maybeSingle();
 
     if (data) {
-      const session = toSession(data as DbRow);
-      sessions.set(phoneNumber, session);
-      return session;
+      return toSession(data as DbRow);
     }
+  }
+
+  return null;
+}
+
+async function ensureSession(phoneNumber: string): Promise<WhatsAppSession> {
+  const cached = sessions.get(phoneNumber);
+  if (cached) return cached;
+
+  const existing = await loadSessionFromDb(phoneNumber);
+  if (existing) {
+    sessions.set(phoneNumber, existing);
+    return existing;
   }
 
   const session: WhatsAppSession = {
@@ -100,25 +109,19 @@ export async function getSession(phoneNumber: string): Promise<WhatsAppSession> 
   return session;
 }
 
+export async function getSession(phoneNumber: string): Promise<WhatsAppSession> {
+  return ensureSession(phoneNumber);
+}
+
 export async function updateSession(phoneNumber: string, updates: Partial<Omit<WhatsAppSession, "phoneNumber">>): Promise<void> {
-  const existing = sessions.get(phoneNumber) ?? {
-    phoneNumber,
-    welcomed: false,
-    demoBalance: DEMO_STARTING_BALANCE,
-    history: [],
-  };
+  const existing = await ensureSession(phoneNumber);
   const next = { ...existing, ...updates };
   sessions.set(phoneNumber, next);
   await persistSession(next);
 }
 
 export async function addToHistory(phoneNumber: string, role: "user" | "assistant", text: string): Promise<void> {
-  const existing = sessions.get(phoneNumber) ?? {
-    phoneNumber,
-    welcomed: false,
-    demoBalance: DEMO_STARTING_BALANCE,
-    history: [],
-  };
+  const existing = await ensureSession(phoneNumber);
   const history = [...existing.history, { role, text }].slice(-MAX_HISTORY_ENTRIES);
   const next = { ...existing, history };
   sessions.set(phoneNumber, next);
@@ -126,16 +129,14 @@ export async function addToHistory(phoneNumber: string, role: "user" | "assistan
 }
 
 export async function clearPending(phoneNumber: string): Promise<void> {
-  const session = sessions.get(phoneNumber);
-  if (!session) return;
+  const session = await ensureSession(phoneNumber);
   const next = { ...session, pendingConfirmation: undefined, pendingApproval: undefined };
   sessions.set(phoneNumber, next);
   await persistSession(next);
 }
 
 export async function deductDemoBalance(phoneNumber: string, amount: number): Promise<void> {
-  const session = sessions.get(phoneNumber);
-  if (!session) return;
+  const session = await ensureSession(phoneNumber);
   const next = { ...session, demoBalance: Math.max(0, session.demoBalance - amount) };
   sessions.set(phoneNumber, next);
   await persistSession(next);

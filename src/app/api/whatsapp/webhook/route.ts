@@ -66,6 +66,7 @@ async function handlePayload(payload: MetaPayload): Promise<void> {
       for (const msg of change.value?.messages ?? []) {
         const type = normalizeType(msg.type);
         await processWhatsAppMessage({
+          messageId: msg.id,
           from: msg.from,
           type,
           text: msg.text?.body ?? msg.interactive?.button_reply?.title,

@@ -12,6 +12,7 @@ vi.mock("@/lib/services/ai-service", () => ({
 }));
 
 vi.mock("@/lib/services/whatsapp-workspace", () => ({
+  claimWhatsAppMessage: vi.fn().mockResolvedValue(true),
   lookupPhoneLink: vi.fn().mockResolvedValue(null),
   persistWorkspaceAiResult: vi.fn().mockResolvedValue(undefined),
   getApproverPhone: vi.fn().mockResolvedValue(null),
@@ -22,11 +23,15 @@ vi.mock("@/lib/services/whatsapp-workspace", () => ({
 }));
 
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
-import { sendTextMessage } from "@/lib/services/whatsapp";
+import { downloadMedia, sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
+import { claimWhatsAppMessage } from "@/lib/services/whatsapp-workspace";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
+const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
+const mockDownload = downloadMedia as ReturnType<typeof vi.fn>;
 const mockRun = runCherttCommand as ReturnType<typeof vi.fn>;
+const mockClaim = claimWhatsAppMessage as ReturnType<typeof vi.fn>;
 
 const PHONE = "2348012345678";
 
@@ -66,6 +71,16 @@ describe("processWhatsAppMessage", () => {
     expect(mockSend).toHaveBeenCalledWith(PHONE, "Request captured.");
   });
 
+  it("skips duplicate WhatsApp message IDs before side effects", async () => {
+    mockClaim.mockResolvedValueOnce(false);
+
+    await processWhatsAppMessage({ messageId: "wamid.duplicate", from: PHONE, type: "text", text: "Request diesel" });
+
+    expect(mockClaim).toHaveBeenCalledWith("wamid.duplicate", PHONE, "text");
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("calls runCherttCommand and sends a reply for a text message after welcome", async () => {
     await skipWelcome();
     mockRun.mockResolvedValue({ reply: "Here is your answer." });
@@ -82,6 +97,33 @@ describe("processWhatsAppMessage", () => {
       false,
     );
     expect(mockSend).toHaveBeenCalledWith(PHONE, "Here is your answer.");
+  });
+
+  it("shows a guided help menu without calling AI", async () => {
+    await skipWelcome();
+
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I don't know what to do" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockButtons).toHaveBeenCalledWith(
+      PHONE,
+      expect.stringContaining("simple menu"),
+      expect.arrayContaining([
+        expect.objectContaining({ id: "help_request" }),
+        expect.objectContaining({ id: "help_expense" }),
+        expect.objectContaining({ id: "help_issue" }),
+      ]),
+      "Chertt menu",
+    );
+  });
+
+  it("handles help starter buttons without calling AI", async () => {
+    await skipWelcome();
+
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_request" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Request format"));
   });
 
   it("demo context is included in AI call", async () => {
@@ -138,6 +180,26 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "audio" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("voice note"));
     expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("passes non-receipt images to the AI as inline media attachments", async () => {
+    await skipWelcome();
+    mockDownload.mockResolvedValueOnce({ buffer: Buffer.from("not-a-receipt"), mimeType: "image/jpeg" });
+    mockRun.mockResolvedValue({ reply: "Issue photo reviewed." });
+
+    await processWhatsAppMessage({
+      from: PHONE,
+      type: "image",
+      text: "Report this broken window",
+      mediaId: "media-1",
+    });
+
+    const context = mockRun.mock.calls[0][1] as { mediaAttachments?: Array<{ mimeType: string; data: string }>; memoryContext?: string };
+    expect(context.mediaAttachments).toEqual([
+      { mimeType: "image/jpeg", data: Buffer.from("not-a-receipt").toString("base64") },
+    ]);
+    expect(context.memoryContext).not.toContain("data:image/jpeg;base64");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Issue photo reviewed.");
   });
 
   it("includes history from previous messages in context", async () => {

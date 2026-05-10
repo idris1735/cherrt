@@ -111,7 +111,7 @@ export default function ToolkitFormsPage() {
 
                         <div className="tk-form-card__footer">
                           <span className="tk-form-card__hint">Tap to see details and manage</span>
-                          <span className="tk-inline-link" style={{ minHeight: "auto", padding: "0 10px", fontSize: "0.74rem" }}>View →</span>
+                          <span className="tk-inline-link" style={{ minHeight: "auto", padding: "0 10px", fontSize: "0.74rem" }}>View responses</span>
                         </div>
                       </div>
                     </button>
@@ -192,6 +192,9 @@ export default function ToolkitFormsPage() {
               </div>
             </div>
             <div className="tk-modal__actions">
+              <Link className="button button--primary" href={`${base}/forms/${selected.id}`} onClick={() => setSelected(null)}>
+                View responses
+              </Link>
               <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`} onClick={() => setSelected(null)}>
                 Manage in chat
               </Link>
@@ -202,4 +205,3 @@ export default function ToolkitFormsPage() {
     </>
   );
 }
-

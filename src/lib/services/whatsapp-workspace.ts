@@ -19,6 +19,29 @@ export type WorkspaceContext = {
   pendingIssues: Array<{ title: string; severity: string }>;
 };
 
+export async function claimWhatsAppMessage(
+  messageId: string | undefined,
+  fromPhone: string,
+  messageType: string,
+): Promise<boolean> {
+  if (!messageId) return true;
+
+  const db = getSupabaseServerClient();
+  if (!db) return true;
+
+  const { error } = await db.from("whatsapp_processed_messages").insert({
+    message_id: messageId,
+    from_phone: fromPhone,
+    message_type: messageType,
+  });
+
+  if (!error) return true;
+  if (error.code === "23505") return false;
+
+  console.error("WhatsApp idempotency check failed:", error.message);
+  return true;
+}
+
 export async function lookupPhoneLink(phoneNumber: string): Promise<PhoneLink | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;

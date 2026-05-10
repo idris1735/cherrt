@@ -406,6 +406,8 @@ export function AppStateProvider({
   const [profileReady, setProfileReady] = useState(false);
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const snapshotRef = useRef(snapshot);
+  const syncInFlightRef = useRef(false);
+  const lastManualSyncRef = useRef(0);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -467,6 +469,53 @@ export function AppStateProvider({
       unsubscribe?.();
     };
   }, [initialSnapshot.workspace.slug]);
+
+  useEffect(() => {
+    if (!workspaceHydrated) return;
+
+    let cancelled = false;
+
+    async function refreshWorkspace(force = false) {
+      if (cancelled || syncInFlightRef.current) return;
+      if (document.visibilityState === "hidden") return;
+
+      const now = Date.now();
+      if (!force && now - lastManualSyncRef.current < 10_000) return;
+
+      syncInFlightRef.current = true;
+      lastManualSyncRef.current = now;
+      try {
+        const remoteSnapshot = await loadWorkspaceSnapshotFromSupabase(initialSnapshot.workspace.slug);
+        if (!cancelled && remoteSnapshot) {
+          dispatch({ type: "hydrate", snapshot: filterDeletedConvs(remoteSnapshot) });
+        }
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    }
+
+    const onFocus = () => {
+      void refreshWorkspace(true);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshWorkspace(true);
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const firstCatchup = window.setTimeout(() => void refreshWorkspace(true), 1_500);
+    const interval = window.setInterval(() => void refreshWorkspace(false), 15_000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearTimeout(firstCatchup);
+      window.clearInterval(interval);
+    };
+  }, [initialSnapshot.workspace.slug, workspaceHydrated]);
 
   const personalizedSnapshot = useMemo(
     () => (profileReady ? applyProfile(snapshot) : snapshot),

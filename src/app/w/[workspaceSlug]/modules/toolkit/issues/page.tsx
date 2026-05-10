@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { StatusPill } from "@/components/shared/status-pill";
+import { downloadCsv } from "@/lib/services/csv-export";
 import type { IssueReport } from "@/lib/types";
 
 const severityOrder = ["high", "medium", "low"] as const;
@@ -32,6 +33,18 @@ export default function ToolkitIssuesPage() {
   const openCount = issues.filter((i) => i.status !== "completed").length;
   const nextUrgent = issues.find((i) => i.severity === "high" && i.status !== "completed");
 
+  function exportIssues() {
+    downloadCsv("toolkit-issues.csv", issues, [
+      { header: "Title", value: (issue) => issue.title },
+      { header: "Area", value: (issue) => issue.area },
+      { header: "Severity", value: (issue) => issue.severity },
+      { header: "Status", value: (issue) => issue.status },
+      { header: "Reported by", value: (issue) => issue.reportedBy },
+      { header: "Media count", value: (issue) => issue.mediaCount },
+      { header: "Attachments", value: (issue) => issue.attachments.join("; ") },
+    ]);
+  }
+
   return (
     <>
       <div className="tk-page">
@@ -44,9 +57,12 @@ export default function ToolkitIssuesPage() {
               {highCount > 0 ? ` ${highCount} urgent.` : ""}
             </p>
           </div>
-          <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-            Report issue
-          </Link>
+          <div className="tk-requests-toolbar">
+            <button className="button button--ghost" disabled={!issues.length} onClick={exportIssues} type="button">Export CSV</button>
+            <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
+              Report issue
+            </Link>
+          </div>
         </div>
 
         <div className="tk-requests-summary">
