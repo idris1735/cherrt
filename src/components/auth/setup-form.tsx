@@ -47,7 +47,14 @@ type LongTextFieldConfig = {
   hint?: string;
 };
 
-type FieldConfig = TextFieldConfig | SelectFieldConfig | LongTextFieldConfig;
+type TagPickerFieldConfig = {
+  id: string;
+  label: string;
+  presets: string[];
+  hint?: string;
+};
+
+type FieldConfig = TextFieldConfig | SelectFieldConfig | LongTextFieldConfig | TagPickerFieldConfig;
 
 type SetupSection = {
   eyebrow: string;
@@ -90,7 +97,25 @@ const sharedFields: FieldConfig[] = [
     type: "email",
     hint: "Used for sign-in, notifications, and shared records.",
   },
-  { id: "role", label: "Primary role", placeholder: "e.g. Operations Lead", type: "text", hint: "Shown on your profile and directory card." },
+  {
+    id: "role",
+    label: "Your role",
+    placeholder: "Select a role",
+    options: [
+      "Administrator",
+      "Operations Lead",
+      "Finance Manager",
+      "Pastor / Lead",
+      "Church Administrator",
+      "Store Manager",
+      "Event Director",
+      "HR Manager",
+      "IT Lead",
+      "Director / CEO",
+      "Other",
+    ],
+    hint: "Shown on your profile and directory card.",
+  },
   {
     id: "size",
     label: "Team size",
@@ -101,7 +126,7 @@ const sharedFields: FieldConfig[] = [
   {
     id: "location",
     label: "Primary city or campus",
-    placeholder: "e.g. London, UK",
+    placeholder: "e.g. Lagos, Nigeria",
     type: "text",
     hint: "Used in workspace records, receipts, and event or branch defaults.",
   },
@@ -112,15 +137,8 @@ function getSharedFields(selectedModule: ModuleKey): FieldConfig[] {
 
   return sharedFields.map((field) => {
     const fieldOverrides = overrides[field.id as SharedFieldId];
-
-    if (!fieldOverrides) {
-      return field;
-    }
-
-    return {
-      ...field,
-      ...fieldOverrides,
-    } as FieldConfig;
+    if (!fieldOverrides) return field;
+    return { ...field, ...fieldOverrides } as FieldConfig;
   });
 }
 
@@ -138,7 +156,6 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       orgName: { placeholder: "e.g. Northfield Group" },
       adminName: { placeholder: "e.g. Jordan Miles" },
       email: { placeholder: "e.g. ops@northfieldgroup.com" },
-      role: { placeholder: "e.g. Operations Manager" },
       location: { placeholder: "e.g. Birmingham, UK" },
     },
     sections: [
@@ -176,34 +193,30 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       {
         eyebrow: "Documents and control",
         title: "Set your working structure",
-        description: "Give us the names and categories Chertt should use on day one.",
+        description: "Pick from the options below — or type your own and press Enter. All fields are optional.",
         fields: [
           {
             id: "departmentList",
             label: "Departments or units",
-            placeholder: "e.g. Admin, Finance, Operations",
-            rows: 3,
+            presets: ["Admin", "Finance", "Operations", "HR", "IT", "Legal", "Marketing", "Sales"],
             hint: "Used in staff directory, forms, and request routing.",
           },
           {
             id: "requestTypes",
             label: "Request types",
-            placeholder: "e.g. Purchase request, repair request, travel request",
-            rows: 3,
+            presets: ["Purchase request", "Maintenance request", "Travel request", "Supply request", "Leave request"],
             hint: "These become starter request templates.",
           },
           {
             id: "inventoryLocations",
             label: "Inventory locations",
-            placeholder: "e.g. Main store, media room, front desk cabinet",
-            rows: 3,
+            presets: ["Main store", "Front desk", "Media room", "Stockroom", "Server room"],
             hint: "Used if you release stock or track office items.",
           },
           {
             id: "expenseCategories",
             label: "Expense categories",
-            placeholder: "e.g. Fuel, repairs, supplies",
-            rows: 3,
+            presets: ["Fuel", "Repairs", "Supplies", "Transportation", "Catering", "Stationery"],
             hint: "Used for petty cash and expense logging.",
           },
         ],
@@ -223,7 +236,6 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       orgName: { placeholder: "e.g. Grace Harbour Church" },
       adminName: { placeholder: "e.g. Daniel Reed" },
       email: { placeholder: "e.g. office@graceharbour.church" },
-      role: { placeholder: "e.g. Church Administrator" },
       location: { placeholder: "e.g. Accra, Ghana" },
     },
     sections: [
@@ -242,15 +254,13 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
           {
             id: "serviceTimes",
             label: "Service schedule",
-            placeholder: "e.g. Sunday 8am, 10am",
-            rows: 3,
+            presets: ["Sunday 7am", "Sunday 9am", "Sunday 11am", "Sunday 5pm", "Wednesday 6pm", "Friday 6pm"],
             hint: "Used for reminders and check-in windows.",
           },
           {
             id: "ministries",
             label: "Ministries or care units",
-            placeholder: "e.g. Ushers, children, prayer, follow-up",
-            rows: 3,
+            presets: ["Ushers", "Children", "Prayer", "Follow-up", "Worship", "Youth", "Evangelism", "Welfare"],
             hint: "Used to route requests and assign follow-up.",
           },
         ],
@@ -272,20 +282,18 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       {
         eyebrow: "Member care",
         title: "Define follow-up and care",
-        description: "These settings create the first care queues and new-guest capture defaults.",
+        description: "Pick the data you collect and how care requests are routed. All optional.",
         fields: [
           {
             id: "firstTimerFields",
             label: "First-timer details to collect",
-            placeholder: "e.g. Phone, age range, prayer needs, invited by",
-            rows: 3,
+            presets: ["Phone", "Age range", "Prayer needs", "Invited by", "Home address", "Email"],
             hint: "Used in visitor forms and follow-up cards.",
           },
           {
             id: "childGroups",
             label: "Child check-in age groups",
-            placeholder: "e.g. 0-2, 3-5, 6-9, 10-12",
-            rows: 3,
+            presets: ["0-2 years", "3-5 years", "6-9 years", "10-12 years", "Teens (13-17)"],
             hint: "Used to create check-in group labels.",
           },
         ],
@@ -318,27 +326,24 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       orgName: { placeholder: "e.g. Cedar Lane Store" },
       adminName: { placeholder: "e.g. Maya Chen" },
       email: { placeholder: "e.g. hello@cedarlanestore.com" },
-      role: { placeholder: "e.g. Store Manager" },
       location: { placeholder: "e.g. Vancouver, Canada" },
     },
     sections: [
       {
         eyebrow: "Store profile",
         title: "Set up your selling flow",
-        description: "These details shape catalog structure, checkout fields, and payment links.",
+        description: "Pick from the options below — or type your own. You can change everything after setup.",
         fields: [
           {
             id: "catalogType",
             label: "Product categories",
-            placeholder: "e.g. Apparel, books, gift items",
-            rows: 3,
+            presets: ["Apparel", "Books", "Gift items", "Electronics", "Food & Drinks", "Beauty", "Accessories", "Art"],
             hint: "These become your first catalog sections.",
           },
           {
             id: "stockLocations",
             label: "Stock locations",
-            placeholder: "e.g. Main stockroom, showroom, pickup shelf",
-            rows: 3,
+            presets: ["Main stockroom", "Showroom", "Pickup shelf", "Back office", "Display shelf"],
             hint: "Used for stock counts and release tracking.",
           },
         ],
@@ -376,15 +381,13 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
           {
             id: "customerFields",
             label: "Customer details to collect",
-            placeholder: "e.g. Phone, address, order notes",
-            rows: 3,
+            presets: ["Phone", "Address", "Order notes", "Email", "Company name"],
             hint: "These become the default customer form fields.",
           },
           {
             id: "paymentProviders",
-            label: "Payment link providers",
-            placeholder: "e.g. Paystack, Flutterwave, Stripe",
-            rows: 3,
+            label: "Payment options",
+            presets: ["Paystack", "Flutterwave", "Stripe", "Cash on delivery", "Bank transfer"],
             hint: "Used for payment-link options until a provider is connected.",
           },
         ],
@@ -404,7 +407,6 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       orgName: { placeholder: "e.g. Aurora Event House" },
       adminName: { placeholder: "e.g. Sofia Martins" },
       email: { placeholder: "e.g. team@auroraevents.co" },
-      role: { placeholder: "e.g. Event Director" },
       location: { placeholder: "e.g. Lisbon, Portugal" },
     },
     sections: [
@@ -416,8 +418,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
           {
             id: "eventTypes",
             label: "Event types you run",
-            placeholder: "e.g. Conference, wedding, church event, VIP dinner",
-            rows: 3,
+            presets: ["Conference", "Wedding", "Church event", "VIP dinner", "Concert", "Workshop", "Birthday", "Corporate"],
             hint: "Used to create starter event templates.",
           },
         ],
@@ -455,16 +456,15 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
           {
             id: "guestFields",
             label: "Guest details to collect",
-            placeholder: "e.g. Phone, seat/table, company, dietary notes",
-            rows: 3,
+            presets: ["Phone", "Seat / Table", "Company", "Dietary needs", "Plus-one", "Special needs"],
             hint: "Used for registration and RSVP forms.",
           },
           {
             id: "guestInfo",
             label: "Arrival information",
-            placeholder: "e.g. Parking, table details, venue notes",
+            placeholder: "e.g. Parking on Level 2, Table A for VIPs, bring your invite...",
             rows: 4,
-            hint: "Included in reminders and ticket messages.",
+            hint: "Included in reminders and ticket messages. Write anything guests should know on arrival.",
           },
         ],
       },
@@ -504,12 +504,117 @@ function renderField(field: FieldConfig) {
     );
   }
 
+  // TagPickerFieldConfig fields are rendered separately in JSX; guard against accidental call
+  if ("presets" in field) return null;
+
+  const textField = field as TextFieldConfig;
   return (
     <label className="setup-field" key={field.id}>
       <span>{field.label}</span>
-      <input name={field.id} placeholder={field.placeholder} required={required} type={field.type ?? "text"} />
+      <input name={field.id} placeholder={textField.placeholder} required={required} type={textField.type ?? "text"} />
       {field.hint ? <small>{field.hint}</small> : null}
     </label>
+  );
+}
+
+function TagPicker({
+  config,
+  value,
+  onChange,
+}: {
+  config: TagPickerFieldConfig;
+  value: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [customInput, setCustomInput] = useState("");
+
+  const customTags = value.filter((t) => !config.presets.includes(t));
+
+  function togglePreset(preset: string) {
+    onChange(value.includes(preset) ? value.filter((t) => t !== preset) : [...value, preset]);
+  }
+
+  function addCustom() {
+    const trimmed = customInput.trim().replace(/,\s*$/, "").trim();
+    if (trimmed && !value.includes(trimmed)) {
+      onChange([...value, trimmed]);
+    }
+    setCustomInput("");
+  }
+
+  function removeCustom(tag: string) {
+    onChange(value.filter((t) => t !== tag));
+  }
+
+  return (
+    <div className="setup-field setup-field--full">
+      <span>
+        {config.label}{" "}
+        <em style={{ fontStyle: "normal", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 400 }}>
+          — optional
+        </em>
+      </span>
+      <div className="setup-chip-grid" style={{ marginTop: 6 }}>
+        {config.presets.map((preset) => {
+          const selected = value.includes(preset);
+          return (
+            <button
+              className={clsx("setup-chip", selected && "is-selected")}
+              key={preset}
+              onClick={() => togglePreset(preset)}
+              type="button"
+            >
+              {preset}
+            </button>
+          );
+        })}
+      </div>
+      {customTags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {customTags.map((tag) => (
+            <span
+              key={tag}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "3px 8px 3px 10px",
+                borderRadius: 999,
+                background: "var(--accent)",
+                color: "#fff",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+              }}
+            >
+              {tag}
+              <button
+                aria-label={`Remove ${tag}`}
+                onClick={() => removeCustom(tag)}
+                style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: "1rem", lineHeight: 1, opacity: 0.8, padding: 0 }}
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        onBlur={() => { if (customInput.trim()) addCustom(); }}
+        onChange={(e) => setCustomInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            addCustom();
+          }
+        }}
+        placeholder="+ Add your own, press Enter"
+        style={{ marginTop: 8 }}
+        type="text"
+        value={customInput}
+      />
+      {config.hint ? <small>{config.hint}</small> : null}
+    </div>
   );
 }
 
@@ -531,8 +636,8 @@ function ChoiceGroup({
           const selected = selections.includes(option.id);
           return (
             <button
-              key={option.id}
               className={clsx("setup-chip", selected && "is-selected")}
+              key={option.id}
               onClick={() => onToggle(config.id, option.id, config.type)}
               type="button"
             >
@@ -561,6 +666,7 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
     "event-focus": ["registration", "checkin"],
     ticketMode: ["mixed"],
   });
+  const [tagValues, setTagValues] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -568,26 +674,17 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
     async function requireSession() {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
-        if (!cancelled) {
-          router.replace("/auth/sign-in");
-        }
+        if (!cancelled) router.replace("/auth/sign-in");
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!cancelled && !session) {
-        router.replace("/auth/sign-in");
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!cancelled && !session) router.replace("/auth/sign-in");
     }
 
     void requireSession();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   function toggleChoice(groupId: string, optionId: string, type: ChoiceGroupConfig["type"]) {
@@ -600,11 +697,12 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
             ? existing.filter((item) => item !== optionId)
             : [...existing, optionId];
 
-      return {
-        ...current,
-        [groupId]: nextValues,
-      };
+      return { ...current, [groupId]: nextValues };
     });
+  }
+
+  function setTagField(fieldId: string, tags: string[]) {
+    setTagValues((prev) => ({ ...prev, [fieldId]: tags }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -614,6 +712,11 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
 
     const formData = new FormData(event.currentTarget);
     const fields = Object.fromEntries(Array.from(formData.entries()).map(([key, value]) => [key, String(value).trim()]));
+
+    // Merge tag picker values as comma-separated strings
+    for (const [key, tags] of Object.entries(tagValues)) {
+      if (tags.length > 0) fields[key] = tags.join(", ");
+    }
 
     if (!fields.orgName || !fields.adminName || !fields.email) {
       setSubmitError("Organization name, admin name, and email are required.");
@@ -694,14 +797,29 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
               <p>{section.description}</p>
             </div>
 
-            {section.fields?.length ? <div className="setup-form-grid">{section.fields.map((field) => renderField(field))}</div> : null}
+            {section.fields?.length ? (
+              <div className="setup-form-grid">
+                {section.fields.map((field) =>
+                  "presets" in field ? (
+                    <TagPicker
+                      key={field.id}
+                      config={field as TagPickerFieldConfig}
+                      onChange={(tags) => setTagField(field.id, tags)}
+                      value={tagValues[field.id] ?? []}
+                    />
+                  ) : (
+                    renderField(field)
+                  ),
+                )}
+              </div>
+            ) : null}
 
             {section.choiceGroups?.length ? (
               <div className="setup-choice-stack">
                 {section.choiceGroups.map((group) => (
                   <ChoiceGroup
-                    key={group.id}
                     config={group}
+                    key={group.id}
                     onToggle={toggleChoice}
                     selections={choices[group.id] ?? []}
                   />
