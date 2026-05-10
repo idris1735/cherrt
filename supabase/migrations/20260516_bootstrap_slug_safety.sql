@@ -1,5 +1,8 @@
 -- Replace bootstrap_workspace to avoid silently overwriting another user's workspace on slug collision.
 -- Returns the final slug (which may differ from p_slug if a suffix was appended).
+-- Must drop first because the return type changes from uuid → text.
+
+drop function if exists public.bootstrap_workspace(text, text, text, text, text, text, text, text);
 
 create or replace function public.bootstrap_workspace(
   p_slug text,
@@ -65,3 +68,5 @@ begin
   return v_final_slug;
 end;
 $$;
+
+grant execute on function public.bootstrap_workspace(text, text, text, text, text, text, text, text) to authenticated;
