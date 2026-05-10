@@ -79,21 +79,21 @@ const sharedFields: FieldConfig[] = [
   {
     id: "orgName",
     label: "Organization name",
-    placeholder: "e.g. Mercy Point Church",
+    placeholder: "e.g. Covenant Facilities Ltd",
     type: "text",
     hint: "This becomes the workspace name across the app.",
   },
   {
     id: "adminName",
     label: "Admin name",
-    placeholder: "e.g. Sarah Cole",
+    placeholder: "e.g. Funmi Adeyemi",
     type: "text",
     hint: "The first workspace owner and default approver profile.",
   },
   {
     id: "email",
     label: "Work email",
-    placeholder: "e.g. hello@organization.com",
+    placeholder: "e.g. hello@yourorg.ng",
     type: "email",
     hint: "Used for sign-in, notifications, and shared records.",
   },
@@ -126,7 +126,7 @@ const sharedFields: FieldConfig[] = [
   {
     id: "location",
     label: "Primary city or campus",
-    placeholder: "e.g. Lagos, Nigeria",
+    placeholder: "e.g. Ikeja, Lagos",
     type: "text",
     hint: "Used in workspace records, receipts, and event or branch defaults.",
   },
@@ -153,10 +153,10 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       "Department-ready workspace structure",
     ],
     sharedFieldOverrides: {
-      orgName: { placeholder: "e.g. Northfield Group" },
-      adminName: { placeholder: "e.g. Jordan Miles" },
-      email: { placeholder: "e.g. ops@northfieldgroup.com" },
-      location: { placeholder: "e.g. Birmingham, UK" },
+      orgName: { placeholder: "e.g. Apex Resources Ltd" },
+      adminName: { placeholder: "e.g. Chukwuemeka Obi" },
+      email: { placeholder: "e.g. ops@apexresources.ng" },
+      location: { placeholder: "e.g. Abuja, FCT" },
     },
     sections: [
       {
@@ -233,10 +233,10 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       "Children check-in and member data structure",
     ],
     sharedFieldOverrides: {
-      orgName: { placeholder: "e.g. Grace Harbour Church" },
-      adminName: { placeholder: "e.g. Daniel Reed" },
-      email: { placeholder: "e.g. office@graceharbour.church" },
-      location: { placeholder: "e.g. Accra, Ghana" },
+      orgName: { placeholder: "e.g. Fountain of Life Assembly" },
+      adminName: { placeholder: "e.g. Ngozi Okafor" },
+      email: { placeholder: "e.g. office@fountainoflife.org.ng" },
+      location: { placeholder: "e.g. Lekki, Lagos" },
     },
     sections: [
       {
@@ -247,7 +247,7 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
           {
             id: "branchName",
             label: "Campus or branch name",
-            placeholder: "e.g. Downtown Campus",
+            placeholder: "e.g. Surulere Campus",
             type: "text",
             hint: "Displayed in the workspace header and event registrations.",
           },
@@ -323,10 +323,10 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       "Customer details and fulfillment rules",
     ],
     sharedFieldOverrides: {
-      orgName: { placeholder: "e.g. Cedar Lane Store" },
-      adminName: { placeholder: "e.g. Maya Chen" },
-      email: { placeholder: "e.g. hello@cedarlanestore.com" },
-      location: { placeholder: "e.g. Vancouver, Canada" },
+      orgName: { placeholder: "e.g. Chioma's Fashion House" },
+      adminName: { placeholder: "e.g. Emeka Nwosu" },
+      email: { placeholder: "e.g. info@chiomasfashion.ng" },
+      location: { placeholder: "e.g. Oshodi, Lagos" },
     },
     sections: [
       {
@@ -404,10 +404,10 @@ const moduleConfigs: Record<ModuleKey, ModuleConfig> = {
       "Guest updates before arrival",
     ],
     sharedFieldOverrides: {
-      orgName: { placeholder: "e.g. Aurora Event House" },
-      adminName: { placeholder: "e.g. Sofia Martins" },
-      email: { placeholder: "e.g. team@auroraevents.co" },
-      location: { placeholder: "e.g. Lisbon, Portugal" },
+      orgName: { placeholder: "e.g. Prestige Events Nigeria" },
+      adminName: { placeholder: "e.g. Tolu Olawale" },
+      email: { placeholder: "e.g. bookings@prestigeevents.ng" },
+      location: { placeholder: "e.g. Victoria Island, Lagos" },
     },
     sections: [
       {
