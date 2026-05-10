@@ -162,10 +162,20 @@ export function formatAiResult(
 
   // 12. generatedGivingRecord
   if (result.generatedGivingRecord) {
-    const { amount, donor } = result.generatedGivingRecord;
-    return {
-      text: `🙏 *Giving recorded*\n\n• Amount: ${fmt(amount)}\n• Donor: ${donor}\n\n✅ Record saved.`,
-    };
+    const { amount, donor, churchName, givingType, virtualAccount } = result.generatedGivingRecord;
+    const typeLabel = givingType === "tithe" ? "Tithe" : givingType === "offering" ? "Offering" : givingType === "pledge" ? "Pledge" : "Donation";
+    const lines = [
+      `🙏 *${typeLabel} recorded*`,
+      ``,
+      churchName ? `• Church: ${churchName}` : null,
+      `• Amount: *${fmt(amount)}*`,
+      donor && donor !== "You" && donor !== "Anonymous" ? `• Donor: ${donor}` : null,
+      `• Type: ${typeLabel}`,
+      virtualAccount ? `• Ref: ${virtualAccount}` : null,
+      ``,
+      `✅ Saved to giving records.`,
+    ].filter(Boolean);
+    return { text: lines.join("\n") };
   }
 
   // 13. reply text

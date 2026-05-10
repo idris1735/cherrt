@@ -247,7 +247,7 @@ describe("formatAiResult", () => {
       },
     };
     const { text } = formatAiResult(result);
-    expect(text).toContain("Giving recorded");
+    expect(text).toContain("recorded");
     expect(text).toContain("10,000");
     expect(text).toContain("Alice Smith");
   });
