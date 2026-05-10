@@ -18,6 +18,12 @@ export type WhatsAppSession = {
   history: Array<{ role: "user" | "assistant"; text: string }>;
   // In-memory only — not persisted to DB. Resets on cold start (acceptable).
   clarificationStreak?: number;
+  activePoll?: {
+    id: string;
+    title: string;
+    options: string[];
+    votes: Record<string, number>;
+  };
 };
 
 type DbRow = {

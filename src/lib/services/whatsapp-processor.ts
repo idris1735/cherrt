@@ -7,7 +7,7 @@ import {
   deductDemoBalance,
   type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
-import { sendTextMessage, sendInteractiveButtons, downloadMedia } from "@/lib/services/whatsapp";
+import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia } from "@/lib/services/whatsapp";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
 import {
@@ -384,6 +384,33 @@ async function handleAiResult(
   }
 
   const freshSession = await getSession(from);
+
+  // Polls: send as native interactive message so voting happens in WhatsApp, not a web link
+  if (result.generatedPoll && result.generatedPoll.options.length > 0) {
+    const { id, title, options } = result.generatedPoll;
+    const votes: Record<string, number> = {};
+    for (const o of options) votes[o] = 0;
+    await updateSession(from, { activePoll: { id, title, options, votes } });
+    const preamble = `📊 *Poll*\n\n*${title}*\n\nTap your answer:`;
+    const pollButtons = options.map((o, i) => ({ id: `poll-vote:${i}`, title: o.slice(0, 20) }));
+    try {
+      if (options.length <= 3) {
+        await sendInteractiveButtons(from, preamble, pollButtons, "New poll");
+      } else {
+        await sendInteractiveList(from, preamble, "Vote",
+          options.map((o, i) => ({ id: `poll-vote:${i}`, title: o })),
+          "New poll",
+        );
+      }
+    } catch {
+      const optList = options.map((o, i) => `${i + 1}. ${o}`).join("\n");
+      await sendTextMessage(from, `📊 *Poll created*\n\n*${title}*\n\nOptions:\n${optList}\n\nReply with the number of your choice.`);
+    }
+    await addToHistory(from, "assistant", `Poll: ${title} — ${options.join(", ")}`);
+    await updateSession(from, { clarificationStreak: 0 });
+    return;
+  }
+
   const replyText = (formatAiResult(result, freshSession, link).text || "Something went wrong. Please try again.") + approvalDeliveryNote;
   await sendTextMessage(from, replyText);
   await addToHistory(from, "assistant", replyText);
@@ -427,6 +454,22 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (await handleHelpButton(from, buttonId)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
+
+  if (buttonId.startsWith("poll-vote:")) {
+    const optionIndex = parseInt(buttonId.split(":")[1] ?? "0", 10);
+    const currentSession = await getSession(from);
+    if (currentSession.activePoll) {
+      const { title, options, votes } = currentSession.activePoll;
+      const chosen = options[optionIndex] ?? options[0];
+      const newVotes = { ...votes, [chosen]: (votes[chosen] ?? 0) + 1 };
+      await updateSession(from, { activePoll: { ...currentSession.activePoll, votes: newVotes } });
+      const tally = options.map((o) => `• ${o}: ${newVotes[o] ?? 0}`).join("\n");
+      await sendTextMessage(from, `✅ Vote recorded: *${chosen}*\n\n📊 *${title}*\n${tally}`);
+    } else {
+      await sendTextMessage(from, "✅ Vote recorded!");
+    }
+    return;
+  }
 
   if (buttonId.startsWith("approve_")) {
     const requestId = buttonId.slice(8);

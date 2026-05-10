@@ -73,6 +73,47 @@ export async function sendInteractiveButtons(
   });
 }
 
+export type InteractiveListRow = {
+  id: string;
+  title: string;
+  description?: string;
+};
+
+// Sends a list-picker message for 4-10 options (too many for buttons).
+export async function sendInteractiveList(
+  to: string,
+  bodyText: string,
+  buttonLabel: string,
+  rows: InteractiveListRow[],
+  header?: string,
+  footer?: string,
+): Promise<void> {
+  const interactive: Record<string, unknown> = {
+    type: "list",
+    body: { text: bodyText.slice(0, 1024) },
+    action: {
+      button: buttonLabel.slice(0, 20),
+      sections: [{
+        title: "Options",
+        rows: rows.slice(0, 10).map((r) => ({
+          id: r.id.slice(0, 200),
+          title: r.title.slice(0, 24),
+          ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+        })),
+      }],
+    },
+  };
+  if (header) interactive.header = { type: "text", text: header.slice(0, 60) };
+  if (footer) interactive.footer = { text: footer.slice(0, 60) };
+
+  await postToGraph({
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive,
+  });
+}
+
 export async function downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
   const token = accessToken();
 

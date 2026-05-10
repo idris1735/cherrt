@@ -55,6 +55,7 @@ type MetaMessage = {
   interactive?: {
     type: "button_reply" | "list_reply";
     button_reply?: { id: string; title: string };
+    list_reply?: { id: string; title: string };
   };
 };
 
@@ -69,9 +70,9 @@ async function handlePayload(payload: MetaPayload): Promise<void> {
           messageId: msg.id,
           from: msg.from,
           type,
-          text: msg.text?.body ?? msg.interactive?.button_reply?.title,
+          text: msg.text?.body ?? msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title,
           mediaId: msg.image?.id ?? msg.document?.id ?? msg.audio?.id,
-          buttonReplyId: msg.interactive?.button_reply?.id,
+          buttonReplyId: msg.interactive?.button_reply?.id ?? msg.interactive?.list_reply?.id,
         });
       }
     }
