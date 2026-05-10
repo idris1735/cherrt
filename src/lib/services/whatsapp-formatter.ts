@@ -61,7 +61,7 @@ export function formatAiResult(
     } else {
       lines.push(``, `⏳ Pending approval.`);
       if (amount && session) {
-        lines.push(`💰 Demo balance: *${fmt(session.demoBalance - amount)}* remaining`);
+        lines.push(`💰 Demo balance: *${fmt(session.demoBalance)}* remaining`);
       }
     }
     return { text: lines.join("\n") };
@@ -79,7 +79,7 @@ export function formatAiResult(
     ].filter(Boolean);
 
     if (!isWorkspace && session) {
-      lines.push(``, `💰 Demo balance: *${fmt(session.demoBalance - amount)}* remaining`);
+      lines.push(``, `💰 Demo balance: *${fmt(session.demoBalance)}* remaining`);
     } else if (isWorkspace) {
       lines.push(``, `✅ Logged to your workspace records.`);
     }

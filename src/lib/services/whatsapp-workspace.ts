@@ -133,6 +133,8 @@ export async function persistWorkspaceAiResult(
       owner: result.generatedPoll.owner ?? userName,
       question_count: result.generatedPoll.questionCount ?? 1,
       response_count: 0,
+      target_count: result.generatedPoll.targetCount ?? 0,
+      status: result.generatedPoll.status ?? "active",
     }));
   }
 
@@ -142,7 +144,17 @@ export async function persistWorkspaceAiResult(
       workspace_id: workspaceId,
       name: result.generatedForm.name,
       owner: result.generatedForm.owner ?? userName,
-      submission_count: 0,
+      submissions: result.generatedForm.submissions ?? 0,
+    }));
+  }
+
+  if (result.generatedPaymentLink) {
+    writes.push(db.from("payment_links").upsert({
+      id: result.generatedPaymentLink.id,
+      workspace_id: workspaceId,
+      label: result.generatedPaymentLink.label,
+      amount: result.generatedPaymentLink.amount,
+      status: result.generatedPaymentLink.status ?? "generated",
     }));
   }
 

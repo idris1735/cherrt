@@ -104,6 +104,34 @@ describe("formatAiResult", () => {
     expect(text).toContain("50,000");
   });
 
+  it("uses the current demo balance after a request has been deducted", () => {
+    const result: AiCommandResult = {
+      reply: "",
+      generatedRequest: {
+        id: "req-1",
+        title: "Diesel supply request",
+        type: "supply",
+        status: "pending",
+        requester: "Guest",
+        amount: 50000,
+        description: "Request for diesel",
+        module: "toolkit",
+        createdAtLabel: "Today",
+        approvalSteps: [],
+      },
+    };
+
+    const { text } = formatAiResult(result, {
+      phoneNumber: "2348012345678",
+      welcomed: true,
+      demoBalance: 450000,
+      history: [],
+    });
+
+    expect(text).toContain("450,000");
+    expect(text).not.toContain("400,000");
+  });
+
   it("formats generated issue report", () => {
     const result: AiCommandResult = {
       reply: "",

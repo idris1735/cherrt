@@ -35,6 +35,7 @@ export type IncomingMessage = {
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
 const NAME_INTRO_RE = /^(?:i(?:'m| am)|my name is|call me)\s+([a-z][a-z\s'-]{1,30})/i;
+const GREETING_ONLY_RE = /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|start|menu)$/i;
 
 function extractName(text: string): string | null {
   const m = text.trim().match(NAME_INTRO_RE);
@@ -45,6 +46,12 @@ function extractName(text: string): string | null {
 
 function fmt(n: number) {
   return "₦" + n.toLocaleString("en-NG");
+}
+
+function shouldStopAfterWelcome(message: IncomingMessage, text: string) {
+  if (message.buttonReplyId || message.mediaId) return false;
+  if (!text) return true;
+  return GREETING_ONLY_RE.test(text);
 }
 
 // ─── Gemini Multimodal (voice + image) ───────────────────────────────────────
@@ -383,7 +390,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
     await sendTextMessage(from, link ? buildWorkspaceWelcome(link) : buildGuestWelcome(session.demoBalance));
-    return;
+    if (shouldStopAfterWelcome(message, trimmed)) return;
   }
 
   if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link); return; }

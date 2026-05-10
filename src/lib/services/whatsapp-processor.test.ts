@@ -52,6 +52,20 @@ describe("processWhatsAppMessage", () => {
     expect(welcomeText).toContain("auth/sign-in");
   });
 
+  it("does not discard a real command sent as the first message", async () => {
+    mockRun.mockResolvedValue({ reply: "Request captured." });
+
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request ₦85,000 for diesel" });
+
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Welcome to Chertt"));
+    expect(mockRun).toHaveBeenCalledWith(
+      "Request ₦85,000 for diesel",
+      expect.objectContaining({ role: "owner" }),
+      false,
+    );
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Request captured.");
+  });
+
   it("calls runCherttCommand and sends a reply for a text message after welcome", async () => {
     await skipWelcome();
     mockRun.mockResolvedValue({ reply: "Here is your answer." });

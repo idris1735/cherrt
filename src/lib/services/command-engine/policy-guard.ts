@@ -7,13 +7,17 @@ const capabilityAllowlistByRole: Partial<Record<Role, string[]>> = {
     "toolkit.smart-documents",
   ],
   operations: [
+    "toolkit.smart-documents",
     "toolkit.requests-approvals",
     "toolkit.inventory-management",
     "toolkit.issue-reporting",
+    "toolkit.polls-feedback",
     "toolkit.expense-logging",
     "toolkit.simple-forms",
     "toolkit.appointments",
+    "toolkit.faq",
     "toolkit.process-recall",
+    "toolkit.staff-onboarding",
     "toolkit.staff-directory",
   ],
   pastoral: [
@@ -55,4 +59,3 @@ export function evaluateCapabilityAccess(capabilityId: string, role: Role = "own
     reason: `Your current role (${role}) does not have permission to execute this action.`,
   };
 }
-

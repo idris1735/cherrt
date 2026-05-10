@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 
 export type WhatsAppSession = {
   phoneNumber: string;
@@ -34,10 +34,7 @@ const DEMO_STARTING_BALANCE = 500_000;
 const sessions = new Map<string, WhatsAppSession>();
 
 function getDb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
+  return getSupabaseServerClient();
 }
 
 function toSession(row: DbRow): WhatsAppSession {
