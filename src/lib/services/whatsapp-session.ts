@@ -13,6 +13,7 @@ export type WhatsAppSession = {
   pendingApproval?: {
     requestId: string;
     requestTitle: string;
+    requesterPhone?: string;
   };
   history: Array<{ role: "user" | "assistant"; text: string }>;
 };

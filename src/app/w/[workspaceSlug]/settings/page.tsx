@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useToast } from "@/components/providers/toast-provider";
@@ -104,6 +104,10 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [balance, setBalance] = useState(0);
+  const [waPhone, setWaPhone] = useState<string | null>(null);
+  const [waInput, setWaInput] = useState("");
+  const [waSaving, setWaSaving] = useState(false);
+  const [waMsg, setWaMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sigCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -222,6 +226,64 @@ export default function SettingsPage() {
       });
       setSaved(true);
     }, 450);
+  }
+
+  const loadWaPhone = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession?.access_token) return;
+    try {
+      const res = await fetch("/api/user/whatsapp-link", {
+        headers: { Authorization: `Bearer ${authSession.access_token}` },
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { phone: string | null };
+        setWaPhone(json.phone);
+        if (json.phone) setWaInput(json.phone);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void loadWaPhone(); }, [loadWaPhone]);
+
+  async function handleWaLink() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession?.access_token) { setWaMsg({ type: "error", text: "Sign in first to link WhatsApp." }); return; }
+    setWaSaving(true); setWaMsg(null);
+    try {
+      const res = await fetch("/api/user/whatsapp-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authSession.access_token}` },
+        body: JSON.stringify({
+          phoneNumber: waInput,
+          workspaceId: snapshot.workspace.id,
+          workspaceSlug: snapshot.workspace.slug,
+          workspaceName: snapshot.workspace.name,
+          userName: profile.fullName?.trim() || snapshot.membership.userName,
+          userRole: snapshot.membership.role,
+        }),
+      });
+      const json = (await res.json()) as { success?: boolean; phone?: string; error?: string };
+      if (!res.ok) { setWaMsg({ type: "error", text: json.error ?? "Failed to link." }); }
+      else { setWaPhone(json.phone ?? waInput); setWaMsg({ type: "success", text: "WhatsApp linked! Message the Chertt number to connect." }); }
+    } catch { setWaMsg({ type: "error", text: "Network error. Please try again." }); }
+    finally { setWaSaving(false); }
+  }
+
+  async function handleWaUnlink() {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    if (!authSession?.access_token) return;
+    setWaSaving(true); setWaMsg(null);
+    try {
+      await fetch("/api/user/whatsapp-link", { method: "DELETE", headers: { Authorization: `Bearer ${authSession.access_token}` } });
+      setWaPhone(null); setWaInput(""); setWaMsg({ type: "success", text: "WhatsApp unlinked." });
+    } catch { setWaMsg({ type: "error", text: "Failed to unlink." }); }
+    finally { setWaSaving(false); }
   }
 
   async function handleLogout() {
@@ -532,6 +594,44 @@ export default function SettingsPage() {
           </div>
         ) : (
           <p className={styles.emptyNote}>No wallet activity yet.</p>
+        )}
+      </section>
+
+      {/* WhatsApp */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>WhatsApp</h2>
+        <p style={{ margin: "0 0 12px", fontSize: "0.78rem", color: "var(--ch-muted)" }}>
+          Link your WhatsApp number to use Chertt directly from WhatsApp. Every request, expense, and document you create in WhatsApp will save to this workspace.
+        </p>
+        {waPhone ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid oklch(0.52 0.18 145 / 40%)", borderRadius: 8, background: "oklch(0.52 0.18 145 / 6%)" }}>
+              <span style={{ fontSize: "1rem" }}>✅</span>
+              <div>
+                <p style={{ margin: 0, fontSize: "0.82rem", fontWeight: 600, color: "var(--ch-text)" }}>Connected</p>
+                <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--ch-muted)" }}>{waPhone}</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className={styles.input} onChange={(e) => setWaInput(e.target.value)} placeholder="Change number (e.g. 2348012345678)" style={{ flex: 1 }} type="tel" value={waInput} />
+              <button className={styles.softButton} disabled={waSaving || !waInput.trim()} onClick={() => void handleWaLink()} style={{ whiteSpace: "nowrap" }} type="button">{waSaving ? "Saving…" : "Update"}</button>
+            </div>
+            <button onClick={() => void handleWaUnlink()} style={{ alignSelf: "flex-start", background: "transparent", border: "none", color: "var(--ch-muted)", cursor: "pointer", fontSize: "0.74rem", padding: 0, textDecoration: "underline" }} type="button">Unlink WhatsApp</button>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            <label className={styles.field} htmlFor="wa-phone">
+              <span className={styles.fieldLabel}>Your WhatsApp number</span>
+              <input className={styles.input} id="wa-phone" onChange={(e) => setWaInput(e.target.value)} placeholder="e.g. 2348012345678 (include country code)" type="tel" value={waInput} />
+              <small className={styles.helper}>Use the full number with country code, no spaces or dashes. Nigeria: 234 followed by your number without the leading 0.</small>
+            </label>
+            <button className={styles.softButton} disabled={waSaving || !waInput.trim()} onClick={() => void handleWaLink()} style={{ alignSelf: "flex-start" }} type="button">{waSaving ? "Linking…" : "Link WhatsApp"}</button>
+          </div>
+        )}
+        {waMsg && (
+          <p style={{ margin: "8px 0 0", fontSize: "0.77rem", color: waMsg.type === "success" ? "oklch(0.52 0.18 145)" : "oklch(0.55 0.22 25)", fontWeight: 500 }}>
+            {waMsg.text}
+          </p>
         )}
       </section>
 

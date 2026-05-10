@@ -3,11 +3,22 @@ import { resetSessions, updateSession } from "@/lib/services/whatsapp-session";
 
 vi.mock("@/lib/services/whatsapp", () => ({
   sendTextMessage: vi.fn().mockResolvedValue(undefined),
+  sendInteractiveButtons: vi.fn().mockResolvedValue(undefined),
   downloadMedia: vi.fn().mockResolvedValue({ buffer: Buffer.from(""), mimeType: "image/jpeg" }),
 }));
 
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
+}));
+
+vi.mock("@/lib/services/whatsapp-workspace", () => ({
+  lookupPhoneLink: vi.fn().mockResolvedValue(null),
+  persistWorkspaceAiResult: vi.fn().mockResolvedValue(undefined),
+  getApproverPhone: vi.fn().mockResolvedValue(null),
+  approveWorkspaceRequest: vi.fn().mockResolvedValue(true),
+  rejectWorkspaceRequest: vi.fn().mockResolvedValue(true),
+  getWorkflowRequest: vi.fn().mockResolvedValue(null),
+  loadWorkspaceContext: vi.fn().mockResolvedValue({ pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [] }),
 }));
 
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
@@ -84,7 +95,7 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "cancel" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, "Cancelled.");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
   });
 
   it("CONFIRM re-runs the pending command with confirmed=true", async () => {
@@ -108,10 +119,10 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).toHaveBeenLastCalledWith("Draft a vendor letter", expect.anything(), true);
   });
 
-  it("sends 'not supported' reply for audio messages", async () => {
+  it("sends error reply for audio messages without media ID", async () => {
     await skipWelcome();
     await processWhatsAppMessage({ from: PHONE, type: "audio" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Voice messages"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("voice note"));
     expect(mockRun).not.toHaveBeenCalled();
   });
 
