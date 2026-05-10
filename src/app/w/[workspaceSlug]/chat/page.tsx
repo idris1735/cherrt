@@ -468,15 +468,21 @@ export default function ChatPage() {
     }));
 
     try {
+      const supabase = getSupabaseBrowserClient();
+      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+      const authHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) authHeaders["Authorization"] = `Bearer ${session.access_token}`;
+
       const response = await fetch("/api/command", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({
           prompt: cleanPrompt,
           confirmed: opts.confirmed ?? false,
           context: {
             role: snapshot.membership.role,
             enabledModules: snapshot.workspace.modules,
+            workspaceSlug: snapshot.workspace.slug,
             userName: (() => { const p = typeof window !== "undefined" ? getActiveUserProfile() : null; return p?.signatureName || p?.fullName || snapshot.membership.userName; })(),
             userTitle: (typeof window !== "undefined" ? getActiveUserProfile()?.jobTitle : undefined) ?? snapshot.membership.title,
             userOrganization: (typeof window !== "undefined" ? getActiveUserProfile()?.organization : undefined) ?? snapshot.workspace.name,

@@ -7,6 +7,7 @@ import {
   loadWorkspaceSnapshotFromSupabase,
   persistAiResult,
   persistApprovedRequest,
+  persistRejectedRequest,
   persistConversation,
   persistConversationMessage,
   persistSmartDocumentDraft,
@@ -34,6 +35,7 @@ import type {
 type AppAction =
   | { type: "hydrate"; snapshot: WorkspaceSnapshot }
   | { type: "approve-request"; requestId: string }
+  | { type: "reject-request"; requestId: string }
   | { type: "create-conversation"; conversation: Conversation }
   | { type: "rename-conversation"; conversationId: string; title: string }
   | { type: "delete-conversation"; conversationId: string }
@@ -67,6 +69,24 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
             kind: "system",
             title: "Approval recorded",
             detail: "A workflow item moved to approved.",
+            timeLabel: "Now",
+            read: false,
+          },
+          ...state.notifications,
+        ],
+      };
+    case "reject-request":
+      return {
+        ...state,
+        requests: state.requests.map((request) =>
+          request.id === action.requestId ? { ...request, status: "flagged" } : request,
+        ),
+        notifications: [
+          {
+            id: `notif-${Date.now()}`,
+            kind: "system",
+            title: "Request flagged",
+            detail: "A workflow item was declined.",
             timeLabel: "Now",
             read: false,
           },
@@ -280,6 +300,7 @@ interface AppStateContextValue {
   primaryConversation: Conversation;
   workspaceHydrated: boolean;
   approveRequest: (requestId: string) => void;
+  rejectRequest: (requestId: string) => void;
   createConversation: (mode?: Conversation["mode"]) => string;
   renameConversation: (conversationId: string, title: string) => void;
   deleteConversation: (conversationId: string) => void;
@@ -461,6 +482,10 @@ const value = useMemo<AppStateContextValue>(
       approveRequest: (requestId) => {
         dispatch({ type: "approve-request", requestId });
         void persistApprovedRequest(snapshotRef.current, requestId);
+      },
+      rejectRequest: (requestId) => {
+        dispatch({ type: "reject-request", requestId });
+        void persistRejectedRequest(snapshotRef.current, requestId);
       },
       createConversation: (mode = "ai") => {
         const id = crypto.randomUUID();

@@ -1,29 +1,42 @@
 "use client";
 
 import { PropsWithChildren, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { BrandMark } from "@/components/shared/brand-mark";
+import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 
-// Demo mode: Supabase auth is wired but workspaces and user tables are not yet
-// deployed. Rather than blocking the entire demo with a hard redirect, we allow
-// access and show a brief loading shimmer while the check runs.
-// Switch REQUIRE_AUTH to true (and restore the full guard below) once Supabase
-// tables are live and real user onboarding is in place.
-const REQUIRE_AUTH = false;
+// The global-hub slug is the public demo workspace — always accessible without auth.
+const DEMO_SLUG = "global-hub";
 
 export function WorkspaceAccessGuard({
   children,
+  workspaceSlug,
 }: PropsWithChildren<{ workspaceSlug: string }>) {
-  const [ready, setReady] = useState(!REQUIRE_AUTH);
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
 
-  // Brief shimmer on first paint so the app doesn't flash unstyled content
   useEffect(() => {
-    if (!REQUIRE_AUTH) {
+    if (workspaceSlug === DEMO_SLUG) {
       setReady(true);
       return;
     }
-    // Future: real auth check goes here when REQUIRE_AUTH = true
-  }, []);
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      // Supabase not configured (local dev without env vars) — allow through.
+      setReady(true);
+      return;
+    }
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.replace(`/auth/sign-in`);
+      } else {
+        setReady(true);
+      }
+    });
+  }, [workspaceSlug, router]);
 
   if (!ready) {
     return (

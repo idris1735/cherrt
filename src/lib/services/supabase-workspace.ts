@@ -1180,3 +1180,26 @@ export async function persistApprovedRequest(snapshot: WorkspaceSnapshot, reques
 
   return true;
 }
+
+export async function persistRejectedRequest(snapshot: WorkspaceSnapshot, requestId: string) {
+  const supabase = getSupabaseBrowserClient() as any;
+  if (!supabase || !(await isTableAvailable("workflow_requests"))) {
+    return false;
+  }
+
+  const workspace = await resolveWorkspaceRowForWrite(snapshot);
+  if (!workspace) return false;
+
+  const { error } = await supabase
+    .from("workflow_requests")
+    .update({ status: "flagged" })
+    .eq("id", requestId)
+    .eq("workspace_id", workspace.id);
+
+  if (error) {
+    console.error("Supabase request rejection failed:", error.message);
+    return false;
+  }
+
+  return true;
+}

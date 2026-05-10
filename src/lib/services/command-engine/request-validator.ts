@@ -6,6 +6,7 @@ export type CommandRequestContext = {
   userName?: string;
   userTitle?: string;
   userOrganization?: string;
+  workspaceSlug?: string;
 };
 
 export type HistoryMessage = { speaker: string; text: string };
@@ -79,6 +80,10 @@ function normalizeContext(value: unknown): CommandRequestContext | null {
 
   if (typeof objectValue.userOrganization === "string" && objectValue.userOrganization.trim()) {
     context.userOrganization = objectValue.userOrganization.trim().slice(0, 120);
+  }
+
+  if (typeof objectValue.workspaceSlug === "string" && objectValue.workspaceSlug.trim()) {
+    context.workspaceSlug = objectValue.workspaceSlug.trim().slice(0, 120);
   }
 
   if (objectValue.enabledModules !== undefined) {
