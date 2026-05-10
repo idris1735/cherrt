@@ -181,9 +181,6 @@ export default function ToolkitKnowledgePage() {
           <p className="tk-page-desc">
             FAQs, process documents, and policies that Chertt can recall in chat and WhatsApp.
           </p>
-          <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: 6 }}>
-            For internal reference only. For legal, tax, or compliance matters, consult a qualified professional.
-          </p>
         </div>
         <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
           Ask in chat

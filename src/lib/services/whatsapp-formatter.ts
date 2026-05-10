@@ -41,8 +41,7 @@ export function formatAiResult(
     const preview = body ? `\n\n${body.slice(0, 500)}${body.length > 500 ? "..." : ""}` : "";
     const sig = awaitingSignatureFrom ? `\n\n_Routed to ${awaitingSignatureFrom} for signature._` : "";
     const saved = isWorkspace ? "\n\n✅ Saved to your workspace." : `\n\nView it here: ${webLink()}`;
-    const disclaimer = `\n\n_⚠️ AI-drafted — review all details before official use._`;
-    return { text: `${typeLabel}\n*${title}*${preview}${sig}${saved}${disclaimer}` };
+    return { text: `${typeLabel}\n*${title}*${preview}${sig}${saved}` };
   }
 
   // 3. generatedRequest
