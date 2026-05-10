@@ -119,7 +119,7 @@ export async function bootstrapWorkspaceFromDraft(): Promise<BootstrapResult> {
   const workspaceSlug = slugifyWorkspaceName(workspaceName);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Lagos";
 
-  const { error } = await supabase.rpc("bootstrap_workspace", {
+  const { data: finalSlug, error } = await supabase.rpc("bootstrap_workspace", {
     p_slug: workspaceSlug,
     p_name: workspaceName,
     p_legal_name: draft.fields.orgName?.trim() || workspaceName,
@@ -134,12 +134,13 @@ export async function bootstrapWorkspaceFromDraft(): Promise<BootstrapResult> {
     return { status: "error", message: error.message };
   }
 
-  rememberLastWorkspaceSlug(workspaceSlug);
+  const resolvedSlug = (typeof finalSlug === "string" && finalSlug) ? finalSlug : workspaceSlug;
+  rememberLastWorkspaceSlug(resolvedSlug);
   clearOnboardingDraft();
 
   return {
     status: "ready",
-    slug: workspaceSlug,
+    slug: resolvedSlug,
     selectedModule: draft.selectedModule,
   };
 }

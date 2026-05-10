@@ -70,10 +70,11 @@ export function SimpleSignUpForm() {
     if (!data.session) {
       notify({
         tone: "success",
-        title: "Account created",
-        description: "Confirm your email to activate your account, then sign in.",
+        title: "Check your email",
+        description: "We sent a confirmation link. Open it, then sign in here to continue setup.",
       });
       setLoading(false);
+      router.push("/auth/sign-in");
       return;
     }
 
