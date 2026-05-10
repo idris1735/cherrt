@@ -18,9 +18,11 @@ import {
   rejectWorkspaceRequest,
   getWorkflowRequest,
   loadWorkspaceContext,
+  loadKnowledgeContext,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
+import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
@@ -152,11 +154,12 @@ function buildGuestContext(session: WhatsAppSession, mediaDataUrl?: string): Com
     "Encourage sign-up occasionally: " + APP_URL + "/auth/sign-in",
   ];
   if (mediaDataUrl) parts.push("Attached media: " + mediaDataUrl);
+  const knowledgeContext = buildKnowledgeContextString(demoKnowledgeArticles);
   return {
     role: "owner",
     userName: session.userName,
     history: session.history.map((h) => ({ speaker: h.role === "user" ? "user" : "assistant", text: h.text })),
-    memoryContext: parts.join(" "),
+    memoryContext: parts.join(" ") + "\n\n" + knowledgeContext,
   };
 }
 
@@ -165,6 +168,7 @@ function buildWorkspaceCtx(
   ctx: WorkspaceContext,
   session: WhatsAppSession,
   mediaDataUrl?: string,
+  knowledgeStr?: string,
 ): CommandExecutionContext {
   const parts: string[] = [
     "Channel: WhatsApp. Workspace: " + link.workspaceName + ". User: " + link.userName + " (" + link.userRole + ").",
@@ -188,7 +192,7 @@ function buildWorkspaceCtx(
     role,
     userName: link.userName,
     history: session.history.map((h) => ({ speaker: h.role === "user" ? "user" : "assistant", text: h.text })),
-    memoryContext: parts.join(" "),
+    memoryContext: parts.join(" ") + (knowledgeStr ? "\n\n" + knowledgeStr : ""),
   };
 }
 
@@ -300,7 +304,7 @@ async function handleConfirm(from: string, session: WhatsAppSession, link: Phone
   await clearPending(from);
   const freshSession = await getSession(from);
   let context: CommandExecutionContext;
-  if (link) { const ctx = await loadWorkspaceContext(link.workspaceId); context = buildWorkspaceCtx(link, ctx, freshSession); }
+  if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, undefined, kb); }
   else { context = buildGuestContext(freshSession); }
   const result = await runCherttCommand(originalPrompt, context, true);
   await handleAiResult(from, result, originalPrompt, freshSession, link);
@@ -343,7 +347,7 @@ async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppS
   await addToHistory(from, "user", "[Voice] " + display);
   const freshSession = await getSession(from);
   let context: CommandExecutionContext;
-  if (link) { const ctx = await loadWorkspaceContext(link.workspaceId); context = buildWorkspaceCtx(link, ctx, freshSession); }
+  if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, undefined, kb); }
   else { context = buildGuestContext(freshSession); }
   const result = await runCherttCommand(transcript, context, false);
   await handleAiResult(from, result, transcript, freshSession, link);
@@ -430,7 +434,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     await addToHistory(from, "user", prompt);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;
-    if (link) { const ctx = await loadWorkspaceContext(link.workspaceId); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl); }
+    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl, kb); }
     else { context = buildGuestContext(freshSession, mediaDataUrl); }
     const result = await runCherttCommand(prompt, context, false);
     await handleAiResult(from, result, prompt, freshSession, link);
@@ -446,7 +450,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     await addToHistory(from, "user", prompt);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;
-    if (link) { const ctx = await loadWorkspaceContext(link.workspaceId); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl); }
+    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl, kb); }
     else { context = buildGuestContext(freshSession, mediaDataUrl); }
     const result = await runCherttCommand(prompt, context, false);
     await handleAiResult(from, result, prompt, freshSession, link);
@@ -457,7 +461,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     await addToHistory(from, "user", trimmed);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;
-    if (link) { const ctx = await loadWorkspaceContext(link.workspaceId); context = buildWorkspaceCtx(link, ctx, freshSession); }
+    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, undefined, kb); }
     else { context = buildGuestContext(freshSession); }
     const result = await runCherttCommand(trimmed, context, false);
     await handleAiResult(from, result, trimmed, freshSession, link);

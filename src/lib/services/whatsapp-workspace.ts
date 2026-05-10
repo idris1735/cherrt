@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
+import { buildKnowledgeContextString, demoKnowledgeArticles, type KnowledgeArticle } from "@/lib/data/knowledge";
 import type { AiCommandResult } from "@/lib/types";
 
 export type PhoneLink = {
@@ -195,6 +196,28 @@ export async function rejectWorkspaceRequest(requestId: string): Promise<boolean
   if (!db) return false;
   const { error } = await db.from("workflow_requests").update({ status: "flagged" }).eq("id", requestId);
   return !error;
+}
+
+export async function loadKnowledgeContext(workspaceId: string): Promise<string> {
+  const db = getSupabaseServerClient();
+  if (!db) return buildKnowledgeContextString(demoKnowledgeArticles);
+
+  const { data } = await db
+    .from("toolkit_knowledge_articles")
+    .select("id, type, title, body, tags")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: true });
+
+  const articles: KnowledgeArticle[] = (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    type: r.type as KnowledgeArticle["type"],
+    title: r.title as string,
+    body: r.body as string,
+    tags: (r.tags as string[]) ?? [],
+  }));
+
+  // Fall back to demo KB if workspace hasn't seeded its own yet
+  return buildKnowledgeContextString(articles.length ? articles : demoKnowledgeArticles);
 }
 
 export async function getWorkflowRequest(
