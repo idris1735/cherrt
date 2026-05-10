@@ -101,6 +101,7 @@ export interface IssueReport {
   status: WorkflowStatus;
   mediaCount: number;
   reportedBy: string;
+  attachments: string[];
 }
 
 export interface ExpenseEntry {
@@ -110,6 +111,7 @@ export interface ExpenseEntry {
   amount: number;
   receiptCount: number;
   status: WorkflowStatus;
+  attachments: string[];
 }
 
 export interface FormDefinition {

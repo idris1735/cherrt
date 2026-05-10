@@ -17,6 +17,7 @@ describe("normalizeAiCommandResult", () => {
         status: "pending",
         mediaCount: 2,
         reportedBy: "Ops",
+        attachments: [],
       },
     });
 

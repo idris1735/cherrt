@@ -88,6 +88,7 @@ export type CommandExecutionContext = {
   enabledModules?: ModuleKey[];
   history?: Array<{ speaker: string; text: string }>;
   memoryContext?: string;
+  mediaAttachments?: Array<{ mimeType: string; data: string }>;
   userName?: string;
   userTitle?: string;
   userOrganization?: string;
@@ -284,6 +285,7 @@ async function callGemini(
   capabilityTitle: string,
   history?: Array<{ speaker: string; text: string }>,
   memoryContext?: string,
+  mediaAttachments?: Array<{ mimeType: string; data: string }>,
   userName?: string,
   userTitle?: string,
   userOrganization?: string,
@@ -311,7 +313,18 @@ async function callGemini(
     ? `\n\n[Workspace records]\n${memoryContext}`
     : "";
 
-  const contents = `${SYSTEM_PROMPT}${identityBlock}${historyBlock}${memoryBlock}\n\nCapability: ${capabilityId} (${capabilityTitle})\nUser: ${prompt}`;
+  const textPrompt = `${SYSTEM_PROMPT}${identityBlock}${historyBlock}${memoryBlock}\n\nCapability: ${capabilityId} (${capabilityTitle})\nUser: ${prompt}`;
+  const contents = mediaAttachments?.length
+    ? [{
+        role: "user",
+        parts: [
+          { text: textPrompt },
+          ...mediaAttachments.map((media) => ({
+            inlineData: { mimeType: media.mimeType, data: media.data },
+          })),
+        ],
+      }]
+    : textPrompt;
 
   const response = await client.models.generateContent({
     model: "gemini-2.5-flash",
@@ -439,6 +452,7 @@ function buildIssueReport(opts: {
     status: opts.status || "pending",
     mediaCount: 0,
     reportedBy: opts.reportedBy || "You",
+    attachments: [],
   };
 }
 
@@ -455,6 +469,7 @@ function buildExpenseEntry(opts: {
     amount: typeof opts.amount === "number" ? opts.amount : 0,
     receiptCount: 0,
     status: opts.status || "pending",
+    attachments: [],
   };
 }
 
@@ -1193,7 +1208,17 @@ export async function runCherttCommand(
   }
 
   try {
-    const gemini = await callGemini(prompt, capability.id, capability.title, context.history, context.memoryContext, context.userName, context.userTitle, context.userOrganization);
+    const gemini = await callGemini(
+      prompt,
+      capability.id,
+      capability.title,
+      context.history,
+      context.memoryContext,
+      context.mediaAttachments,
+      context.userName,
+      context.userTitle,
+      context.userOrganization,
+    );
 
     const author = resolveAuthor(context);
 

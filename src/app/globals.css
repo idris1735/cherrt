@@ -9590,6 +9590,49 @@ main {
   background: var(--ch-surface-soft);
 }
 
+@media print {
+  .tk-topbar,
+  .tk-sidebar,
+  .no-print {
+    display: none !important;
+  }
+  body { background: white !important; }
+  .tk-layout { display: block !important; }
+  .tk-main { padding: 0 !important; }
+  .tk-page { padding: 0 !important; max-width: 100% !important; }
+}
+
+/* File upload component */
+.file-upload { margin-top: 16px; }
+.file-upload__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.file-upload__thumb-link { display: block; border-radius: 8px; overflow: hidden; }
+.file-upload__thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.file-upload__file-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.file-upload__file-chip:hover { background: var(--line); }
+.file-upload__actions { display: flex; align-items: center; gap: 10px; }
+.file-upload__error { font-size: 0.8rem; color: #c0392b; }
+
 @media (max-width: 600px) {
   .ch-stat-strip {
     flex-wrap: wrap;

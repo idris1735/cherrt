@@ -193,6 +193,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       status: "in-progress",
       mediaCount: 3,
       reportedBy: "Taylor Brooks",
+      attachments: [],
     },
     {
       id: "issue-2",
@@ -202,6 +203,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       status: "pending",
       mediaCount: 1,
       reportedBy: "Security Desk",
+      attachments: [],
     },
   ],
   expenses: [
@@ -212,6 +214,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       amount: 24500,
       receiptCount: 2,
       status: "completed",
+      attachments: [],
     },
     {
       id: "exp-2",
@@ -220,6 +223,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       amount: 30000,
       receiptCount: 1,
       status: "pending",
+      attachments: [],
     },
     {
       id: "exp-3",
@@ -228,6 +232,7 @@ export const seedSnapshot: WorkspaceSnapshot = {
       amount: 18000,
       receiptCount: 1,
       status: "approved",
+      attachments: [],
     },
   ],
   forms: [

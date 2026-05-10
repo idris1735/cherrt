@@ -66,7 +66,7 @@ describe("buildRecordRows", () => {
   });
 
   it("maps issues correctly", () => {
-    const snap: WorkspaceSnapshot = { ...emptySnapshot, issues: [{ id: "iss-1", title: "Broken pipe", area: "Toilet", severity: "high" as const, status: "pending" as const, mediaCount: 0, reportedBy: "Sam" }] };
+    const snap: WorkspaceSnapshot = { ...emptySnapshot, issues: [{ id: "iss-1", title: "Broken pipe", area: "Toilet", severity: "high" as const, status: "pending" as const, mediaCount: 0, reportedBy: "Sam", attachments: [] }] };
     const rows = buildRecordRows(snap, "demo");
     expect(rows[0].type).toBe("Issue");
     expect(rows[0].href).toContain("/issues/iss-1");

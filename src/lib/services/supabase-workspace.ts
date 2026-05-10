@@ -107,6 +107,7 @@ type IssueRow = {
   status: string;
   media_count: number;
   reported_by: string;
+  attachment_urls: string[];
 };
 
 type ExpenseRow = {
@@ -116,6 +117,7 @@ type ExpenseRow = {
   amount: number;
   receipt_count: number;
   status: string;
+  attachment_urls: string[];
 };
 
 type PollRow = {
@@ -273,6 +275,7 @@ function mapIssue(row: IssueRow): IssueReport {
     status: row.status as IssueReport["status"],
     mediaCount: row.media_count,
     reportedBy: row.reported_by,
+    attachments: row.attachment_urls ?? [],
   };
 }
 
@@ -284,6 +287,7 @@ function mapExpense(row: ExpenseRow): ExpenseEntry {
     amount: row.amount,
     receiptCount: row.receipt_count,
     status: row.status as ExpenseEntry["status"],
+    attachments: row.attachment_urls ?? [],
   };
 }
 
@@ -647,14 +651,14 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     canLoadIssues
       ? supabase
           .from("toolkit_issue_reports")
-          .select("id, title, area, severity, status, media_count, reported_by")
+          .select("id, title, area, severity, status, media_count, reported_by, attachment_urls")
           .eq("workspace_id", workspaceRow.id)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as IssueRow[], error: null }),
     canLoadExpenses
       ? supabase
           .from("toolkit_expense_entries")
-          .select("id, title, department, amount, receipt_count, status")
+          .select("id, title, department, amount, receipt_count, status, attachment_urls")
           .eq("workspace_id", workspaceRow.id)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as ExpenseRow[], error: null }),

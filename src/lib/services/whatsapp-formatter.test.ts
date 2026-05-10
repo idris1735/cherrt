@@ -58,6 +58,7 @@ describe("formatAiResult", () => {
         amount: 15000,
         receiptCount: 0,
         status: "pending",
+        attachments: [],
       },
     };
     const { text } = formatAiResult(result);
@@ -143,6 +144,7 @@ describe("formatAiResult", () => {
         status: "pending",
         reportedBy: "Guest",
         mediaCount: 0,
+        attachments: [],
       },
     };
     const { text } = formatAiResult(result);

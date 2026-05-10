@@ -19,6 +19,7 @@ import {
   getWorkflowRequest,
   loadWorkspaceContext,
   loadKnowledgeContext,
+  claimWhatsAppMessage,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
@@ -26,6 +27,7 @@ import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/k
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
+  messageId?: string;
   from: string;
   type: "text" | "image" | "document" | "audio" | "interactive" | "unknown";
   text?: string;
@@ -150,7 +152,10 @@ function buildWorkspaceWelcome(link: PhoneLink): string {
 
 // ─── Context Builders ─────────────────────────────────────────────────────────
 
-function buildGuestContext(session: WhatsAppSession, mediaDataUrl?: string): CommandExecutionContext {
+function buildGuestContext(
+  session: WhatsAppSession,
+  mediaAttachment?: { mimeType: string; data: string },
+): CommandExecutionContext {
   const name = session.userName ? "The user name is " + session.userName + "." : "The user has not shared their name yet.";
   const parts = [
     "Channel: WhatsApp. User is in guest/demo mode.",
@@ -160,12 +165,13 @@ function buildGuestContext(session: WhatsAppSession, mediaDataUrl?: string): Com
     "If user is chatting casually respond warmly. Do NOT create artifacts for casual conversation.",
     "Encourage sign-up occasionally: " + APP_URL + "/auth/sign-in",
   ];
-  if (mediaDataUrl) parts.push("Attached media: " + mediaDataUrl);
+  if (mediaAttachment) parts.push("Attached media is provided to Gemini as inlineData. Inspect it before creating the record.");
   const knowledgeContext = buildKnowledgeContextString(demoKnowledgeArticles);
   return {
     role: "owner",
     userName: session.userName,
     history: session.history.map((h) => ({ speaker: h.role === "user" ? "user" : "assistant", text: h.text })),
+    mediaAttachments: mediaAttachment ? [mediaAttachment] : undefined,
     memoryContext: parts.join(" ") + "\n\n" + knowledgeContext,
   };
 }
@@ -174,7 +180,7 @@ function buildWorkspaceCtx(
   link: PhoneLink,
   ctx: WorkspaceContext,
   session: WhatsAppSession,
-  mediaDataUrl?: string,
+  mediaAttachment?: { mimeType: string; data: string },
   knowledgeStr?: string,
 ): CommandExecutionContext {
   const parts: string[] = [
@@ -193,12 +199,13 @@ function buildWorkspaceCtx(
   if (ctx.pendingIssues.length) {
     parts.push("Open issues: " + ctx.pendingIssues.map((i) => i.title + " [" + i.severity + "]").join(", ") + ".");
   }
-  if (mediaDataUrl) parts.push("Attached media: " + mediaDataUrl);
+  if (mediaAttachment) parts.push("Attached media is provided to Gemini as inlineData. Inspect it before creating the record.");
   const role = link.userRole === "owner" || link.userRole === "admin" ? "owner" : "operations";
   return {
     role,
     userName: link.userName,
     history: session.history.map((h) => ({ speaker: h.role === "user" ? "user" : "assistant", text: h.text })),
+    mediaAttachments: mediaAttachment ? [mediaAttachment] : undefined,
     memoryContext: parts.join(" ") + (knowledgeStr ? "\n\n" + knowledgeStr : ""),
   };
 }
@@ -366,7 +373,7 @@ async function handleReceiptImage(from: string, receipt: ReceiptInfo, session: W
   if (link) {
     await persistWorkspaceAiResult(link.workspaceId, link.userName, {
       reply: "",
-      generatedExpenseEntry: { id: crypto.randomUUID(), title: description, department: "General", amount, receiptCount: 1, status: "pending" },
+      generatedExpenseEntry: { id: crypto.randomUUID(), title: description, department: "General", amount, receiptCount: 1, status: "pending", attachments: [] },
     });
     const lines = ["🧾 *Receipt scanned*", "", "• Merchant: " + merchant, "• Amount: *" + fmt(amount) + "*", items ? "• Items: " + items : null, "", "✅ Logged to your workspace expenses."].filter(Boolean);
     await sendTextMessage(from, lines.join("\n"));
@@ -384,6 +391,9 @@ async function handleReceiptImage(from: string, receipt: ReceiptInfo, session: W
 
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
   const { from, type } = message;
+  const claimed = await claimWhatsAppMessage(message.messageId, from, type);
+  if (!claimed) return;
+
   const [session, link] = await Promise.all([getSession(from), lookupPhoneLink(from)]);
   const trimmed = (message.text ?? "").trim();
 
@@ -436,13 +446,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     catch { await sendTextMessage(from, "Could not download that image. Please try again."); return; }
     const receipt = await extractReceiptInfo(buffer, mimeType);
     if (receipt) { await handleReceiptImage(from, receipt, session, link); return; }
-    const mediaDataUrl = "data:" + mimeType + ";base64," + buffer.toString("base64");
+    const mediaAttachment = { mimeType, data: buffer.toString("base64") };
     const prompt = trimmed || "[image]";
     await addToHistory(from, "user", prompt);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;
-    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl, kb); }
-    else { context = buildGuestContext(freshSession, mediaDataUrl); }
+    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaAttachment, kb); }
+    else { context = buildGuestContext(freshSession, mediaAttachment); }
     const result = await runCherttCommand(prompt, context, false);
     await handleAiResult(from, result, prompt, freshSession, link);
     return;
@@ -452,13 +462,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let buffer: Buffer; let mimeType: string;
     try { ({ buffer, mimeType } = await downloadMedia(message.mediaId)); }
     catch { await sendTextMessage(from, "Could not download that file. Please try again."); return; }
-    const mediaDataUrl = "data:" + mimeType + ";base64," + buffer.toString("base64");
+    const mediaAttachment = { mimeType, data: buffer.toString("base64") };
     const prompt = trimmed || "[document attachment]";
     await addToHistory(from, "user", prompt);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;
-    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaDataUrl, kb); }
-    else { context = buildGuestContext(freshSession, mediaDataUrl); }
+    if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, mediaAttachment, kb); }
+    else { context = buildGuestContext(freshSession, mediaAttachment); }
     const result = await runCherttCommand(prompt, context, false);
     await handleAiResult(from, result, prompt, freshSession, link);
     return;

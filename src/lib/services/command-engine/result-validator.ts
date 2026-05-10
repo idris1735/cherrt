@@ -160,6 +160,7 @@ function normalizeIssue(issue: AiCommandResult["generatedIssueReport"]) {
     reportedBy: toCleanString(issue.reportedBy, "You"),
     status: toStatus(issue.status),
     mediaCount: typeof issue.mediaCount === "number" && Number.isFinite(issue.mediaCount) ? Math.max(0, Math.round(issue.mediaCount)) : 0,
+    attachments: [],
   };
 }
 
@@ -179,6 +180,7 @@ function normalizeExpense(expense: ExpenseEntry | undefined) {
       typeof expense.receiptCount === "number" && Number.isFinite(expense.receiptCount)
         ? Math.max(0, Math.round(expense.receiptCount))
         : 0,
+    attachments: [],
   } satisfies ExpenseEntry;
 }
 

@@ -175,7 +175,7 @@ export default function ToolkitDocumentDetailPage() {
 
   return (
     <div className="tk-page">
-      <div className="tk-card">
+      <div className="tk-card no-print">
         <div className="tk-card-head">
           <Link className="tk-inline-link" href={`${base}/documents`}>← Documents</Link>
           <StatusPill status={document.status} />
@@ -221,9 +221,10 @@ export default function ToolkitDocumentDetailPage() {
         </div>
       )}
 
-      <div className="tk-card">
+      <div className="tk-card no-print">
         <div className="tk-card__actions">
           <Link className="button button--primary" href={chatHref}>Edit in chat →</Link>
+          <button className="button button--ghost" onClick={() => window.print()}>Download PDF</button>
           <Link className="button button--ghost" href={`${base}/documents`}>All documents</Link>
         </div>
       </div>
