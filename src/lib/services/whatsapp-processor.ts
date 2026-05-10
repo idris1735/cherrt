@@ -38,6 +38,7 @@ export type IncomingMessage = {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
 const NAME_INTRO_RE = /^(?:i(?:'m| am)|my name is|call me)\s+([a-z][a-z\s'-]{1,30})/i;
 const GREETING_ONLY_RE = /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|start|menu)$/i;
+const HELP_RE = /^(?:help|help me|i need help|need help|pls help|please help|can (?:you|u) help(?: me)?|abeg(?: help(?: me)?)?|wetin i go do|i no (?:understand|sabi|know)|i dey (?:confused|lost)|menu|commands?|options?|start over|guide me|what can (?:you|u|chertt) do|how (?:do|can) i use (?:this|chertt)|i(?:'m| am)? (?:lost|confused|stuck)(?: .*)?|i don'?t (?:know|understand)(?: .*)?|not sure(?: .*)?)$/i;
 
 function extractName(text: string): string | null {
   const m = text.trim().match(NAME_INTRO_RE);
@@ -54,6 +55,73 @@ function shouldStopAfterWelcome(message: IncomingMessage, text: string) {
   if (message.buttonReplyId || message.mediaId) return false;
   if (!text) return true;
   return GREETING_ONLY_RE.test(text);
+}
+
+function buildHelpText(link: PhoneLink | null, session: WhatsAppSession): string {
+  const name = link?.userName || session.userName;
+  return [
+    name ? "*" + name + ", here is the simple menu.*" : "*Here is the simple menu.*",
+    "",
+    "Just send a normal message. Chertt will turn it into the right workflow.",
+    "",
+    "*Try any of these:*",
+    "1. *Request* - \"Request ₦85,000 for diesel\"",
+    "2. *Expense* - \"Log ₦15,000 transport expense\" or send a receipt photo",
+    "3. *Issue* - \"Report broken AC in reception\"",
+    "4. *Document* - \"Draft a letter to the landlord about rent\"",
+    "5. *Find info* - \"What is the process for office supplies?\"",
+    "",
+    "You can also send a voice note or photo. Type *status* to see pending work.",
+  ].join("\n");
+}
+
+async function sendHelpMenu(from: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
+  const text = buildHelpText(link, session);
+  try {
+    await sendInteractiveButtons(from, text, [
+      { id: "help_request", title: "Request" },
+      { id: "help_expense", title: "Expense" },
+      { id: "help_issue", title: "Issue" },
+    ], "Chertt menu");
+  } catch {
+    await sendTextMessage(from, text);
+  }
+  await addToHistory(from, "assistant", "Sent simple WhatsApp help menu");
+}
+
+async function handleHelpButton(from: string, buttonId: string): Promise<boolean> {
+  const guides: Record<string, string> = {
+    help_request: [
+      "*Request format*",
+      "",
+      "Reply like this:",
+      "\"Request ₦85,000 for diesel because the generator is low\"",
+      "",
+      "If you do not know the amount, say:",
+      "\"Request diesel for the generator\"",
+    ].join("\n"),
+    help_expense: [
+      "*Expense format*",
+      "",
+      "Reply like this:",
+      "\"Log ₦15,000 transport expense for Admin\"",
+      "",
+      "Or just send a receipt photo and Chertt will read it.",
+    ].join("\n"),
+    help_issue: [
+      "*Issue format*",
+      "",
+      "Reply like this:",
+      "\"Report broken AC in reception, urgent\"",
+      "",
+      "You can attach a photo or short video if it helps explain the problem.",
+    ].join("\n"),
+  };
+  const guide = guides[buttonId];
+  if (!guide) return false;
+  await sendTextMessage(from, guide);
+  await addToHistory(from, "assistant", guide);
+  return true;
 }
 
 // ─── Gemini Multimodal (voice + image) ───────────────────────────────────────
@@ -163,6 +231,8 @@ function buildGuestContext(
     name,
     "Demo balance: " + fmt(session.demoBalance) + " remaining. Mention the updated balance after any expense or request with an amount.",
     "If user is chatting casually respond warmly. Do NOT create artifacts for casual conversation.",
+    "Assume WhatsApp users may be non-technical. If the request is vague, ask one simple question or offer 2-3 concrete examples instead of sounding clever.",
+    "Nigerian Pidgin English is common — understand it and respond warmly in Pidgin if that is what the user uses. Also accept Yoruba, Hausa, or Igbo phrases mixed in and respond helpfully.",
     "Encourage sign-up occasionally: " + APP_URL + "/auth/sign-in",
   ];
   if (mediaAttachment) parts.push("Attached media is provided to Gemini as inlineData. Inspect it before creating the record.");
@@ -186,6 +256,8 @@ function buildWorkspaceCtx(
   const parts: string[] = [
     "Channel: WhatsApp. Workspace: " + link.workspaceName + ". User: " + link.userName + " (" + link.userRole + ").",
     "All actions create REAL records in the workspace.",
+    "Assume this WhatsApp user may be non-technical. Be explicit, forgiving of typos, and ask one simple question when details are missing.",
+    "Nigerian Pidgin English is common — understand it and respond warmly in Pidgin if that is what the user uses. Also accept Yoruba, Hausa, or Igbo phrases mixed in.",
   ];
   if (ctx.pendingRequests.length) {
     parts.push("Pending requests (" + ctx.pendingRequests.length + "): " + ctx.pendingRequests.map((r) => '"' + r.title + '"' + (r.amount ? " " + fmt(r.amount) : "") + " by " + r.requester).join("; ") + ".");
@@ -285,6 +357,8 @@ async function handleAiResult(
     });
   }
 
+  let approvalDeliveryNote = "";
+
   if (result.generatedRequest && link) {
     const approverPhone = await getApproverPhone(link.workspaceId);
     if (approverPhone && approverPhone !== from) {
@@ -301,13 +375,38 @@ async function handleAiResult(
       } catch {
         await sendTextMessage(approverPhone, body + "\n\nReply *APPROVE* or *REJECT* to decide.");
       }
+      approvalDeliveryNote = "\n\n✅ Approver notified on WhatsApp.";
+    } else if (approverPhone === from) {
+      approvalDeliveryNote = "\n\n⚠️ You are currently the linked approver for this workspace, so Chertt saved it to the approval queue for in-app review.";
+    } else {
+      approvalDeliveryNote = "\n\n⚠️ No approver WhatsApp number is linked yet. The request is saved, but an admin should link an approver in Settings before the demo approval flow.";
     }
   }
 
   const freshSession = await getSession(from);
-  const replyText = formatAiResult(result, freshSession, link).text || "Something went wrong. Please try again.";
+  const replyText = (formatAiResult(result, freshSession, link).text || "Something went wrong. Please try again.") + approvalDeliveryNote;
   await sendTextMessage(from, replyText);
   await addToHistory(from, "assistant", replyText);
+
+  // Circuit breaker — after 3 consecutive non-actionable AI replies, show the help menu
+  const hasArtifact = !!(
+    result.pendingConfirmation || result.generatedRequest || result.generatedDocument ||
+    result.generatedExpenseEntry || result.generatedIssueReport || result.generatedInventoryItem ||
+    result.generatedAppointment || result.generatedPoll || result.generatedForm ||
+    result.generatedPaymentLink || result.generatedPerson || result.generatedGivingRecord
+  );
+  if (hasArtifact) {
+    await updateSession(from, { clarificationStreak: 0 });
+  } else {
+    const streak = (freshSession.clarificationStreak ?? 0) + 1;
+    if (streak >= 3) {
+      await updateSession(from, { clarificationStreak: 0 });
+      const latestSession = await getSession(from);
+      await sendHelpMenu(from, latestSession, link);
+    } else {
+      await updateSession(from, { clarificationStreak: streak });
+    }
+  }
 }
 
 // ─── Confirm / Button Handlers ────────────────────────────────────────────────
@@ -325,6 +424,7 @@ async function handleConfirm(from: string, session: WhatsAppSession, link: Phone
 }
 
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
+  if (await handleHelpButton(from, buttonId)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
@@ -407,8 +507,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
+  if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^cancel$/i.test(trimmed)) { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) { await handleConfirm(from, session, link); return; }
+  if (/^no$/i.test(trimmed)) {
+    if (session.pendingConfirmation) { await clearPending(from); await sendTextMessage(from, "No problem — cancelled. What else can I help you with?"); }
+    else { await sendTextMessage(from, "Got it. What would you like to do instead?"); }
+    return;
+  }
 
   if (/^approve$/i.test(trimmed) && session.pendingApproval) {
     const requestId = session.pendingApproval.requestId;
@@ -438,6 +544,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
 
+  if (type === "unknown") { await sendTextMessage(from, "I received a message type I could not read. Please send text, a voice note, or a photo."); return; }
   if (!trimmed && !message.mediaId) { await sendTextMessage(from, "I did not catch that. Please type your request or send an image."); return; }
 
   if (type === "image" && message.mediaId) {

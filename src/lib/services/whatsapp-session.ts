@@ -16,6 +16,8 @@ export type WhatsAppSession = {
     requesterPhone?: string;
   };
   history: Array<{ role: "user" | "assistant"; text: string }>;
+  // In-memory only — not persisted to DB. Resets on cold start (acceptable).
+  clarificationStreak?: number;
 };
 
 type DbRow = {
