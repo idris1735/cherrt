@@ -111,7 +111,7 @@ export default function OnboardingPage() {
         </div>
 
         <div className="get-started-composer-wrap">
-          <Link aria-label="Try the Chertt demo" className="get-started-composer" href="/w/global-hub/chat">
+          <Link aria-label="Try the Chertt demo" className="get-started-composer" href="/w/global-hub/modules/toolkit">
             <span className="get-started-composer__plus" aria-hidden="true">
               +
             </span>

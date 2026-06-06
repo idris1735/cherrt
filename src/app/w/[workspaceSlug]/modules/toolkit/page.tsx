@@ -1,448 +1,419 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { type CSSProperties, useMemo, useState } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
+import { formatCurrency } from "@/lib/format";
+import { demoMetrics, type Period } from "@/lib/data/demo-metrics";
+import styles from "./dashboard.module.css";
 
-type HomeLink = {
-  href: string;
-  label: string;
-  hint: string;
-  accent: string;
-  tint: string;
-  icon: ReactNode;
-};
+/* ─── Helpers ─── */
 
-const quickActions: HomeLink[] = [
-  {
-    href: "/chat",
-    label: "Draft a letter",
-    hint: "Letters, memos, and signed documents",
-    accent: "#fa8300",
-    tint: "#fff3e0",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M8 4.5h5l3 3V19.5H8A2.5 2.5 0 0 1 5.5 17V7A2.5 2.5 0 0 1 8 4.5Z" />
-        <path d="M13 4.5v4h4M9 12h6M9 15h4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/chat",
-    label: "Request expense",
-    hint: "Raise approvals for cash and purchases",
-    accent: "#b56223",
-    tint: "#fdf0e3",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v10M14.5 9.5a2.5 2.5 0 0 0-5 0c0 1.4.9 2 2.5 2.5s2.5 1.1 2.5 2.5a2.5 2.5 0 0 1-5 0" />
-      </svg>
-    ),
-  },
-  {
-    href: "/chat",
-    label: "Report issue",
-    hint: "Capture facility and operations incidents",
-    accent: "#c0432a",
-    tint: "#fff0ea",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 9v4M12 17h.01M10.3 4.5 3 17h18L13.7 4.5a2 2 0 0 0-3.4 0Z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/chat",
-    label: "Log petty cash",
-    hint: "Record spend and attach receipts",
-    accent: "#705b45",
-    tint: "#f4efe9",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 7.5h16v9H4v-9Z" />
-        <path d="M8 12h8M7 4.5h10" />
-      </svg>
-    ),
-  },
-];
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
-const capabilityLinks: HomeLink[] = [
-  {
-    href: "/chat",
-    label: "AI command",
-    hint: "Turn natural language into tracked work",
-    accent: "#fa8300",
-    tint: "#fff3e0",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
-      </svg>
-    ),
-  },
-  {
-    href: "/documents",
-    label: "Smart documents",
-    hint: "Letters, invoices, signatures, and templates",
-    accent: "#a14f2d",
-    tint: "#fff3e0",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M8 4.5h5l3 3V19.5H8A2.5 2.5 0 0 1 5.5 17V7A2.5 2.5 0 0 1 8 4.5Z" />
-        <path d="M13 4.5v4h4M9 12h6M9 15h4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/requests",
-    label: "Requests & approvals",
-    hint: "Expenses, supplies, repairs, and decisions",
-    accent: "#8f5b2e",
-    tint: "#fcf4e7",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 4.5h6" />
-        <path d="M8 6.5h8A2.5 2.5 0 0 1 18.5 9v9A2.5 2.5 0 0 1 16 20.5H8A2.5 2.5 0 0 1 5.5 18V9A2.5 2.5 0 0 1 8 6.5Z" />
-        <path d="M8.5 11h7M8.5 14.5h7M8.5 18h4.5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/inventory",
-    label: "Inventory",
-    hint: "Store levels, releases, and reorder checks",
-    accent: "#2f6f82",
-    tint: "#edf7fa",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4.5 8.5 12 4l7.5 4.5v7L12 20l-7.5-4.5v-7Z" />
-        <path d="M12 11.5 19.5 8M12 11.5 4.5 8M12 11.5V20" />
-      </svg>
-    ),
-  },
-  {
-    href: "/issues",
-    label: "Issue reporting",
-    hint: "Facility, security, and incident reports",
-    accent: "#c0432a",
-    tint: "#fff0ea",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 9v4M12 17h.01M10.3 4.5 3 17h18L13.7 4.5a2 2 0 0 0-3.4 0Z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/feedback",
-    label: "Polls & feedback",
-    hint: "Surveys, reviews, and quick internal input",
-    accent: "#8f5b2e",
-    tint: "#fcf4e7",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 6.5h14v8H9l-4 4v-12Z" />
-        <path d="M9 10h6M9 7.5h4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/expenses",
-    label: "Petty cash",
-    hint: "Spend logs, receipts, and finance traceability",
-    accent: "#705b45",
-    tint: "#f4efe9",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 7.5h16v9H4v-9Z" />
-        <path d="M8 12h8M7 4.5h10" />
-      </svg>
-    ),
-  },
-  {
-    href: "/forms",
-    label: "Simple forms",
-    hint: "Custom internal forms for changing workflows",
-    accent: "#fa8300",
-    tint: "#fff3e0",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7.5 5.5h9A2.5 2.5 0 0 1 19 8v8.5A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5V8A2.5 2.5 0 0 1 7.5 5.5Z" />
-        <path d="M8.5 10h7M8.5 13.5h7M8.5 17h4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/appointments",
-    label: "Appointments",
-    hint: "Meetings, sign-off slots, and reminders",
-    accent: "#2f6f82",
-    tint: "#edf7fa",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7 4.5v3M17 4.5v3M5.5 8h13A1.5 1.5 0 0 1 20 9.5v9A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-9A1.5 1.5 0 0 1 5.5 8Z" />
-        <path d="M4 11.5h16" />
-      </svg>
-    ),
-  },
-  {
-    href: "/knowledge",
-    label: "FAQs & process docs",
-    hint: "Procedure notes, documents, and answers",
-    accent: "#705b45",
-    tint: "#f4efe9",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7.5 5.5h9A2.5 2.5 0 0 1 19 8v9.5A1.5 1.5 0 0 1 17.5 19H8a3 3 0 0 0-3 3V8A2.5 2.5 0 0 1 7.5 5.5Z" />
-        <path d="M9 10h6M9 13.5h5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/onboarding",
-    label: "Staff onboarding",
-    hint: "Starter checklists, links, and first-week tasks",
-    accent: "#b56223",
-    tint: "#fdf0e3",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="9" cy="8" r="2.5" />
-        <path d="M5.5 18a4 4 0 0 1 7 0M15.5 7.5h4M17.5 5.5v4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/directory",
-    label: "Staff directory",
-    hint: "People, roles, units, and contact details",
-    accent: "#fa8300",
-    tint: "#fff3e0",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="9" cy="8.5" r="3" />
-        <circle cx="16.5" cy="10" r="2.5" />
-        <path d="M4.5 19a5 5 0 0 1 9 0M13.5 18.5a4 4 0 0 1 6 0" />
-      </svg>
-    ),
-  },
-];
+function fmtPct(value: number): string {
+  const sign = value >= 0 ? "▲" : "▼";
+  return `${sign} ${Math.abs(value).toFixed(1)}%`;
+}
 
-export default function ToolkitHomePage() {
-  const { snapshot } = useAppState();
-  const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
-  const chatHref = `/w/${snapshot.workspace.slug}/chat`;
-  const resolveToolkitHref = (href: string) => (href === "/chat" ? chatHref : `${base}${href}`);
+function deltaClass(
+  value: number,
+  opts?: { dark?: boolean; goodWhenNegative?: boolean },
+): string {
+  const base = opts?.dark
+    ? `${styles["db-delta"]} ${styles["db-delta--dark"]}`
+    : styles["db-delta"];
+  const isGood = opts?.goodWhenNegative ? value < 0 : value >= 0;
+  return `${base} ${isGood ? styles["db-delta--up"] : styles["db-delta--down"]}`;
+}
 
-  const requests = snapshot.requests.filter((request) => request.module === "toolkit");
-  const pending = requests.filter((request) => request.status === "pending").length;
-  const openIssues = snapshot.issues.filter((issue) => issue.status !== "completed" && issue.status !== "approved").length;
-  const lowStock = snapshot.inventory.filter((item) => item.inStock <= item.minLevel).length;
-  const documentsAwaitingSignature = snapshot.documents.filter((document) => document.awaitingSignatureFrom).length;
-  const recentRequests = requests.slice(0, 2);
-  const recentActivity = snapshot.activities.filter((activity) => activity.module === "toolkit").slice(0, 4);
-  const attentionItems = [
-    {
-      href: `${base}/requests`,
-      title: `${pending} approvals waiting`,
-      note: "Move pending requests forward.",
-      visible: pending > 0,
-    },
-    {
-      href: `${base}/issues`,
-      title: `${openIssues} issues still open`,
-      note: "Review facility and incident reports.",
-      visible: openIssues > 0,
-    },
-    {
-      href: `${base}/documents`,
-      title: `${documentsAwaitingSignature} documents awaiting signature`,
-      note: "Follow up on files that need sign-off.",
-      visible: documentsAwaitingSignature > 0,
-    },
-    {
-      href: `${base}/inventory`,
-      title: `${lowStock} items near reorder level`,
-      note: "Check stock before requests are delayed.",
-      visible: lowStock > 0,
-    },
-  ].filter((item) => item.visible);
+/* ─── Trend chart (inline SVG, zero dependencies) ─── */
+
+function TrendChart({
+  series,
+  ariaLabel,
+}: {
+  series: { label: string; value: number }[];
+  ariaLabel: string;
+}) {
+  const W = 640;
+  const H = 260;
+  const PAD_L = 62;
+  const PAD_R = 20;
+  const PAD_T = 16;
+  const PAD_B = 28;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+
+  const maxVal = Math.max(...series.map((d) => d.value));
+  const gridLines = 4;
+
+  function niceMax(max: number): number {
+    if (max <= 0) return 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(max)));
+    const n = max / pow;
+    const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+    return nice * pow;
+  }
+
+  const yMax = niceMax(maxVal);
+
+  const xScale = (i: number) => PAD_L + (i / Math.max(series.length - 1, 1)) * plotW;
+  const yScale = (v: number) => PAD_T + plotH - (v / yMax) * plotH;
+
+  const points = series
+    .map((d, i) => `${xScale(i)},${yScale(d.value)}`)
+    .join(" ");
+
+  const areaD = [
+    `M ${xScale(0)} ${PAD_T + plotH}`,
+    ...series.map((d, i) => `L ${xScale(i)} ${yScale(d.value)}`),
+    `L ${xScale(series.length - 1)} ${PAD_T + plotH}`,
+    "Z",
+  ].join(" ");
+
+  const fmtY = (v: number) => {
+    if (v >= 1_000_000) return `₦${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `₦${(v / 1_000).toFixed(0)}K`;
+    return `₦${v}`;
+  };
 
   return (
-    <div className="tk-home">
-      <div className="tk-home__layout">
-        <aside className="tk-home__rail">
-          <section className="tk-home__section tk-home__section--wide">
-            <div className="tk-home__section-head">
-              <p className="tk-section-label">Everything in Business Toolkit</p>
-              <Link className="tk-section-link" href={`${base}/records`}>
-                Open records
-              </Link>
+    <div className={styles["db-chart-wrap"]}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel}>
+        {/* Grid lines */}
+        {Array.from({ length: gridLines }).map((_, i) => {
+          const v = Math.round((yMax / gridLines) * (i + 1));
+          const y = yScale(v);
+          return (
+            <g key={i}>
+              <line
+                x1={PAD_L}
+                y1={y}
+                x2={W - PAD_R}
+                y2={y}
+                stroke="#ebebeb"
+                strokeDasharray="4 3"
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={PAD_L - 8}
+                y={y + 4}
+                textAnchor="end"
+                fill="var(--ds-text-faint, #a3a3a3)"
+                fontSize="11"
+                fontFamily="system-ui, sans-serif"
+              >
+                {fmtY(v)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Area fill */}
+        <path d={areaD} fill="var(--ds-accent-weak, #fff4e8)" />
+
+        {/* Line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--ds-accent, #fa8300)"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Dots */}
+        {series.map((d, i) => (
+          <circle
+            key={i}
+            cx={xScale(i)}
+            cy={yScale(d.value)}
+            r="4"
+            fill="var(--ds-surface, #fff)"
+            stroke="var(--ds-accent, #fa8300)"
+            strokeWidth="2"
+          />
+        ))}
+
+        {/* X-axis labels */}
+        {series.map((d, i) => (
+          <text
+            key={i}
+            x={xScale(i)}
+            y={H - 6}
+            textAnchor="middle"
+            fill="var(--ds-text-faint, #a3a3a3)"
+            fontSize="10"
+            fontFamily="system-ui, sans-serif"
+          >
+            {d.label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Page ─── */
+
+export default function ToolkitDashboardPage() {
+  const { snapshot } = useAppState();
+  const [period, setPeriod] = useState<Period>("month");
+  const metrics = demoMetrics[period];
+  const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
+
+  // ── Live data from snapshot ──
+  const requests = useMemo(
+    () => snapshot.requests.filter((r) => r.module === "toolkit"),
+    [snapshot.requests],
+  );
+  const pendingApprovals = useMemo(
+    () => requests.filter((r) => r.status === "pending").length,
+    [requests],
+  );
+  const approvedCount = useMemo(
+    () => requests.filter((r) => r.status === "approved" || r.status === "completed").length,
+    [requests],
+  );
+  const openIssues = useMemo(
+    () => snapshot.issues.filter((i) => i.status !== "completed" && i.status !== "approved").length,
+    [snapshot.issues],
+  );
+  const lowStock = useMemo(
+    () => snapshot.inventory.filter((i) => i.inStock <= i.minLevel).length,
+    [snapshot.inventory],
+  );
+  const awaitingSig = useMemo(
+    () => snapshot.documents.filter((d) => d.awaitingSignatureFrom).length,
+    [snapshot.documents],
+  );
+  const recentActivity = useMemo(
+    () =>
+      snapshot.activities
+        .filter((a) => a.module === "toolkit")
+        .slice(0, 5),
+    [snapshot.activities],
+  );
+
+  const totalRequests = approvedCount + pendingApprovals;
+  const firstName = snapshot.membership.userName.split(" ")[0] ?? snapshot.membership.userName;
+
+  const periods: Period[] = ["today", "week", "month", "year"];
+
+  const periodLabel: Record<Period, string> = {
+    today: "yesterday",
+    week: "last week",
+    month: "last month",
+    year: "last year",
+  };
+
+  const chartAriaLabel = `Sales trend for ${period}: ${metrics.series.map((d) => `${d.label} ₦${d.value.toLocaleString()}`).join(", ")}`;
+
+  return (
+    <div className={styles.db}>
+      {/* ── Header ── */}
+      <div className={styles["db-header"]}>
+        <div className={styles["db-header-left"]}>
+          <h1 className={styles["db-greeting"]}>
+            {greeting()}, {firstName}
+          </h1>
+          <p className={styles["db-subtitle"]}>
+            Here&apos;s how {snapshot.workspace.name} is doing.
+          </p>
+        </div>
+
+        <div className={styles["db-period-group"]} aria-label="Period">
+          {periods.map((p) => (
+            <button
+              key={p}
+              aria-pressed={period === p}
+              className={styles["db-period-btn"]}
+              onClick={() => setPeriod(p)}
+            >
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Hero card ── */}
+      <div className={styles["db-hero"]}>
+        <div className={styles["db-hero-body"]}>
+          <span className={styles["db-hero-label"]}>Total sales</span>
+          <span className={styles["db-hero-value"]}>
+            {formatCurrency(metrics.totalSales, snapshot.workspace.currency)}
+          </span>
+          <span className={deltaClass(metrics.salesDeltaPct, { dark: true })}>
+            {fmtPct(metrics.salesDeltaPct)} vs {periodLabel[period]}
+          </span>
+        </div>
+        <Link
+          className={styles["db-hero-btn"]}
+          href={`${base}/records`}
+          aria-label="View sales detail"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 17 17 7" />
+            <path d="M7 7h10v10" />
+          </svg>
+        </Link>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div className={styles["db-stats"]}>
+        <div className={styles["db-stat"]}>
+          <span className={styles["db-stat-label"]}>Wallet balance</span>
+          <span className={styles["db-stat-value"]}>
+            {formatCurrency(metrics.walletBalance, snapshot.workspace.currency)}
+          </span>
+          <span className={styles["db-stat-sub"]}>
+            Cashback {formatCurrency(metrics.cashback, snapshot.workspace.currency)}
+          </span>
+        </div>
+
+        <div className={styles["db-stat"]}>
+          <span className={styles["db-stat-label"]}>Customers</span>
+          <span className={styles["db-stat-value"]}>{metrics.customers.toLocaleString()}</span>
+          <span className={deltaClass(metrics.customersDeltaPct)}>
+            {fmtPct(metrics.customersDeltaPct)} vs {periodLabel[period]}
+          </span>
+        </div>
+
+        <div className={styles["db-stat"]}>
+          <span className={styles["db-stat-label"]}>
+            {period === "today" ? "Spend today" : `Spend this ${period}`}
+          </span>
+          <span className={styles["db-stat-value"]}>
+            {formatCurrency(metrics.spend, snapshot.workspace.currency)}
+          </span>
+          <span className={deltaClass(metrics.spendDeltaPct, { goodWhenNegative: true })}>
+            {fmtPct(metrics.spendDeltaPct)} vs {periodLabel[period]}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Middle row: chart + needs you ── */}
+      <div className={styles["db-middle"]}>
+        <div className={styles["db-card"]}>
+          <div className={styles["db-card-head"]}>
+            <h2 className={styles["db-card-title"]}>Sales trend</h2>
+          </div>
+          <TrendChart series={metrics.series} ariaLabel={chartAriaLabel} />
+        </div>
+
+        <div className={styles["db-card"]}>
+          <div className={styles["db-card-head"]}>
+            <h2 className={styles["db-card-title"]}>Needs you now</h2>
+          </div>
+
+          {/* Approval progress bars */}
+          {totalRequests > 0 && (
+            <div className={styles["db-needs-progress"]}>
+              <div className={styles["db-progress-row"]}>
+                <span className={styles["db-progress-label"]}>
+                  <strong>Approved</strong> {approvedCount}
+                </span>
+                <div className={styles["db-progress-bar"]}>
+                  <div
+                    className={`${styles["db-progress-fill"]} ${styles["db-progress-fill--approved"]}`}
+                    style={{ width: `${totalRequests > 0 ? (approvedCount / totalRequests) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className={styles["db-progress-row"]}>
+                <span className={styles["db-progress-label"]}>
+                  <strong>Pending</strong> {pendingApprovals}
+                </span>
+                <div className={styles["db-progress-bar"]}>
+                  <div
+                    className={`${styles["db-progress-fill"]} ${styles["db-progress-fill--pending"]}`}
+                    style={{ width: `${totalRequests > 0 ? (pendingApprovals / totalRequests) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="tk-capability-grid">
-              {capabilityLinks.map((item) => (
-                <Link
-                  className="tk-capability"
-                  href={resolveToolkitHref(item.href)}
-                  key={item.label}
-                  style={
-                    {
-                      "--tk-cap-accent": item.accent,
-                      "--tk-cap-tint": item.tint,
-                    } as CSSProperties
-                  }
-                >
-                  <span className="tk-capability__icon">{item.icon}</span>
-                  <div className="tk-capability__body">
-                    <strong>{item.label}</strong>
-                    <span>{item.hint}</span>
-                  </div>
+          )}
+
+          {/* Attention list */}
+          <div className={styles["db-needs-list"]}>
+            {[
+              { count: pendingApprovals, label: "approvals waiting", href: `${base}/requests` },
+              { count: awaitingSig, label: "awaiting signature", href: `${base}/documents` },
+              { count: openIssues, label: "open issues", href: `${base}/issues` },
+              { count: lowStock, label: "low on stock", href: `${base}/inventory` },
+            ]
+              .filter((item) => item.count > 0)
+              .map((item) => (
+                <Link key={item.label} href={item.href} className={styles["db-needs-item"]}>
+                  <span>{item.label}</span>
+                  <span className={styles["db-needs-count"]}>{item.count}</span>
                 </Link>
               ))}
-            </div>
-          </section>
-        </aside>
 
-        <div className="tk-home__content">
-          <section className="tk-home__hero">
-            <div className="tk-home__lede">
-              <p className="tk-home__eyebrow">Business Toolkit</p>
-              <h1 className="tk-home__greeting">What do you need today?</h1>
-              <p className="tk-home__intro">Start in chat and let Chertt turn it into structured work.</p>
-            </div>
-
-            <Link className="tk-home__prompt" href={chatHref}>
-              <span className="tk-home__prompt-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
-                </svg>
-              </span>
-              <span className="tk-home__prompt-copy">
-                <strong>Try "Draft a letter to HR"</strong>
-                <span>Request expense, report an issue, or find a process note.</span>
-              </span>
-              <span className="tk-home__prompt-action">Open chat</span>
-            </Link>
-
-            <div className="tk-home__signals">
-              <Link className="tk-signal tk-signal--link" href={`${base}/requests`}>
-                <strong>{pending}</strong>
-                <span>Pending approvals</span>
-              </Link>
-              <Link className="tk-signal tk-signal--link" href={`${base}/issues`}>
-                <strong>{openIssues}</strong>
-                <span>Open issues</span>
-              </Link>
-              <Link className="tk-signal tk-signal--link" href={`${base}/inventory`}>
-                <strong>{lowStock}</strong>
-                <span>Low stock items</span>
-              </Link>
-              <Link className="tk-signal tk-signal--link" href={`${base}/documents`}>
-                <strong>{documentsAwaitingSignature}</strong>
-                <span>Awaiting signature</span>
-              </Link>
-            </div>
-          </section>
-
-          <div className="tk-home__main">
-            <div className="tk-home__primary">
-              <section className="tk-home__section">
-                <div className="tk-home__section-head">
-                  <p className="tk-section-label">Quick actions</p>
-                </div>
-                <div className="tk-tiles tk-tiles--actions">
-                  {quickActions.map((action) => (
-                    <Link
-                      className="tk-tile"
-                      href={resolveToolkitHref(action.href)}
-                      key={action.label}
-                      style={
-                        {
-                          "--tk-cap-accent": action.accent,
-                          "--tk-cap-tint": action.tint,
-                        } as CSSProperties
-                      }
-                    >
-                      <span className="tk-tile__icon">{action.icon}</span>
-                      <div className="tk-tile__body">
-                        <span className="tk-tile__label">{action.label}</span>
-                        <span className="tk-tile__hint">{action.hint}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-
-              <section className="tk-home__section">
-                <div className="tk-home__section-head">
-                  <p className="tk-section-label">Recent activity</p>
-                  <Link className="tk-section-link" href={`${base}/requests`}>
-                    See requests
-                  </Link>
-                </div>
-                <div className="tk-activity-list">
-                  {recentActivity.map((item) => (
-                    <Link className="tk-activity-item" href={`${base}/requests`} key={item.id}>
-                      <span className="tk-activity-item__dot" />
-                      <div className="tk-activity-item__body">
-                        <span className="tk-activity-item__title">{item.title}</span>
-                        <span className="tk-activity-item__meta">
-                          {item.detail} - {item.timeLabel}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            </div>
-
-            <aside className="tk-home__secondary">
-              <section className="tk-home__section">
-                <div className="tk-home__section-head">
-                  <p className="tk-section-label">Priority now</p>
-                </div>
-                <div className="tk-card">
-                  <div className="tk-mini-stack">
-                    {attentionItems.length > 0 ? (
-                      attentionItems.map((item) => (
-                        <Link className="tk-soft-tile tk-soft-tile--link" href={item.href} key={item.title}>
-                          <strong>{item.title}</strong>
-                          <p>{item.note}</p>
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="tk-soft-tile">
-                        <strong>No urgent blockers</strong>
-                        <p>Requests, issues, and sign-offs are under control right now.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <section className="tk-home__section">
-                <div className="tk-home__section-head">
-                  <p className="tk-section-label">Open requests</p>
-                </div>
-                <div className="tk-card">
-                  <div className="tk-list">
-                    {recentRequests.map((request) => (
-                      <Link className="tk-row tk-row--link" href={`${base}/requests/${request.id}`} key={request.id}>
-                        <div className="tk-row__main">
-                          <strong>{request.title}</strong>
-                          <p>{request.type} - {request.requester}</p>
-                        </div>
-                        <div className="tk-row__aside">
-                          <span className="tk-badge">{request.status}</span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </aside>
+            {pendingApprovals === 0 &&
+              awaitingSig === 0 &&
+              openIssues === 0 &&
+              lowStock === 0 && (
+                <div className={styles["db-needs-empty"]}>You&apos;re all caught up.</div>
+              )}
           </div>
+        </div>
+      </div>
+
+      {/* ── Operational pulse ── */}
+      <div className={styles["db-pulse"]}>
+        {[
+          { value: pendingApprovals, label: "Pending approvals", href: `${base}/requests` },
+          { value: openIssues, label: "Open issues", href: `${base}/issues` },
+          { value: lowStock, label: "Low stock items", href: `${base}/inventory` },
+          { value: awaitingSig, label: "Awaiting signature", href: `${base}/documents` },
+        ].map((tile) => (
+          <Link key={tile.label} href={tile.href} className={styles["db-pulse-tile"]}>
+            <span className={styles["db-pulse-value"]}>{tile.value}</span>
+            <span className={styles["db-pulse-label"]}>{tile.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Recent activity ── */}
+      <div className={styles["db-card"]}>
+        <div className={styles["db-card-head"]}>
+          <h2 className={styles["db-card-title"]}>Recent activity</h2>
+          <Link className={styles["db-card-link"]} href={`${base}/records`}>
+            View records
+          </Link>
+        </div>
+        <div className={styles["db-activity-list"]}>
+          {recentActivity.length > 0 ? (
+            recentActivity.map((item) => (
+              <Link
+                key={item.id}
+                href={`${base}/requests`}
+                className={styles["db-activity-row"]}
+              >
+                <span className={styles["db-activity-dot"]} aria-hidden="true" />
+                <div className={styles["db-activity-body"]}>
+                  <span className={styles["db-activity-title"]}>{item.title}</span>
+                  <span className={styles["db-activity-meta"]}>
+                    {item.detail} · {item.timeLabel}
+                  </span>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className={styles["db-activity-empty"]}>No recent activity yet.</div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

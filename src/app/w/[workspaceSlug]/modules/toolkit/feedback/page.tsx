@@ -1,300 +1,48 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
-
-const laneCopy = {
-  pulse: {
-    title: "Staff pulse",
-    desc: "Quick internal check-ins for teams and leadership to track operational rhythm.",
-  },
-  approval: {
-    title: "Approval review",
-    desc: "Collect sign-off feedback on drafts, scripts, graphics, and internal decisions.",
-  },
-  guest: {
-    title: "Guest feedback",
-    desc: "Capture visitor, service, and reception experience in a structured way.",
-  },
-} as const;
+import { Badge, DataTable, EmptyState, PageHeader, Select, Toolbar } from "@/components/ui";
+import type { Column } from "@/components/ui";
+import { PollCreateModal } from "@/components/forms/PollCreateModal";
+import type { FeedbackPoll } from "@/lib/types";
 
 export default function ToolkitFeedbackPage() {
   const { snapshot } = useAppState();
+  const router = useRouter();
+  const [showCreate, setShowCreate] = useState(false);
   const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
 
-  const polls = snapshot.polls;
-  const activePolls = polls.filter((poll) => poll.status === "active");
-  const closedPolls = polls.filter((poll) => poll.status === "closed");
-  const totalResponses = polls.reduce((sum, poll) => sum + poll.responseCount, 0);
-  const totalTarget = polls.reduce((sum, poll) => sum + poll.targetCount, 0);
-  const overallCompletion = totalTarget > 0 ? Math.round((totalResponses / totalTarget) * 100) : 0;
-  const approvalPolls = polls.filter((poll) => poll.lane === "approval").length;
+  const [search, setSearch] = useState("");
+  const [laneFilter, setLaneFilter] = useState("all");
 
-  const laneStats = (["pulse", "approval", "guest"] as const).map((lane) => {
-    const lanePolls = polls.filter((poll) => poll.lane === lane);
-    const responses = lanePolls.reduce((sum, poll) => sum + poll.responseCount, 0);
-    const target = lanePolls.reduce((sum, poll) => sum + poll.targetCount, 0);
-    const completion = target > 0 ? Math.round((responses / target) * 100) : 0;
+  const allPolls = useMemo(() => snapshot.polls as FeedbackPoll[], [snapshot.polls]);
+  const filtered = useMemo(() => {
+    let rows = allPolls;
+    if (search.trim()) { const q = search.toLowerCase(); rows = rows.filter((p) => p.title.toLowerCase().includes(q) || p.owner.toLowerCase().includes(q)); }
+    if (laneFilter !== "all") rows = rows.filter((p) => p.lane === laneFilter);
+    return rows;
+  }, [allPolls, search, laneFilter]);
 
-    return {
-      lane,
-      polls: lanePolls.length,
-      responses,
-      target,
-      completion,
-    };
-  });
+  const total = allPolls.length;
+  const activeCount = allPolls.filter((p) => p.status === "active").length;
 
-  const strongestLane = [...laneStats]
-    .filter((lane) => lane.polls > 0)
-    .sort((left, right) => right.completion - left.completion)[0];
-
-  const laneLeads = {
-    pulse: polls.find((poll) => poll.lane === "pulse"),
-    approval: polls.find((poll) => poll.lane === "approval"),
-    guest: polls.find((poll) => poll.lane === "guest"),
-  };
+  const columns: Column<FeedbackPoll>[] = [
+    { key: "title", header: "Title", render: (p) => <span style={{ fontWeight: 550, color: "var(--ds-ink)" }}>{p.title}</span> },
+    { key: "lane", header: "Lane", width: "100px", render: (p) => <Badge tone={p.lane === "approval" ? "warning" : p.lane === "guest" ? "info" : "neutral"}>{p.lane}</Badge> },
+    { key: "audience", header: "Audience", width: "130px", render: (p) => p.audience },
+    { key: "responses", header: "Responses", align: "right", width: "90px", render: (p) => `${p.responseCount ?? 0}/${p.targetCount ?? 0}` },
+    { key: "status", header: "Status", width: "90px", render: (p) => p.status === "active" ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Closed</Badge> },
+  ];
 
   return (
-    <div className="tk-page">
-      <div className="tk-page-head">
-        <div className="tk-page-head__copy">
-          <p className="tk-eyebrow">Polls, surveys, and feedback</p>
-          <h1 className="tk-page-title">Collect structured input</h1>
-          <p className="tk-page-desc">
-            Pulse checks, approval reviews, and guest feedback that Chertt can track, summarize, and follow up on.
-          </p>
-        </div>
-        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-          Create in chat
-        </Link>
-      </div>
-
-      <div className="tk-requests-summary">
-        <Link className="tk-requests-summary__item tk-requests-summary__item--link" href={`${base}/feedback#active-polls`}>
-          <span>Active polls</span>
-          <strong>{activePolls.length}</strong>
-        </Link>
-        <Link className="tk-requests-summary__item tk-requests-summary__item--link" href={`${base}/feedback#response-summary`}>
-          <span>Total responses</span>
-          <strong>{totalResponses}</strong>
-        </Link>
-        <Link className="tk-requests-summary__item tk-requests-summary__item--link" href={`${base}/feedback#lane-grid`}>
-          <span>Approval reviews</span>
-          <strong>{approvalPolls}</strong>
-        </Link>
-        <Link className="tk-requests-summary__item tk-requests-summary__item--link" href={`${base}/feedback#closed-polls`}>
-          <span>Closed polls</span>
-          <strong>{closedPolls.length}</strong>
-        </Link>
-      </div>
-
-      <div className="tk-feedback-analytics" id="response-summary">
-        <div className="tk-card">
-          <div className="tk-card-head">
-            <div className="tk-card-head__copy">
-              <p className="tk-eyebrow">Response health</p>
-              <h2 className="tk-card-title">Lane completion chart</h2>
-            </div>
-          </div>
-          <div className="tk-feedback-bars">
-            {laneStats.map((lane) => (
-              <div className="tk-feedback-bar" key={lane.lane}>
-                <div className="tk-feedback-bar__top">
-                  <strong>{laneCopy[lane.lane].title}</strong>
-                  <span>
-                    {lane.responses}/{lane.target || 0} ({lane.completion}%)
-                  </span>
-                </div>
-                <div className="tk-feedback-meter">
-                  <div className="tk-feedback-meter__fill" style={{ width: `${Math.max(6, lane.completion)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="tk-card">
-          <div className="tk-card-head">
-            <div className="tk-card-head__copy">
-              <p className="tk-eyebrow">Coverage</p>
-              <h2 className="tk-card-title">Overall participation</h2>
-            </div>
-          </div>
-          <div className="tk-feedback-overview">
-            <div className="tk-feedback-ring" style={{ "--tk-ring-value": `${overallCompletion}%` } as CSSProperties}>
-              <strong>{overallCompletion}%</strong>
-              <span>complete</span>
-            </div>
-            <div className="tk-detail-grid">
-              <div className="tk-detail-cell">
-                <span>Polls</span>
-                <strong>{polls.length}</strong>
-              </div>
-              <div className="tk-detail-cell">
-                <span>Responses</span>
-                <strong>{totalResponses}</strong>
-              </div>
-              <div className="tk-detail-cell">
-                <span>Audience reach</span>
-                <strong>{totalTarget}</strong>
-              </div>
-              <div className="tk-detail-cell">
-                <span>Approval reviews</span>
-                <strong>{approvalPolls}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="tk-feedback-lanes" id="lane-grid">
-        {(["pulse", "approval", "guest"] as const).map((lane) => (
-          <Link
-            className="tk-card tk-card--clickable tk-feedback-lane"
-            href={laneLeads[lane] ? `${base}/feedback/${laneLeads[lane]!.id}` : `/w/${snapshot.workspace.slug}/chat`}
-            key={lane}
-          >
-            <p className="tk-eyebrow">Feedback lane</p>
-            <h2 className="tk-card-title">{laneCopy[lane].title}</h2>
-            <p className="tk-page-desc">{laneCopy[lane].desc}</p>
-            <span className="tk-inline-link tk-feedback-lane__link" style={{ marginTop: "6px" }}>
-              {laneLeads[lane] ? "Open lane ->" : "Create in chat ->"}
-            </span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="tk-layout-2 tk-layout-2--balanced">
-        <div className="tk-stack-lg">
-          <div className="tk-card" id="active-polls">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Active polls</p>
-                <h2 className="tk-card-title">{activePolls.length} running now</h2>
-              </div>
-            </div>
-            {activePolls.length ? (
-              <div className="tk-list">
-                {activePolls.map((poll) => (
-                  <Link className="tk-row tk-row--link" href={`${base}/feedback/${poll.id}`} key={poll.id}>
-                    <div className="tk-row__main">
-                      <strong>{poll.title}</strong>
-                      <p>
-                        {poll.audience} - {poll.questionCount} questions - {poll.updatedAtLabel}
-                      </p>
-                    </div>
-                    <div className="tk-row__aside">
-                      <span className="tk-badge">
-                        {poll.responseCount}/{poll.targetCount}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="tk-soft-tile">
-                <strong>No active polls</strong>
-                <p>Ask Chertt to create a pulse check, approval review, or guest survey.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="tk-card" id="closed-polls">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Closed polls</p>
-                <h2 className="tk-card-title">Finished feedback cycles</h2>
-              </div>
-            </div>
-            {closedPolls.length ? (
-              <div className="tk-list">
-                {closedPolls.map((poll) => (
-                  <Link className="tk-row tk-row--link" href={`${base}/feedback/${poll.id}`} key={poll.id}>
-                    <div className="tk-row__main">
-                      <strong>{poll.title}</strong>
-                      <p>{poll.audience} - {poll.responseCount} responses captured</p>
-                    </div>
-                    <div className="tk-row__aside">
-                      <span className="tk-badge">Closed</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="tk-soft-tile">
-                <strong>No closed polls yet</strong>
-                <p>Completed surveys will stay here for review and reuse.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="tk-side-stack">
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Signal right now</p>
-                <h2 className="tk-card-title">Best performing lane</h2>
-              </div>
-            </div>
-            {strongestLane ? (
-              <div className="tk-mini-stack">
-                <div className="tk-soft-tile">
-                  <strong>{laneCopy[strongestLane.lane].title}</strong>
-                  <p>
-                    {strongestLane.completion}% completion from {strongestLane.responses}/{strongestLane.target || 0}
-                    {" "}responses.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="tk-soft-tile">
-                <strong>No lane data yet</strong>
-                <p>Create the first poll and this panel will highlight completion performance.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">How it works</p>
-                <h2 className="tk-card-title">Create feedback in chat</h2>
-              </div>
-            </div>
-            <div className="tk-mini-stack">
-              <div className="tk-soft-tile">
-                <strong>Describe what you want to measure</strong>
-                <p>Tell Chertt the audience, question count, and what decision the poll should support.</p>
-              </div>
-              <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`}>
-                Start in chat
-              </Link>
-            </div>
-          </div>
-
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Connected forms</p>
-                <h2 className="tk-card-title">Form-backed feedback</h2>
-              </div>
-            </div>
-            <div className="tk-mini-stack">
-              {snapshot.forms.map((form) => (
-                <Link className="tk-soft-tile tk-soft-tile--link" href={`${base}/forms`} key={form.id}>
-                  <strong>{form.name}</strong>
-                  <p>{form.submissions} submissions - owned by {form.owner}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+    <div style={{ display: "grid", gap: "16px" }}>
+      <PageHeader title="Polls &amp; Feedback" meta={`${total} polls · ${activeCount} active`} actions={<button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Create poll</button>} />
+      <Toolbar search={{ value: search, onChange: (e) => setSearch(e.target.value), placeholder: "Search polls..." }} filters={<Select value={laneFilter} onChange={(e) => setLaneFilter(e.target.value)} options={[{value:"all",label:"All lanes"},{value:"pulse",label:"Pulse"},{value:"approval",label:"Approval"},{value:"guest",label:"Guest"}]} />} />
+      <DataTable columns={columns} rows={filtered} getRowKey={(p) => p.id} onRowClick={(p) => router.push(`${base}/feedback/${p.id}`)} empty={<EmptyState title="No polls yet" hint="Create one with + Create poll" action={<button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Create poll</button>} />} />
+      <PollCreateModal open={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   );
 }
-

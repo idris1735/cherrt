@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { FileUpload } from "@/components/shared/file-upload";
+import { Badge } from "@/components/ui";
 
 export default function ToolkitIssueDetailPage() {
   const params = useParams<{ issueId: string; workspaceSlug: string }>();
@@ -14,7 +15,15 @@ export default function ToolkitIssueDetailPage() {
   const base = `/w/${params.workspaceSlug}/modules/toolkit`;
 
   const issue = snapshot.issues.find((i) => i.id === params.issueId);
+  const { resolveIssue } = useAppState();
   const [attachments, setAttachments] = useState<string[]>(issue?.attachments ?? []);
+  const [resolved, setResolved] = useState(false);
+
+  function handleResolve() {
+    if (!issue) return;
+    resolveIssue(issue.id);
+    setResolved(true);
+  }
 
   if (!issue) {
     return (
@@ -37,7 +46,12 @@ export default function ToolkitIssueDetailPage() {
       <div className="tk-card">
         <div className="tk-card-head">
           <Link className="tk-inline-link" href={`${base}/issues`}>← Issues</Link>
-          <span className="tk-status-badge">{issue.status}</span>
+          <span className="tk-status-badge" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <Badge tone={issue.status === "completed" || resolved ? "success" : issue.severity === "high" ? "danger" : "warning"}>{resolved ? "completed" : issue.status}</Badge>
+            {(issue.status !== "completed" && !resolved) && (
+              <button className="button button--primary" onClick={handleResolve} type="button" style={{ height: "28px", fontSize: "0.72rem" }}>Mark resolved</button>
+            )}
+          </span>
         </div>
         <p className="tk-eyebrow">Issue report</p>
         <h2 className="tk-card-title">{issue.title}</h2>

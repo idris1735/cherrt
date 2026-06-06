@@ -733,7 +733,7 @@ export function SetupForm({ selectedModule }: { selectedModule: ModuleKey }) {
 
     const bootstrap = await bootstrapWorkspaceFromDraft();
     if (bootstrap.status === "ready") {
-      router.push(`/w/${bootstrap.slug}/chat`);
+      router.push(`/w/${bootstrap.slug}/modules/toolkit`);
       router.refresh();
       return;
     }

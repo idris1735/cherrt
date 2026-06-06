@@ -84,7 +84,7 @@ export function SignInForm({
     if (onboardingDraft) {
       const bootstrap = await bootstrapWorkspaceFromDraft();
       if (bootstrap.status === "ready") {
-        router.push(`/w/${bootstrap.slug}/chat`);
+        router.push(`/w/${bootstrap.slug}/modules/toolkit`);
         router.refresh();
         return;
       }
@@ -105,7 +105,7 @@ export function SignInForm({
 
     const lastWorkspaceSlug = getLastWorkspaceSlug();
     if (lastWorkspaceSlug && lastWorkspaceSlug !== "global-hub") {
-      router.push(`/w/${lastWorkspaceSlug}/chat`);
+      router.push(`/w/${lastWorkspaceSlug}/modules/toolkit`);
       router.refresh();
       return;
     }
@@ -113,7 +113,7 @@ export function SignInForm({
     const workspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
     if (workspaceSlug) {
       rememberLastWorkspaceSlug(workspaceSlug);
-      router.push(`/w/${workspaceSlug}/chat`);
+      router.push(`/w/${workspaceSlug}/modules/toolkit`);
       router.refresh();
       return;
     }

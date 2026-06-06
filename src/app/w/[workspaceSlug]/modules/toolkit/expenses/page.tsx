@@ -1,257 +1,100 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
-import { StatusPill } from "@/components/shared/status-pill";
+import {
+  Badge,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Select,
+  Toolbar,
+  statusLabel,
+  statusTone,
+} from "@/components/ui";
+import type { Column } from "@/components/ui";
+import { ExpenseCreateModal } from "@/components/forms/ExpenseCreateModal";
 import { formatCurrency } from "@/lib/format";
 import { downloadCsv } from "@/lib/services/csv-export";
 import type { ExpenseEntry } from "@/lib/types";
 
-function expenseTheme(expense: ExpenseEntry) {
-  if (expense.status === "flagged") return { accent: "#c0432a", tint: "#fff0ea", label: "Needs review" };
-  if (expense.status === "pending") return { accent: "#fa8300", tint: "#fff3e0", label: "Awaiting approval" };
-  if (expense.status === "approved") return { accent: "#2f6f82", tint: "#edf7fa", label: "Approved" };
-  return { accent: "#267a4f", tint: "#eef7f0", label: "Completed" };
-}
-
 export default function ToolkitExpensesPage() {
-  const { snapshot, approveRequest } = useAppState();
+  const { snapshot } = useAppState();
+  const router = useRouter();
+  const [showCreate, setShowCreate] = useState(false);
   const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
 
-  const [selected, setSelected] = useState<ExpenseEntry | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  const expenses = snapshot.expenses;
-  const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const pendingCount = expenses.filter((e) => e.status === "pending").length;
-  const approvedCount = expenses.filter((e) => e.status === "approved").length;
-  const flaggedCount = expenses.filter((e) => e.status === "flagged").length;
+  const allExpenses = useMemo(() => snapshot.expenses, [snapshot.expenses]);
 
-  const deptMap = new Map<string, number>();
-  for (const e of expenses) {
-    deptMap.set(e.department, (deptMap.get(e.department) ?? 0) + e.amount);
-  }
-  const deptTotals = [...deptMap.entries()].sort((a, b) => b[1] - a[1]);
-  const maxDept = deptTotals[0]?.[1] ?? 1;
+  const filtered = useMemo(() => {
+    let rows = allExpenses;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((e) => e.title.toLowerCase().includes(q) || e.department.toLowerCase().includes(q));
+    }
+    if (statusFilter !== "all") rows = rows.filter((e) => e.status === statusFilter);
+    return rows;
+  }, [allExpenses, search, statusFilter]);
 
-  // Find the matching request for approval
-  const relatedRequest = selected
-    ? snapshot.requests.find((r) => r.title.toLowerCase().includes(selected.title.toLowerCase().split(" ").slice(0, 2).join(" ")) && r.module === "toolkit")
-    : null;
+  const totalAmount = allExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const total = allExpenses.length;
 
-  function exportExpenses() {
-    downloadCsv("toolkit-expenses.csv", expenses, [
-      { header: "Title", value: (expense) => expense.title },
-      { header: "Department", value: (expense) => expense.department },
-      { header: "Amount", value: (expense) => expense.amount },
-      { header: "Receipt count", value: (expense) => expense.receiptCount },
-      { header: "Status", value: (expense) => expense.status },
-      { header: "Attachments", value: (expense) => expense.attachments.join("; ") },
+  const columns: Column<ExpenseEntry>[] = [
+    { key: "title", header: "Title", render: (e) => <span style={{ fontWeight: 550, color: "var(--ds-ink)" }}>{e.title}</span> },
+    { key: "department", header: "Department", width: "140px", render: (e) => e.department },
+    { key: "amount", header: "Amount", align: "right", width: "110px", render: (e) => formatCurrency(e.amount, snapshot.workspace.currency) },
+    { key: "receipts", header: "Receipts", align: "right", width: "80px", render: (e) => e.receiptCount ?? 0 },
+    { key: "status", header: "Status", width: "110px", render: (e) => <Badge tone={statusTone(e.status)}>{statusLabel(e.status)}</Badge> },
+  ];
+
+  const statusOptions = [
+    { value: "all", label: "All statuses" },
+    { value: "pending", label: "Pending" },
+    { value: "approved", label: "Approved" },
+    { value: "completed", label: "Completed" },
+    { value: "flagged", label: "Flagged" },
+  ];
+
+  function handleExport() {
+    downloadCsv("toolkit-expenses.csv", filtered, [
+      { header: "Title", value: (e: ExpenseEntry) => e.title },
+      { header: "Department", value: (e: ExpenseEntry) => e.department },
+      { header: "Amount", value: (e: ExpenseEntry) => String(e.amount) },
+      { header: "Receipt count", value: (e: ExpenseEntry) => String(e.receiptCount) },
+      { header: "Status", value: (e: ExpenseEntry) => e.status },
     ]);
   }
 
   return (
-    <>
-      <div className="tk-page">
-        <div className="tk-page-head">
-          <div className="tk-page-head__copy">
-            <p className="tk-eyebrow">Petty cash and expenses</p>
-            <h1 className="tk-page-title">Expense ledger</h1>
-            <p className="tk-page-desc">
-              {formatCurrency(totalAmount, snapshot.workspace.currency)} logged.
-              {pendingCount > 0 ? ` ${pendingCount} awaiting approval.` : ""}
-            </p>
-          </div>
-          <div className="tk-requests-toolbar">
-            <button className="button button--ghost" disabled={!expenses.length} onClick={exportExpenses} type="button">Export CSV</button>
-            <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-              Log expense
-            </Link>
-          </div>
-        </div>
-
-        <div className="tk-requests-summary">
-          <div className="tk-requests-summary__item">
-            <span>Total logged</span>
-            <strong>{formatCurrency(totalAmount, snapshot.workspace.currency)}</strong>
-          </div>
-          <div className={`tk-requests-summary__item${pendingCount > 0 ? " tk-requests-summary__item--flagged" : ""}`}>
-            <span>Pending</span>
-            <strong>{pendingCount}</strong>
-          </div>
-          <div className="tk-requests-summary__item">
-            <span>Approved</span>
-            <strong>{approvedCount}</strong>
-          </div>
-          {flaggedCount > 0 ? (
-            <div className="tk-requests-summary__item tk-requests-summary__item--flagged">
-              <span>Flagged</span>
-              <strong>{flaggedCount}</strong>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="tk-layout-2 tk-layout-2--balanced">
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Entries</p>
-                <h2 className="tk-card-title">{expenses.length} expense{expenses.length !== 1 ? "s" : ""}</h2>
-              </div>
-              {pendingCount > 0 ? <span className="tk-badge tk-badge--medium">{pendingCount} pending</span> : null}
-            </div>
-
-            <div className="tk-expense-grid">
-              {expenses.length ? (
-                expenses.map((expense) => {
-                  const theme = expenseTheme(expense);
-                  return (
-                    <button
-                      className="tk-expense-card"
-                      key={expense.id}
-                      onClick={() => setSelected(expense)}
-                      style={{ "--tk-expense-accent": theme.accent, "--tk-expense-tint": theme.tint } as CSSProperties}
-                      type="button"
-                    >
-                      <div className="tk-expense-card__media">
-                        <span className="tk-expense-card__label">{theme.label}</span>
-                        <div className="tk-expense-card__amount">{formatCurrency(expense.amount, snapshot.workspace.currency)}</div>
-                      </div>
-
-                      <div className="tk-expense-card__body">
-                        <div className="tk-expense-card__head">
-                          <div>
-                            <strong>{expense.title}</strong>
-                            <p>{expense.department}</p>
-                          </div>
-                          <StatusPill status={expense.status} />
-                        </div>
-
-                        <div className="tk-expense-card__stats">
-                          <div className="tk-expense-card__stat">
-                            <span>Department</span>
-                            <strong>{expense.department}</strong>
-                          </div>
-                          <div className="tk-expense-card__stat">
-                            <span>Receipts</span>
-                            <strong>{expense.receiptCount}</strong>
-                          </div>
-                        </div>
-
-                        <div className="tk-expense-card__footer">
-                          <span className="tk-expense-card__hint">Tap to review and take action</span>
-                          <span className="tk-inline-link" style={{ minHeight: "auto", padding: "0 10px", fontSize: "0.74rem" }}>View →</span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="tk-soft-tile">
-                  <strong>No expenses yet</strong>
-                  <p>Log the first expense in chat and Chertt will route it for approval.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="tk-side-stack">
-            {deptTotals.length > 0 ? (
-              <div className="tk-card">
-                <div className="tk-card-head">
-                  <div className="tk-card-head__copy">
-                    <p className="tk-eyebrow">Breakdown</p>
-                    <h2 className="tk-card-title">By department</h2>
-                  </div>
-                </div>
-                <div className="tk-dept-bars">
-                  {deptTotals.map(([dept, amount]) => (
-                    <div className="tk-dept-bar" key={dept}>
-                      <div className="tk-dept-bar__head">
-                        <span>{dept}</span>
-                        <strong>{formatCurrency(amount, snapshot.workspace.currency)}</strong>
-                      </div>
-                      <div className="tk-dept-bar__track">
-                        <div className="tk-dept-bar__fill" style={{ width: `${Math.round((amount / maxDept) * 100)}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="tk-card">
-              <div className="tk-card-head">
-                <div className="tk-card-head__copy">
-                  <p className="tk-eyebrow">Accounts handoff</p>
-                  <h2 className="tk-card-title">Export fields</h2>
-                </div>
-              </div>
-              <div className="tk-mini-stack">
-                <div className="tk-soft-line">Expense title and category</div>
-                <div className="tk-soft-line">Department or owning unit</div>
-                <div className="tk-soft-line">Amount and receipt evidence count</div>
-                <div className="tk-soft-line">Approval status and timestamps</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {selected ? (
-        <div className="tk-modal-backdrop" onClick={() => setSelected(null)}>
-          <div className="tk-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="tk-modal__head">
-              <div>
-                <div className="tk-modal__title">{selected.title}</div>
-                <div className="tk-modal__subtitle">{selected.department} — {selected.receiptCount} receipt{selected.receiptCount !== 1 ? "s" : ""}</div>
-              </div>
-              <button className="tk-modal__close" onClick={() => setSelected(null)} type="button" aria-label="Close">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
-            </div>
-            <div className="tk-modal__body">
-              <div className="tk-modal__stat-row">
-                <div className="tk-modal__stat">
-                  <span>Amount</span>
-                  <strong>{formatCurrency(selected.amount, snapshot.workspace.currency)}</strong>
-                </div>
-                <div className="tk-modal__stat">
-                  <span>Status</span>
-                  <strong><StatusPill status={selected.status} /></strong>
-                </div>
-                <div className="tk-modal__stat">
-                  <span>Receipts</span>
-                  <strong>{selected.receiptCount}</strong>
-                </div>
-                <div className="tk-modal__stat">
-                  <span>Department</span>
-                  <strong>{selected.department}</strong>
-                </div>
-              </div>
-            </div>
-            <div className="tk-modal__actions">
-              {relatedRequest?.status === "pending" ? (
-                <button
-                  className="button button--primary"
-                  onClick={() => { approveRequest(relatedRequest.id); setSelected(null); }}
-                  type="button"
-                >
-                  Approve
-                </button>
-              ) : null}
-              <Link className="button button--ghost" href={`${base}/requests`} onClick={() => setSelected(null)}>
-                View request
-              </Link>
-              <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`} onClick={() => setSelected(null)}>
-                Update in chat
-              </Link>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
+    <div style={{ display: "grid", gap: "16px" }}>
+      <PageHeader
+        title="Expenses"
+        meta={`${total} entries · ${formatCurrency(totalAmount, snapshot.workspace.currency)} logged`}
+        actions={
+          <>
+            <button className="button button--ghost" disabled={!filtered.length} onClick={handleExport} type="button">Export CSV</button>
+            <button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Log expense</button>
+          </>
+        }
+      />
+      <Toolbar
+        search={{ value: search, onChange: (e) => setSearch(e.target.value), placeholder: "Search expenses..." }}
+        filters={<Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={statusOptions} />}
+      />
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getRowKey={(e) => e.id}
+        onRowClick={(e) => router.push(`${base}/expenses/${e.id}`)}
+        empty={<EmptyState title="No expenses yet" hint="Log one with + Log expense" action={<button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Log expense</button>} />}
+      />
+      <ExpenseCreateModal open={showCreate} onClose={() => setShowCreate(false)} />
+    </div>
   );
 }

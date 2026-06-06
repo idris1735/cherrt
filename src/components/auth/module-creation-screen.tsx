@@ -106,13 +106,13 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       if (!draft) {
         const existingSlug = getLastWorkspaceSlug();
         if (!cancelled && existingSlug) {
-          setDestination(`/w/${existingSlug}/chat`);
+          setDestination(`/w/${existingSlug}/modules/toolkit`);
           setStatusNote("Opening your last workspace.");
         } else if (!cancelled) {
           const firstWorkspaceSlug = await getFirstWorkspaceSlugForCurrentUser();
           if (firstWorkspaceSlug) {
             rememberLastWorkspaceSlug(firstWorkspaceSlug);
-            setDestination(`/w/${firstWorkspaceSlug}/chat`);
+            setDestination(`/w/${firstWorkspaceSlug}/modules/toolkit`);
             setStatusNote("Opening your workspace.");
             return;
           }
@@ -153,8 +153,8 @@ export function ModuleCreationScreen({ selectedModule }: { selectedModule: Modul
       }
 
       if (bootstrap.status === "ready") {
-        setDestination(`/w/${bootstrap.slug}/chat`);
-        setStatusNote("Workspace ready. Opening your chat workspace.");
+        setDestination(`/w/${bootstrap.slug}/modules/toolkit`);
+        setStatusNote("Workspace ready. Opening your dashboard.");
         return;
       }
 

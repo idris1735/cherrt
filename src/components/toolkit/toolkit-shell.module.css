@@ -1,0 +1,445 @@
+/* ─── Design Tokens (scoped under .tk2-frame) ─── */
+.tk2-frame {
+  --ds-canvas: #fafafa;
+  --ds-surface: #ffffff;
+  --ds-surface-2: #fafafa;
+  --ds-border: #ebebeb;
+  --ds-border-strong: #e2e2e2;
+  --ds-text: #171717;
+  --ds-text-muted: #737373;
+  --ds-text-faint: #a3a3a3;
+  --ds-accent: #fa8300;
+  --ds-accent-weak: #fff4e8;
+  --ds-ink: #161616;
+  --ds-radius: 10px;
+  --ds-radius-lg: 14px;
+  --ds-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ds-sidebar-w: 240px;
+  --ds-topbar-h: 56px;
+  --ds-tabbar-h: 56px;
+
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--ds-text);
+  background: var(--ds-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Sidebar ─── */
+.tk2-sidebar {
+  width: var(--ds-sidebar-w);
+  min-width: var(--ds-sidebar-w);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-surface);
+  border-right: 1px solid var(--ds-border);
+  padding: 16px;
+  z-index: 30;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tk2-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 2px 4px;
+}
+
+.tk2-brand img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.tk2-brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tk2-brand-wordmark {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-ink);
+  line-height: 1.15;
+}
+
+.tk2-brand-sub {
+  font-size: 0.7rem;
+  color: var(--ds-text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Nav groups ─── */
+.tk2-nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tk2-nav-divider {
+  height: 1px;
+  background: var(--ds-border);
+  margin: 12px 0;
+  flex-shrink: 0;
+}
+
+.tk2-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 450;
+  color: var(--ds-text-muted);
+  text-decoration: none;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  position: relative;
+  outline: none;
+  letter-spacing: -0.01em;
+}
+
+.tk2-nav-item:hover {
+  background: #f7f7f7;
+  color: var(--ds-text);
+}
+
+.tk2-nav-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--ds-accent);
+  border-radius: 8px;
+}
+
+.tk2-nav-item[aria-current="page"] {
+  background: #f4f4f5;
+  color: var(--ds-text);
+  font-weight: 550;
+}
+
+.tk2-nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--ds-accent);
+}
+
+.tk2-nav-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.tk2-nav-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tk2-nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Ask Chertt (bottom pinned) ─── */
+.tk2-ask-chertt {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--ds-border);
+  flex-shrink: 0;
+}
+
+.tk2-ask-chertt .tk2-nav-item {
+  color: var(--ds-text-muted);
+}
+
+.tk2-ask-chertt .tk2-nav-item:hover {
+  color: var(--ds-text);
+}
+
+.tk2-ask-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ds-accent);
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.85;
+}
+
+/* ─── Main area ─── */
+.tk2-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── Topbar ─── */
+.tk2-topbar {
+  height: var(--ds-topbar-h);
+  min-height: var(--ds-topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--ds-surface);
+  border-bottom: 1px solid var(--ds-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  gap: 16px;
+}
+
+.tk2-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tk2-topbar-title {
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--ds-text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tk2-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── Topbar buttons ─── */
+.tk2-topbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  outline: none;
+}
+
+.tk2-topbar-btn:hover {
+  background: #f5f5f5;
+  color: var(--ds-text);
+}
+
+.tk2-topbar-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--ds-accent);
+}
+
+.tk2-topbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ─── Period switcher pill ─── */
+.tk2-period-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-text-muted);
+  font-size: 0.75rem;
+  font-weight: 450;
+  cursor: default;
+  user-select: none;
+  letter-spacing: -0.01em;
+}
+
+.tk2-period-pill svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ds-text-faint);
+}
+
+/* ─── Avatar ─── */
+.tk2-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  color: var(--ds-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  user-select: none;
+  border: 1px solid var(--ds-border);
+  flex-shrink: 0;
+}
+
+/* ─── Content area ─── */
+.tk2-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px 28px;
+  max-width: 1100px;
+  width: 100%;
+}
+
+/* ─── Hamburger ─── */
+.tk2-hamburger {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.tk2-hamburger:hover {
+  background: #f5f5f5;
+  color: var(--ds-text);
+}
+
+.tk2-hamburger:focus-visible {
+  box-shadow: 0 0 0 2px var(--ds-accent);
+}
+
+.tk2-hamburger svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ─── Mobile overlay backdrop ─── */
+.tk2-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 40;
+}
+
+.tk2-overlay.is-open {
+  display: block;
+}
+
+/* ─── Mobile bottom tab bar ─── */
+.tk2-tabbar {
+  display: none;
+  height: var(--ds-tabbar-h);
+  min-height: var(--ds-tabbar-h);
+  background: var(--ds-surface);
+  border-top: 1px solid var(--ds-border);
+  padding: 0 8px;
+  flex-shrink: 0;
+  z-index: 25;
+}
+
+.tk2-tabbar nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 100%;
+}
+
+.tk2-tabbar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 48px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ds-text-muted);
+  font-size: 0.62rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  transition: color 0.12s ease;
+  outline: none;
+}
+
+.tk2-tabbar-item svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tk2-tabbar-item[aria-current="page"] {
+  color: var(--ds-accent);
+  font-weight: 550;
+}
+
+.tk2-tabbar-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--ds-accent);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .tk2-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+
+  .tk2-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .tk2-hamburger {
+    display: flex;
+  }
+
+  .tk2-content {
+    padding: 16px 16px;
+    max-width: 100%;
+  }
+
+  .tk2-tabbar {
+    display: block;
+  }
+}

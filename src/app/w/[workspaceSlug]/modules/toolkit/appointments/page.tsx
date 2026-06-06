@@ -1,154 +1,42 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
+import { DataTable, EmptyState, PageHeader, Toolbar } from "@/components/ui";
+import type { Column } from "@/components/ui";
+import { AppointmentCreateModal } from "@/components/forms/AppointmentCreateModal";
+import type { Appointment } from "@/lib/types";
 
 export default function ToolkitAppointmentsPage() {
   const { snapshot } = useAppState();
+  const router = useRouter();
+  const [showCreate, setShowCreate] = useState(false);
   const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
 
-  const appointments = snapshot.appointments;
-  const nextUp = appointments[0];
-  const rest = appointments.slice(1);
+  const [search, setSearch] = useState("");
+  const allAppts = useMemo(() => snapshot.appointments, [snapshot.appointments]);
+  const filtered = useMemo(() => {
+    let rows = allAppts;
+    if (search.trim()) { const q = search.toLowerCase(); rows = rows.filter((a) => a.title.toLowerCase().includes(q) || a.owner.toLowerCase().includes(q)); }
+    return rows;
+  }, [allAppts, search]);
+
+  const total = allAppts.length;
+
+  const columns: Column<Appointment>[] = [
+    { key: "title", header: "Title", render: (a) => <span style={{ fontWeight: 550, color: "var(--ds-ink)" }}>{a.title}</span> },
+    { key: "when", header: "When", width: "160px", render: (a) => a.when },
+    { key: "owner", header: "Owner", width: "130px", render: (a) => a.owner },
+  ];
 
   return (
-    <div className="tk-page">
-      <div className="tk-page-head">
-        <div className="tk-page-head__copy">
-          <p className="tk-eyebrow">Scheduling</p>
-          <h1 className="tk-page-title">Appointments</h1>
-          <p className="tk-page-desc">
-            Operational meetings, sign-off sessions, and follow-up moments tracked in one place.
-          </p>
-        </div>
-        <Link className="button button--primary" href={`/w/${snapshot.workspace.slug}/chat`}>
-          Schedule new
-        </Link>
-      </div>
-
-      <div className="tk-layout-2 tk-layout-2--balanced">
-        <div className="tk-stack-lg">
-          {nextUp ? (
-            <div className="tk-card">
-              <div className="tk-card-head">
-                <div className="tk-card-head__copy">
-                  <p className="tk-eyebrow">Next up</p>
-                  <h2 className="tk-card-title">{nextUp.title}</h2>
-                </div>
-                <span className="tk-badge">{nextUp.when}</span>
-              </div>
-              <div className="tk-detail-grid">
-                <div className="tk-detail-cell">
-                  <span>Time</span>
-                  <strong>{nextUp.when}</strong>
-                </div>
-                <div className="tk-detail-cell">
-                  <span>Owner</span>
-                  <strong>{nextUp.owner}</strong>
-                </div>
-              </div>
-              <div className="tk-card__actions">
-                <Link className="button button--ghost" href={`${base}/appointments/${nextUp.id}`}>
-                  Open detail
-                </Link>
-                <Link className="button button--ghost" href={`/w/${snapshot.workspace.slug}/chat`}>
-                  Update in chat
-                </Link>
-                <Link className="tk-inline-link" href={`/w/${snapshot.workspace.slug}/chat`}>
-                  Reschedule
-                </Link>
-              </div>
-            </div>
-          ) : null}
-
-          {rest.length > 0 ? (
-            <div className="tk-card">
-              <div className="tk-card-head">
-                <div className="tk-card-head__copy">
-                  <p className="tk-eyebrow">Upcoming</p>
-                  <h2 className="tk-card-title">{rest.length} more appointment{rest.length !== 1 ? "s" : ""}</h2>
-                </div>
-              </div>
-              <div className="tk-list">
-                {rest.map((appt) => (
-                  <Link className="tk-row" href={`${base}/appointments/${appt.id}`} key={appt.id}>
-                    <div className="tk-row__main">
-                      <strong>{appt.title}</strong>
-                      <p>{appt.owner}</p>
-                    </div>
-                    <div className="tk-row__aside">
-                      <span>{appt.when}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {appointments.length === 0 ? (
-            <div className="tk-card">
-              <div className="tk-card-head">
-                <div className="tk-card-head__copy">
-                  <p className="tk-eyebrow">Schedule</p>
-                  <h2 className="tk-card-title">No appointments yet</h2>
-                </div>
-              </div>
-              <div className="tk-soft-tile">
-                <strong>Nothing scheduled</strong>
-                <p>
-                  Tell Chertt who to meet, what the purpose is, and when. It will create the appointment and keep it visible here.
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="tk-side-stack">
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Quick actions</p>
-                <h2 className="tk-card-title">Scheduling options</h2>
-              </div>
-            </div>
-            <div className="tk-mini-stack">
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
-                <strong>Book a vendor meeting</strong>
-                <p>Schedule supplier sign-off, delivery checks, or contract reviews.</p>
-              </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
-                <strong>Set an onboarding session</strong>
-                <p>Orientation appointments for new team members joining this week.</p>
-              </Link>
-              <Link className="tk-soft-tile tk-soft-tile--link" href={`/w/${snapshot.workspace.slug}/chat`}>
-                <strong>Schedule a review</strong>
-                <p>Facility walks, document reviews, or team check-in meetings.</p>
-              </Link>
-            </div>
-          </div>
-
-          <div className="tk-card">
-            <div className="tk-card-head">
-              <div className="tk-card-head__copy">
-                <p className="tk-eyebrow">Summary</p>
-                <h2 className="tk-card-title">Schedule at a glance</h2>
-              </div>
-            </div>
-            <div className="tk-detail-grid">
-              <div className="tk-detail-cell">
-                <span>Total</span>
-                <strong>{appointments.length}</strong>
-              </div>
-              <div className="tk-detail-cell">
-                <span>Next up</span>
-                <strong>{nextUp ? nextUp.when : "None"}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div style={{ display: "grid", gap: "16px" }}>
+      <PageHeader title="Appointments" meta={`${total} appointments`} actions={<button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Schedule</button>} />
+      <Toolbar search={{ value: search, onChange: (e) => setSearch(e.target.value), placeholder: "Search appointments..." }} />
+      <DataTable columns={columns} rows={filtered} getRowKey={(a) => a.id} onRowClick={(a) => router.push(`${base}/appointments/${a.id}`)} empty={<EmptyState title="No appointments yet" hint="Schedule one with + Schedule" action={<button className="button button--primary" onClick={() => setShowCreate(true)} type="button">+ Schedule</button>} />} />
+      <AppointmentCreateModal open={showCreate} onClose={() => setShowCreate(false)} />
     </div>
   );
 }
-

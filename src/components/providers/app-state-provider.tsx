@@ -43,7 +43,16 @@ type AppAction =
   | { type: "read-notifications" }
   | { type: "apply-ai-result"; result: AiCommandResult }
   | { type: "upsert-document"; document: SmartDocument }
-  | { type: "add-inventory-item"; item: InventoryItem };
+  | { type: "add-inventory-item"; item: InventoryItem }
+  | { type: "resolve-issue"; issueId: string }
+  | { type: "update-inventory-stock"; itemId: string; delta: number }
+  | { type: "add-expense"; expense: ExpenseEntry }
+  | { type: "add-request"; request: WorkflowRequest }
+  | { type: "add-issue"; issue: IssueReport }
+  | { type: "add-poll"; poll: FeedbackPoll }
+  | { type: "add-form"; form: FormDefinition }
+  | { type: "add-appointment"; appointment: Appointment }
+  | { type: "add-person"; person: Person };
 
 function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot {
   switch (action.type) {
@@ -279,17 +288,57 @@ function reducer(state: WorkspaceSnapshot, action: AppAction): WorkspaceSnapshot
     }
     case "add-inventory-item":
       return { ...state, inventory: [action.item, ...state.inventory] };
+    case "resolve-issue":
+      return {
+        ...state,
+        issues: state.issues.map((issue) =>
+          issue.id === action.issueId ? { ...issue, status: "completed" } : issue,
+        ),
+        notifications: [
+          {
+            id: `notif-resolve-${Date.now()}`,
+            kind: "system",
+            title: "Issue resolved",
+            detail: "An issue has been marked as completed.",
+            timeLabel: "Now",
+            read: false,
+          },
+          ...state.notifications,
+        ],
+      };
+    case "update-inventory-stock":
+      return {
+        ...state,
+        inventory: state.inventory.map((item) =>
+          item.id === action.itemId
+            ? { ...item, inStock: Math.max(0, item.inStock + action.delta) }
+            : item,
+        ),
+      };
     case "upsert-document": {
       const existingIndex = state.documents.findIndex((document) => document.id === action.document.id);
       if (existingIndex < 0) {
         return { ...state, documents: [action.document, ...state.documents] };
       }
-
       return {
         ...state,
         documents: state.documents.map((document) => (document.id === action.document.id ? action.document : document)),
       };
     }
+    case "add-expense":
+      return { ...state, expenses: [action.expense, ...state.expenses] };
+    case "add-request":
+      return { ...state, requests: [action.request, ...state.requests] };
+    case "add-issue":
+      return { ...state, issues: [action.issue, ...state.issues] };
+    case "add-poll":
+      return { ...state, polls: [action.poll, ...state.polls] };
+    case "add-form":
+      return { ...state, forms: [action.form, ...state.forms] };
+    case "add-appointment":
+      return { ...state, appointments: [action.appointment, ...state.appointments] };
+    case "add-person":
+      return { ...state, directory: [action.person, ...state.directory] };
     default:
       return state;
   }
@@ -309,6 +358,15 @@ interface AppStateContextValue {
   applyAiResult: (result: AiCommandResult) => void;
   upsertDocument: (document: SmartDocument) => void;
   addInventoryItem: (item: InventoryItem) => void;
+  resolveIssue: (issueId: string) => void;
+  updateInventoryStock: (itemId: string, delta: number) => void;
+  addExpense: (expense: ExpenseEntry) => void;
+  addRequest: (request: WorkflowRequest) => void;
+  addIssue: (issue: IssueReport) => void;
+  addPoll: (poll: FeedbackPoll) => void;
+  addForm: (form: FormDefinition) => void;
+  addAppointment: (appointment: Appointment) => void;
+  addPerson: (person: Person) => void;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -589,6 +647,19 @@ const value = useMemo<AppStateContextValue>(
       addInventoryItem: (item) => {
         dispatch({ type: "add-inventory-item", item });
       },
+      resolveIssue: (issueId) => {
+        dispatch({ type: "resolve-issue", issueId });
+      },
+      updateInventoryStock: (itemId, delta) => {
+        dispatch({ type: "update-inventory-stock", itemId, delta });
+      },
+      addExpense: (expense) => dispatch({ type: "add-expense", expense }),
+      addRequest: (request) => dispatch({ type: "add-request", request }),
+      addIssue: (issue) => dispatch({ type: "add-issue", issue }),
+      addPoll: (poll) => dispatch({ type: "add-poll", poll }),
+      addForm: (form) => dispatch({ type: "add-form", form }),
+      addAppointment: (appointment) => dispatch({ type: "add-appointment", appointment }),
+      addPerson: (person) => dispatch({ type: "add-person", person }),
     }),
     [personalizedSnapshot, workspaceHydrated],
   );

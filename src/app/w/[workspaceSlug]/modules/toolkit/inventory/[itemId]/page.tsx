@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -11,6 +12,8 @@ export default function ToolkitInventoryDetailPage() {
   const chatHref = `/w/${params.workspaceSlug}/chat`;
 
   const item = snapshot.inventory.find((entry) => entry.id === params.itemId);
+  const { updateInventoryStock } = useAppState();
+  const [adjustBy, setAdjustBy] = useState("");
 
   if (!item) {
     return (
@@ -49,8 +52,29 @@ export default function ToolkitInventoryDetailPage() {
             <strong>{item.minLevel}</strong>
           </div>
         </div>
-        <div className="tk-card__actions">
-          <Link className="button button--primary" href={chatHref}>Update in chat →</Link>
+        <div className="tk-card__actions" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            className="ui-input"
+            type="number"
+            value={adjustBy}
+            onChange={(e) => setAdjustBy(e.target.value)}
+            placeholder="+/- units"
+            style={{ width: "100px" }}
+          />
+          <button
+            className="button button--primary"
+            onClick={() => {
+              const delta = parseInt(adjustBy, 10);
+              if (!isNaN(delta) && delta !== 0) {
+                updateInventoryStock(item.id, delta);
+                setAdjustBy("");
+              }
+            }}
+            disabled={!adjustBy || isNaN(parseInt(adjustBy, 10)) || parseInt(adjustBy, 10) === 0}
+            type="button"
+          >
+            Adjust stock
+          </button>
         </div>
       </div>
     </div>

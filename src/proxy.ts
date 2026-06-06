@@ -10,7 +10,7 @@ export function proxy(request: NextRequest) {
   if (segments[0] === "w" && segments.length === 2) {
     const workspaceSlug = segments[1];
     const url = request.nextUrl.clone();
-    url.pathname = `/w/${workspaceSlug}/chat`;
+    url.pathname = `/w/${workspaceSlug}/modules/toolkit`;
     url.search = "";
     return NextResponse.redirect(url);
   }

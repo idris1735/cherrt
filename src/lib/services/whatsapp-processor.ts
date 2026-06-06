@@ -24,6 +24,7 @@ import {
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
 import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
+import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
@@ -455,6 +456,20 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
+  // ── Report navigation buttons ──
+  if (buttonId.startsWith("rpt:")) {
+    const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues";
+    const workspaceContext = link ? await loadWorkspaceContext(link.workspaceId) : undefined;
+    const { text, buttons } = await buildReport(key, { link, session, workspaceContext });
+    if (buttons?.length) {
+      try { await sendInteractiveButtons(from, text, buttons); }
+      catch { await sendTextMessage(from, text); }
+    } else {
+      await sendTextMessage(from, text);
+    }
+    return;
+  }
+
   if (buttonId.startsWith("poll-vote:")) {
     const optionIndex = parseInt(buttonId.split(":")[1] ?? "0", 10);
     const currentSession = await getSession(from);
@@ -584,6 +599,22 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   if (/^(status|my status|show status|dashboard|summary)$/i.test(trimmed)) { await handleStatusCommand(from, session, link); return; }
+
+  // ── Report / query intents ──
+  if (trimmed) {
+    const reportKey = matchReportIntent(trimmed);
+    if (reportKey) {
+      const workspaceContext = link ? await loadWorkspaceContext(link.workspaceId) : undefined;
+      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext });
+      if (buttons?.length) {
+        try { await sendInteractiveButtons(from, text, buttons); }
+        catch { await sendTextMessage(from, text); }
+      } else {
+        await sendTextMessage(from, text);
+      }
+      return;
+    }
+  }
 
   if (type === "audio") {
     if (message.mediaId) { await handleVoiceNote(from, message.mediaId, session, link); }

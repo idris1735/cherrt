@@ -1,19 +1,19 @@
 :root {
-  --font-display: "Georgia", "Times New Roman", serif;
+  --font-display: var(--font-sans);
   --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --bg: #f4f1ec;
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-muted: #faf8f5;
-  --ink: #171412;
-  --muted: #6b635d;
-  --line: #e9e1d9;
+  --surface-muted: #fafafa;
+  --ink: #171717;
+  --muted: #737373;
+  --line: #ebebeb;
   --accent: #fa8300;
-  --accent-soft: #fff3e0;
-  --shadow: 0 12px 32px rgba(22, 18, 14, 0.06);
-  --radius-xl: 24px;
-  --radius-lg: 20px;
-  --radius-md: 16px;
-  --radius-sm: 12px;
+  --accent-soft: #fff4e8;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --radius-xl: 16px;
+  --radius-lg: 14px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
   --page-width: 1320px;
 }
 
@@ -9651,4 +9651,212 @@ main {
   .ch-list-row__main span {
     display: none;
   }
+}
+
+/* ===== Vercel-minimal reskin overrides (Phase 2A) ===== */
+
+/* ─── Buttons ─── */
+.button,
+.button--primary,
+.button--ghost,
+.button--secondary {
+  background-image: none !important;
+  box-shadow: none !important;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 8px !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  cursor: pointer;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.button:hover,
+.button--primary:hover,
+.button--ghost:hover,
+.button--secondary:hover {
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.button:active,
+.button--primary:active,
+.button--ghost:active,
+.button--secondary:active {
+  transform: none;
+}
+
+.button:focus-visible,
+.button--primary:focus-visible,
+.button--ghost:focus-visible,
+.button--secondary:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent) !important;
+}
+
+.button--primary {
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.button--primary:hover {
+  background: #e57500 !important;
+}
+
+.button--primary:active {
+  background: #cc6800 !important;
+}
+
+.button--ghost,
+.button--secondary {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+}
+
+.button--ghost:hover,
+.button--secondary:hover {
+  background: #f5f5f5 !important;
+  border-color: var(--ds-border-strong, #e2e2e2) !important;
+}
+
+.button:disabled,
+.button[disabled],
+.button--primary:disabled,
+.button--primary[disabled],
+.button--ghost:disabled,
+.button--ghost[disabled],
+.button--secondary:disabled,
+.button--secondary[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  pointer-events: none;
+}
+
+/* ─── Headings / typography ─── */
+.tk-page-title,
+.tk-card-title,
+.section-heading,
+.tk-page h1,
+.tk-page h2 {
+  font-family: var(--font-display) !important;
+  color: var(--ink) !important;
+  letter-spacing: -0.02em !important;
+  font-weight: 600 !important;
+}
+
+.tk-eyebrow {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* ─── Surfaces / cards ─── */
+.tk-card,
+.surface-card,
+.metric-card,
+.tk-soft-tile {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow) !important;
+  background-image: none !important;
+}
+
+.tk-soft-tile:hover {
+  background: #f7f7f7 !important;
+}
+
+/* ─── Badges / pills ─── */
+.tk-badge,
+.status-pill {
+  border-radius: 5px;
+  font-weight: 500;
+  border: none;
+}
+
+.tk-badge {
+  background: #f5f5f5;
+  color: var(--muted);
+}
+
+.status-pill[data-status="approved"],
+.status-pill[data-status="completed"],
+.tk-badge[data-status="approved"],
+.tk-badge[data-status="completed"] {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.status-pill[data-status="pending"],
+.status-pill[data-status="in-progress"],
+.tk-badge[data-status="pending"],
+.tk-badge[data-status="in-progress"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-pill[data-status="flagged"],
+.status-pill[data-status="high"],
+.tk-badge[data-status="flagged"],
+.tk-badge[data-status="high"] {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ─── Request cards — remove pastel washes ─── */
+.tk-request-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+}
+
+.tk-request-card__media {
+  background: #f5f5f5 !important;
+}
+
+/* ─── Form inputs ─── */
+.setup-field input,
+.setup-field select,
+.setup-field textarea,
+.tk-form input,
+.tk-form select,
+.tk-form textarea {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: none !important;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.setup-field input:focus,
+.setup-field select:focus,
+.setup-field textarea:focus,
+.tk-form input:focus,
+.tk-form select:focus,
+.tk-form textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}
+
+/* ─── Inline links ─── */
+.tk-inline-link,
+.tk-section-link {
+  color: var(--accent) !important;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.tk-inline-link:hover,
+.tk-section-link:hover {
+  text-decoration: underline;
 }
