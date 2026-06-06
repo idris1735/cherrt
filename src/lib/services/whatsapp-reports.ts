@@ -1,4 +1,6 @@
 import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
+import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
+import { computeMetrics, type WorkspaceData } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { PhoneLink, WorkspaceContext } from "@/lib/services/whatsapp-workspace";
 
@@ -73,6 +75,7 @@ type ReportContext = {
   link: PhoneLink | null;
   session: WhatsAppSession;
   workspaceContext?: WorkspaceContext;
+  liveData?: WorkspaceData;
 };
 
 function fmt(n: number): string {
@@ -97,35 +100,39 @@ export async function buildReport(
 
   switch (key) {
     case "overview": {
-      const pending = isGuest
-        ? d.requests.filter((r) => r.status === "pending").length
-        : (w?.pendingRequests?.length ?? 0);
-      const openIssues = isGuest
-        ? d.issues.filter((i) => i.status !== "completed").length
-        : (w?.pendingIssues?.length ?? 0);
-      const lowStock = isGuest
-        ? d.inventory.filter((i) => i.inStock <= i.minLevel).length
-        : (w?.lowInventoryItems?.length ?? 0);
-      const wallet = isGuest ? ctx.session.demoBalance : d.walletBalance;
+      // Use shared metrics when live data is available (workspace mode)
+      const liveMetrics = ctx.liveData ? computeMetrics(ctx.liveData, "month") : null;
+      const bizName = isGuest ? d.businessName : ctx.link?.workspaceName ?? "Your workspace";
+
+      const salesMonth = liveMetrics?.totalSales ?? d.sales.thisMonth;
+      const salesDelta = liveMetrics?.salesDeltaPct ?? d.sales.deltaPct;
+      const salesToday = liveMetrics ? 0 : d.sales.today; // live data doesn't track "today" as a stat
+      const wallet = isGuest ? ctx.session.demoBalance : (liveMetrics?.walletBalance ?? d.walletBalance);
+      const custCount = liveMetrics?.customers ?? d.customers.total;
+      const pending = liveMetrics?.pendingApprovals ?? (isGuest ? d.requests.filter((r) => r.status === "pending").length : (w?.pendingRequests?.length ?? 0));
+      const openIss = liveMetrics?.openIssues ?? (isGuest ? d.issues.filter((i) => i.status !== "completed").length : (w?.pendingIssues?.length ?? 0));
+      const lowStk = liveMetrics?.lowStock ?? (isGuest ? d.inventory.filter((i) => i.inStock <= i.minLevel).length : (w?.lowInventoryItems?.length ?? 0));
 
       return {
         text: [
-          `📊 *${isGuest ? d.businessName : ctx.link?.workspaceName ?? "Your workspace"} — Business Overview*`,
+          `📊 *${bizName} — Business Overview*`,
           "",
           "💰 *Sales*",
-          `• This month: *${fmt(d.sales.thisMonth)}* (${deltaEmoji(d.sales.deltaPct)} ${Math.abs(d.sales.deltaPct)}%)`,
-          `• Today: ${fmt(d.sales.today)}`,
+          liveMetrics
+            ? `• This month: *${fmt(salesMonth)}* (${deltaEmoji(salesDelta)} ${Math.abs(salesDelta)}%)`
+            : `• This month: *${fmt(salesMonth)}* (${deltaEmoji(salesDelta)} ${Math.abs(salesDelta)}%)`,
+          salesToday > 0 ? `• Today: ${fmt(salesToday)}` : null,
           "",
-          `👛 *Wallet*: ${fmt(wallet)}  (Cashback ${fmt(d.cashback)})`,
-          `👥 *Customers*: ${d.customers.total}  (+${d.customers.newThisMonth} new this month)`,
+          `👛 *Wallet*: ${fmt(wallet)}  (Cashback ${fmt(liveMetrics?.cashback ?? d.cashback)})`,
+          `👥 *Customers*: ${custCount}`,
           "",
           "🧾 *Operations*",
           `• Pending approvals: ${pending}`,
-          `• Open issues: ${openIssues}`,
-          `• Low stock items: ${lowStock}`,
+          `• Open issues: ${openIss}`,
+          `• Low stock items: ${lowStk}`,
           "",
           "_Tap below for details._",
-        ].join("\n"),
+        ].filter(Boolean).join("\n"),
         buttons: [
           { id: "rpt:expenses", title: "Expenses" },
           { id: "rpt:requests", title: "Requests" },

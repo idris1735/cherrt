@@ -25,6 +25,7 @@ import {
 } from "@/lib/services/whatsapp-workspace";
 import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
 import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
+import { loadWorkspaceData } from "@/lib/services/workspace-data";
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
@@ -459,8 +460,13 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // ── Report navigation buttons ──
   if (buttonId.startsWith("rpt:")) {
     const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues";
-    const workspaceContext = link ? await loadWorkspaceContext(link.workspaceId) : undefined;
-    const { text, buttons } = await buildReport(key, { link, session, workspaceContext });
+    const [workspaceContext, liveData] = link
+      ? await Promise.all([
+          loadWorkspaceContext(link.workspaceId),
+          loadWorkspaceData(link.workspaceId).catch(() => undefined),
+        ])
+      : [undefined, undefined];
+    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData });
     if (buttons?.length) {
       try { await sendInteractiveButtons(from, text, buttons); }
       catch { await sendTextMessage(from, text); }
@@ -604,8 +610,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed) {
     const reportKey = matchReportIntent(trimmed);
     if (reportKey) {
-      const workspaceContext = link ? await loadWorkspaceContext(link.workspaceId) : undefined;
-      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext });
+      const [workspaceContext, liveData] = link
+        ? await Promise.all([
+            loadWorkspaceContext(link.workspaceId),
+            loadWorkspaceData(link.workspaceId).catch(() => undefined),
+          ])
+        : [undefined, undefined];
+      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData });
       if (buttons?.length) {
         try { await sendInteractiveButtons(from, text, buttons); }
         catch { await sendTextMessage(from, text); }

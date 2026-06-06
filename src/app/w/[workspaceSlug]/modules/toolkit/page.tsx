@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { type CSSProperties, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { formatCurrency } from "@/lib/format";
 import { demoMetrics, type Period } from "@/lib/data/demo-metrics";
+import { computeMetrics, type WorkspaceData } from "@/lib/services/business-metrics";
 import styles from "./dashboard.module.css";
 
 /* ─── Helpers ─── */
@@ -167,41 +169,62 @@ function TrendChart({
 export default function ToolkitDashboardPage() {
   const { snapshot } = useAppState();
   const [period, setPeriod] = useState<Period>("month");
-  const metrics = demoMetrics[period];
   const base = `/w/${snapshot.workspace.slug}/modules/toolkit`;
 
-  // ── Live data from snapshot ──
+  // Fetch live workspace data with 8s polling
+  const { data: liveData } = useQuery<WorkspaceData>({
+    queryKey: ["workspace-data", snapshot.workspace.slug],
+    queryFn: () => fetch(`/api/workspace/${snapshot.workspace.slug}/data`).then((r) => r.json()),
+    refetchInterval: 8000,
+    refetchOnWindowFocus: true,
+    staleTime: 4000,
+  });
+
+  // Compute metrics from live data (or fall back to demo-metrics)
+  const computed = useMemo(() => {
+    if (liveData?.orders?.length) {
+      return computeMetrics(liveData, period);
+    }
+    // Fallback: use the static demo-metrics for headline numbers,
+    // but use live snapshot for operational counts
+    return null;
+  }, [liveData, period]);
+
+  // Demo fallback for headline numbers
+  const demo = demoMetrics[period];
+
+  // Live operational counts from snapshot
   const requests = useMemo(
     () => snapshot.requests.filter((r) => r.module === "toolkit"),
     [snapshot.requests],
   );
-  const pendingApprovals = useMemo(
-    () => requests.filter((r) => r.status === "pending").length,
-    [requests],
-  );
-  const approvedCount = useMemo(
-    () => requests.filter((r) => r.status === "approved" || r.status === "completed").length,
-    [requests],
-  );
-  const openIssues = useMemo(
-    () => snapshot.issues.filter((i) => i.status !== "completed" && i.status !== "approved").length,
-    [snapshot.issues],
-  );
-  const lowStock = useMemo(
-    () => snapshot.inventory.filter((i) => i.inStock <= i.minLevel).length,
-    [snapshot.inventory],
-  );
-  const awaitingSig = useMemo(
-    () => snapshot.documents.filter((d) => d.awaitingSignatureFrom).length,
-    [snapshot.documents],
-  );
+  const pendingApprovals = computed?.pendingApprovals ??
+    requests.filter((r) => r.status === "pending").length;
+  const approvedCount = computed?.approvedCount ??
+    requests.filter((r) => r.status === "approved" || r.status === "completed").length;
+  const openIssues = computed?.openIssues ??
+    snapshot.issues.filter((i) => i.status !== "completed" && i.status !== "approved").length;
+  const lowStock = computed?.lowStock ??
+    snapshot.inventory.filter((i) => i.inStock <= i.minLevel).length;
+  const awaitingSig = computed?.awaitingSig ??
+    snapshot.documents.filter((d) => d.awaitingSignatureFrom).length;
+
   const recentActivity = useMemo(
-    () =>
-      snapshot.activities
-        .filter((a) => a.module === "toolkit")
-        .slice(0, 5),
-    [snapshot.activities],
+    () => computed?.recentActivity ?? snapshot.activities
+      .filter((a) => a.module === "toolkit")
+      .slice(0, 5),
+    [computed, snapshot.activities],
   );
+
+  const totalSales = computed?.totalSales ?? demo.totalSales;
+  const salesDeltaPct = computed?.salesDeltaPct ?? demo.salesDeltaPct;
+  const walletBalance = computed?.walletBalance ?? demo.walletBalance;
+  const cashback = computed?.cashback ?? demo.cashback;
+  const customers = computed?.customers ?? demo.customers;
+  const customersDeltaPct = computed?.customersDeltaPct ?? demo.customersDeltaPct;
+  const spend = computed?.spend ?? demo.spend;
+  const spendDeltaPct = computed?.spendDeltaPct ?? demo.spendDeltaPct;
+  const chartSeries = computed?.series ?? demo.series;
 
   const totalRequests = approvedCount + pendingApprovals;
   const firstName = snapshot.membership.userName.split(" ")[0] ?? snapshot.membership.userName;
@@ -215,7 +238,7 @@ export default function ToolkitDashboardPage() {
     year: "last year",
   };
 
-  const chartAriaLabel = `Sales trend for ${period}: ${metrics.series.map((d) => `${d.label} ₦${d.value.toLocaleString()}`).join(", ")}`;
+  const chartAriaLabel = `Sales trend for ${period}: ${chartSeries.map((d) => `${d.label} ₦${d.value.toLocaleString()}`).join(", ")}`;
 
   return (
     <div className={styles.db}>
@@ -249,10 +272,10 @@ export default function ToolkitDashboardPage() {
         <div className={styles["db-hero-body"]}>
           <span className={styles["db-hero-label"]}>Total sales</span>
           <span className={styles["db-hero-value"]}>
-            {formatCurrency(metrics.totalSales, snapshot.workspace.currency)}
+            {formatCurrency(totalSales, snapshot.workspace.currency)}
           </span>
-          <span className={deltaClass(metrics.salesDeltaPct, { dark: true })}>
-            {fmtPct(metrics.salesDeltaPct)} vs {periodLabel[period]}
+          <span className={deltaClass(salesDeltaPct, { dark: true })}>
+            {fmtPct(salesDeltaPct)} vs {periodLabel[period]}
           </span>
         </div>
         <Link
@@ -272,18 +295,18 @@ export default function ToolkitDashboardPage() {
         <div className={styles["db-stat"]}>
           <span className={styles["db-stat-label"]}>Wallet balance</span>
           <span className={styles["db-stat-value"]}>
-            {formatCurrency(metrics.walletBalance, snapshot.workspace.currency)}
+            {formatCurrency(walletBalance, snapshot.workspace.currency)}
           </span>
           <span className={styles["db-stat-sub"]}>
-            Cashback {formatCurrency(metrics.cashback, snapshot.workspace.currency)}
+            Cashback {formatCurrency(cashback, snapshot.workspace.currency)}
           </span>
         </div>
 
         <div className={styles["db-stat"]}>
           <span className={styles["db-stat-label"]}>Customers</span>
-          <span className={styles["db-stat-value"]}>{metrics.customers.toLocaleString()}</span>
-          <span className={deltaClass(metrics.customersDeltaPct)}>
-            {fmtPct(metrics.customersDeltaPct)} vs {periodLabel[period]}
+          <span className={styles["db-stat-value"]}>{customers.toLocaleString()}</span>
+          <span className={deltaClass(customersDeltaPct)}>
+            {fmtPct(customersDeltaPct)} vs {periodLabel[period]}
           </span>
         </div>
 
@@ -292,10 +315,10 @@ export default function ToolkitDashboardPage() {
             {period === "today" ? "Spend today" : `Spend this ${period}`}
           </span>
           <span className={styles["db-stat-value"]}>
-            {formatCurrency(metrics.spend, snapshot.workspace.currency)}
+            {formatCurrency(spend, snapshot.workspace.currency)}
           </span>
-          <span className={deltaClass(metrics.spendDeltaPct, { goodWhenNegative: true })}>
-            {fmtPct(metrics.spendDeltaPct)} vs {periodLabel[period]}
+          <span className={deltaClass(spendDeltaPct, { goodWhenNegative: true })}>
+            {fmtPct(spendDeltaPct)} vs {periodLabel[period]}
           </span>
         </div>
       </div>
@@ -306,7 +329,7 @@ export default function ToolkitDashboardPage() {
           <div className={styles["db-card-head"]}>
             <h2 className={styles["db-card-title"]}>Sales trend</h2>
           </div>
-          <TrendChart series={metrics.series} ariaLabel={chartAriaLabel} />
+          <TrendChart series={chartSeries} ariaLabel={chartAriaLabel} />
         </div>
 
         <div className={styles["db-card"]}>
