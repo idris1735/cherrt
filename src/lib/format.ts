@@ -16,10 +16,11 @@ export function formatMessageTime(createdAt?: number): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-export function formatCurrency(amount: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
+export function formatCurrency(amount: number, currency = "NGN") {
+  return new Intl.NumberFormat("en-NG", {
     style: "currency",
-    currency,
+    currency: currency || "NGN",
+    currencyDisplay: "narrowSymbol",
     maximumFractionDigits: 0,
   }).format(amount);
 }

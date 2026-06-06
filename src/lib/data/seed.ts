@@ -8,8 +8,8 @@ export const seedSnapshot: WorkspaceSnapshot = {
     legalName: "Chertt Demo Workspace",
     sector: "Multi-sector Operations",
     city: "Global",
-    timezone: "UTC",
-    currency: "USD",
+    timezone: "Africa/Lagos",
+    currency: "NGN",
     modules: ["toolkit", "church", "store", "events"],
     brand: {
       accent: "#fa8300",
