@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<title>Chertt ChurchBase</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --bg:#0a0a0c;
+  --surface:rgba(255,255,255,.03);
+  --border:rgba(255,255,255,.08);
+  --text:#e4e4e7;
+  --muted:#71717a;
+  --accent:#f0812c;
+  --accent-soft:rgba(240,129,44,.12);
+  --danger:#ef4444;
+  --danger-soft:rgba(239,68,68,.08);
+  --radius:14px;
+}
+
+html{scroll-behavior:smooth}
+body{
+  font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  overflow-x:hidden;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* ── UTILITY ── */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(32px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes fadeIn{
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes pulse{
+  0%,100%{opacity:.4}
+  50%{opacity:.85}
+}
+@keyframes dash{
+  to{stroke-dashoffset:-120}
+}
+@keyframes grain{
+  0%,100%{transform:translate(0,0)}
+  10%{transform:translate(-2px,1px)}
+  30%{transform:translate(1px,-2px)}
+  60%{transform:translate(2px,1px)}
+  90%{transform:translate(-1px,-1px)}
+}
+
+.reveal{opacity:0;transform:translateY(32px);transition:.75s cubic-bezier(.22,1,.36,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* ── NOISE OVERLAY ── */
+.noise{
+  position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  animation:grain 8s steps(4) infinite;
+  opacity:.4;
+}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;min-height:100dvh;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;padding:clamp(24px,6vw,60px) clamp(16px,5vw,40px);
+  position:relative;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 40%,rgba(240,129,44,.07),transparent 70%);
+  pointer-events:none;
+}
+.hero .pill{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:8px 18px;border:1px solid rgba(255,255,255,.12);border-radius:999px;
+  font-size:clamp(12px,2vw,13px);font-weight:500;letter-spacing:.02em;
+  color:var(--accent);background:var(--accent-soft);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  margin-bottom:clamp(20px,4vw,28px);
+  animation:fadeUp .8s cubic-bezier(.22,1,.36,1) both;
+}
+.hero .pill span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s ease-in-out infinite}
+.hero h1{
+  font-size:clamp(44px,10vw,80px);font-weight:800;letter-spacing:-.03em;
+  line-height:1;animation:fadeUp .8s .1s cubic-bezier(.22,1,.36,1) both;
+}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero .tagline{
+  margin-top:clamp(14px,3vw,20px);color:var(--muted);
+  max-width:600px;font-size:clamp(16px,2.5vw,18px);line-height:1.55;
+  animation:fadeUp .8s .2s cubic-bezier(.22,1,.36,1) both;
+}
+.hero .scroll-hint{
+  position:absolute;bottom:clamp(24px,5vw,40px);
+  display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  animation:fadeIn 1s .6s both,pulse 3s 1.6s ease-in-out infinite;
+}
+.scroll-hint span{display:block;width:1px;height:28px;background:rgba(255,255,255,.2)}
+
+/* ── ECOSYSTEM MAP ── */
+.ecosystem{
+  max-width:1100px;margin:clamp(40px,8vw,80px) auto;padding:0 clamp(16px,4vw,32px);
+}
+.ecosystem h2{
+  font-size:clamp(26px,5vw,38px);font-weight:700;letter-spacing:-.02em;margin-bottom:8px;
+}
+.ecosystem .sub{color:var(--muted);font-size:15px;max-width:520px}
+
+/* desktop map */
+.eco-desktop{display:none}
+@media(min-width:768px){
+  .eco-desktop{display:block;position:relative;height:560px;margin-top:48px}
+  .eco-desktop svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .eco-desktop line{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:6 5;animation:dash 12s linear infinite;opacity:.5}
+  .eco-desktop .hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+}
+.eco-node{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:clamp(16px,3vw,22px);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  transition:all .4s cubic-bezier(.22,1,.36,1);
+  position:relative;overflow:hidden;
+}
+.eco-node::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;
+  background:radial-gradient(ellipse at top left,var(--accent-soft),transparent 70%);
+  opacity:0;transition:opacity .4s;
+}
+.eco-node:hover{transform:translateY(-4px);border-color:var(--accent)}
+.eco-node:hover::after{opacity:1}
+.eco-node h4{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:.01em}
+.eco-node ul{list-style:none;display:flex;flex-direction:column;gap:5px}
+.eco-node li{font-size:13px;color:var(--muted);padding-left:14px;position:relative}
+.eco-node li::before{content:'';position:absolute;left:0;top:8px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.5}
+
+.eco-desktop .hub{width:220px;text-align:center;z-index:2}
+.eco-desktop .hub h3{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.eco-desktop .hub p{font-size:12px;color:var(--muted);margin-top:4px}
+.eco-desktop .n{position:absolute;width:200px}
+.eco-desktop .n1{left:6%;top:4%}
+.eco-desktop .n2{right:6%;top:4%}
+.eco-desktop .n3{left:6%;bottom:6%}
+.eco-desktop .n4{right:6%;bottom:6%}
+.eco-desktop .n5{left:50%;bottom:0;transform:translateX(-50%);width:240px}
+
+/* mobile map */
+.eco-mobile{display:flex;flex-direction:column;gap:12px;margin-top:32px}
+@media(min-width:768px){.eco-mobile{display:none}}
+.eco-mobile .eco-node{padding:18px 20px}
+.eco-mobile .eco-node h4{font-size:15px}
+.eco-mobile .eco-node li{font-size:13px}
+
+/* ── SECTIONS ── */
+.section{padding:clamp(60px,10vw,100px) clamp(16px,5vw,40px)}
+.section-inner{max-width:1000px;margin:0 auto}
+.section h2{font-size:clamp(24px,5vw,36px);font-weight:700;letter-spacing:-.02em;margin-bottom:clamp(8px,2vw,12px)}
+.section .lead{color:var(--muted);font-size:clamp(14px,2vw,15px);max-width:600px;line-height:1.65}
+
+/* ── CARD GRID ── */
+.card-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));
+  gap:clamp(12px,2vw,18px);margin-top:clamp(24px,4vw,36px);
+}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:clamp(18px,3vw,24px);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:border-color .3s;
+}
+.card:hover{border-color:rgba(255,255,255,.16)}
+.card h4{font-size:15px;font-weight:600;color:var(--accent);margin-bottom:10px}
+.card p,.card span{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* ── CRITICAL CARD ── */
+.critical{
+  background:var(--danger-soft);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);
+  padding:clamp(18px,3vw,26px);margin-top:28px;max-width:680px;
+}
+.critical h4{font-size:15px;font-weight:600;color:var(--danger);margin-bottom:12px}
+.critical ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+.critical li{font-size:13.5px;color:#fecaca;line-height:1.6;padding-left:18px;position:relative}
+.critical li::before{content:'!';position:absolute;left:0;top:0;font-weight:700;font-size:12px;color:var(--danger)}
+
+/* ── SCENARIOS ── */
+.scenario-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));
+  gap:clamp(10px,2vw,14px);margin-top:clamp(16px,3vw,24px);
+}
+.scenario{
+  background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  padding:clamp(16px,2.5vw,20px);transition:all .3s;
+}
+.scenario:hover{border-color:var(--accent);background:rgba(255,255,255,.04)}
+.scenario .num{font-family:"SF Mono","Cascadia Code",monospace;font-size:10px;color:var(--accent);letter-spacing:.06em;margin-bottom:6px;display:block}
+.scenario h5{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--text)}
+.scenario .flow{font-size:13px;color:var(--muted);line-height:1.65}
+.scenario .flow b{color:var(--text);font-weight:600}
+.scenario .why{font-size:11.5px;color:#52525b;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);line-height:1.5}
+
+.subhead{font-size:clamp(18px,3vw,22px);font-weight:600;color:var(--text);margin-top:clamp(36px,6vw,48px);margin-bottom:4px;letter-spacing:-.01em}
+
+/* ── REALITY LIST ── */
+.reality{border-top:1px solid var(--border);margin-top:32px}
+.reality-item{
+  display:grid;grid-template-columns:1fr;gap:4px;
+  padding:clamp(14px,2.5vw,18px) 0;border-bottom:1px solid rgba(255,255,255,.05);
+}
+@media(min-width:640px){
+  .reality-item{grid-template-columns:220px 1fr;gap:20px}
+}
+.reality-item b{font-size:13.5px;font-weight:600;color:var(--text)}
+.reality-item span{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* ── JOURNEY CHAINS ── */
+.chains{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.chain{
+  display:inline-flex;align-items:center;gap:0;
+  border:1px solid var(--border);border-radius:999px;
+  overflow:hidden;font-size:12px;
+  transition:border-color .3s;
+}
+.chain:hover{border-color:var(--accent)}
+.chain span{
+  padding:8px 14px;background:var(--surface);color:var(--text);font-weight:500;
+  white-space:nowrap;
+}
+.chain span.arr{background:transparent;color:var(--accent);padding:8px 6px;font-weight:400}
+
+/* ── DEMO CARD ── */
+.demo-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:clamp(16px,3vw,22px);margin-top:12px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.demo-card .label{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.demo-card .msg{font-size:13.5px;color:var(--text);line-height:1.65}
+.demo-card .msg b{color:var(--accent);font-weight:600}
+.demo-card .reply{margin-top:10px;padding-left:14px;border-left:2px solid var(--accent)}
+.demo-card .reply p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* ── FOOTER ── */
+footer{
+  text-align:center;padding:clamp(40px,8vw,80px) clamp(16px,4vw,32px);
+  color:#3f3f46;font-size:13px;border-top:1px solid rgba(255,255,255,.04);
+}
+
+/* ── RESPONSIVE FINE-TUNING ── */
+@media(max-width:400px){
+  .eco-node{padding:14px 16px}
+  .card{padding:16px 18px}
+  .scenario{padding:14px 16px}
+  .hero h1{font-size:36px}
+}
+</style>
+</head>
+<body>
+
+<div class="noise" aria-hidden="true"></div>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+  <div class="pill"><span></span> An AI church secretary &middot; Inside WhatsApp</div>
+  <h1>Meet <em>Chertt</em></h1>
+  <p class="tagline">Not another church management system. A living, breathing assistant that already speaks your members' language — because they already live in WhatsApp.</p>
+  <div class="scroll-hint">Scroll<span></span></div>
+</section>
+
+<!-- ═══════════ ECOSYSTEM ═══════════ -->
+<section class="ecosystem reveal">
+  <h2>One thread. Six pillars.</h2>
+  <p class="sub">Every part of church life connects to the same conversation. Nobody juggles apps. Nobody gets lost.</p>
+
+  <!-- desktop -->
+  <div class="eco-desktop">
+    <svg id="eco-svg" aria-hidden="true"></svg>
+    <div class="eco-node hub"><h3>Chertt</h3><p>Church Intelligence</p></div>
+    <div class="eco-node n n1"><h4>💰 Giving &amp; Finance</h4><ul><li>Tithes &amp; offerings</li><li>Financial requests</li><li>Receipts &amp; reports</li><li>Reconciliation</li></ul></div>
+    <div class="eco-node n n2"><h4>❤️ Pastoral Care</h4><ul><li>Prayer requests</li><li>Counselling</li><li>Crisis escalation</li><li>Follow‑up reminders</li></ul></div>
+    <div class="eco-node n n3"><h4>👶 Children&#8209;s&nbsp;Church</h4><ul><li>Registration</li><li>Check‑in &amp; pickup</li><li>Guardian verification</li><li>Allergy &amp; consent</li></ul></div>
+    <div class="eco-node n n4"><h4>🚀 Growth &amp; Belonging</h4><ul><li>First‑timers</li><li>Baptism &amp; discipleship</li><li>Volunteers</li><li>Events &amp; retreats</li></ul></div>
+    <div class="eco-node n n5"><h4>⛪ Sunday Operations</h4><ul><li>Attendance &amp; QR check‑in</li><li>Service reports</li><li>Pastor dashboard</li><li>Announcements</li></ul></div>
+  </div>
+
+  <!-- mobile -->
+  <div class="eco-mobile">
+    <div class="eco-node"><h4>💰 Giving &amp; Finance</h4><ul><li>Tithes &amp; offerings</li><li>Financial requests &amp; approvals</li><li>Receipts, reports, reconciliation</li></ul></div>
+    <div class="eco-node"><h4>❤️ Pastoral Care</h4><ul><li>Prayer requests</li><li>Counselling appointments</li><li>Crisis escalation &amp; follow‑ups</li></ul></div>
+    <div class="eco-node"><h4>👶 Children&#8209;s Church</h4><ul><li>Registration &amp; check‑in</li><li>Guardian verification</li><li>Allergy records &amp; consent</li></ul></div>
+    <div class="eco-node"><h4>🚀 Growth &amp; Belonging</h4><ul><li>First‑timers &amp; follow‑up</li><li>Baptism, discipleship, volunteering</li><li>Events &amp; retreats</li></ul></div>
+    <div class="eco-node"><h4>⛪ Sunday Operations</h4><ul><li>Attendance &amp; QR check‑in</li><li>Service reports &amp; pastor dashboard</li><li>Announcements</li></ul></div>
+  </div>
+</section>
+
+<!-- ═══════════ CORE EXPERIENCE ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>How it actually works</h2>
+  <p class="lead">No app to install. No training session. Just the WhatsApp your members already use every day. For pastors and admins — a clean dashboard when you need it.</p>
+  <div class="card-grid">
+    <div class="card"><h4>WhatsApp is the front door</h4><p>Members text Chertt like they'd text anyone. They give, register, ask for prayer, check in their kids — all from the same chat. No menus. No confusion.</p></div>
+    <div class="card"><h4>A dashboard that stays out of the way</h4><p>Pastors, finance, and admins get a simple web view — reports, approvals, member records. You only open it when you need it.</p></div>
+    <div class="card"><h4>AI that understands what's serious</h4><p>Chertt knows the difference between "pray for my mum" and "I don't want to be here anymore." The first goes to the prayer team. The second triggers an instant alert to a named leader. No exceptions.</p></div>
+    <div class="card"><h4>Built for real WhatsApp behaviour</h4><p>Voicenotes get transcribed. Receipt photos get read — numbers pulled out automatically. Someone disappears mid‑conversation and comes back next week? Chertt remembers exactly where you left off.</p></div>
+  </div>
+</div></section>
+
+<!-- ═══════════ ONBOARDING ═══════════ -->
+<style>
+.onboard-steps{display:flex;flex-direction:column;gap:clamp(8px,2vw,12px);margin-top:clamp(20px,3vw,28px);counter-reset:step}
+.onboard-step{
+  display:flex;gap:clamp(12px,2vw,18px);align-items:flex-start;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:clamp(16px,3vw,22px);transition:border-color .3s;
+}
+.onboard-step:hover{border-color:rgba(255,255,255,.16)}
+.onboard-step .step-num{
+  flex-shrink:0;width:clamp(28px,4vw,34px);height:clamp(28px,4vw,34px);
+  border-radius:50%;background:var(--accent-soft);border:1px solid rgba(240,129,44,.25);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--accent);
+}
+.onboard-step .step-body h4{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.onboard-step .step-body p{font-size:13px;color:var(--muted);line-height:1.6}
+.onboard-illustration{
+  margin-top:clamp(20px,3vw,28px);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));
+  gap:clamp(10px,2vw,14px);
+}
+</style>
+
+<section class="section"><div class="section-inner reveal">
+  <h2>Getting started — five minutes, not five days</h2>
+  <p class="lead">This isn't enterprise software. There's no implementation team. A pastor can have Chertt running for their entire church before the next service.</p>
+
+  <div class="onboard-steps">
+    <div class="onboard-step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Pastor or admin creates the workspace</h4>
+        <p>Opens the Chertt dashboard on their phone or laptop. Enters the church name, city, and timezone. Picks which modules to activate — Toolkit, ChurchBase, StoreFront, Events. Two minutes.</p>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Links the church WhatsApp number</h4>
+        <p>Scans a QR code from the dashboard. That number becomes Chertt. The same number members already have saved. No new number to remember.</p>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Invites members — in bulk, or one at a time</h4>
+        <p>Uploads a contact list, or sends an invite link to the church WhatsApp group. Members click one link and they're in. Chertt already knows their name and role.</p>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Members just say Hi</h4>
+        <p>That's it. No training. No app to install. A member opens WhatsApp, messages the church number, and Chertt responds — ready to give, pray, register, or check in.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="onboard-illustration">
+    <div class="demo-card">
+      <div class="label">First time — a member says hello</div>
+      <div class="msg"><b>Sister Amara:</b> Hi</div>
+      <div class="reply" style="margin-top:10px"><p><b>Chertt:</b> Good afternoon, Sister Amara 👋 I'm Chertt — your church assistant. Need to give? Pray? Register for something? Just ask. I'm here.</p></div>
+    </div>
+    <div class="demo-card">
+      <div class="label">Pastor's dashboard — same moment</div>
+      <div class="msg" style="font-size:12.5px;color:var(--muted)">Sister Amara just connected. 247 members active this week. 34 first‑timers. 12 prayer requests. ₦1.8M in giving. All from WhatsApp. All in real time.</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ═══════════ IT REMEMBERS ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>It doesn't forget people</h2>
+  <p class="lead">Most systems lose track of a member the moment they walk out the door. Chertt follows up on its own — nobody has to remember to check in.</p>
+  <div class="card-grid">
+    <div class="card"><h4>Prayer follow‑up</h4><p>"You asked us to pray for your mum last month — how is she doing now?"</p></div>
+    <div class="card"><h4>Missed Sundays</h4><p>"We haven't seen you the last three weeks. Everything okay? Need anything?"</p></div>
+    <div class="card"><h4>Counselling check‑in</h4><p>"You requested counselling two weeks ago. Did you get to meet with Pastor John?"</p></div>
+    <div class="card"><h4>First‑timer nurture</h4><p>Day 1: "Thanks for visiting." Day 3: a note from the pastor. Day 7: an invitation back. Automatic — but it never sounds automatic.</p></div>
+  </div>
+</div></section>
+
+<!-- ═══════════ CRISIS ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>Where it stops being clever</h2>
+  <p class="lead">"Pray for my mother" and "I don't want to be here anymore" cannot go through the same pipe. The moment Chertt picks up a signal of real danger, it stops trying to help — and starts an alarm.</p>
+  <div class="critical">
+    <h4>Hard rule &mdash; never broken</h4>
+    <ul>
+      <li>The AI never attempts to counsel a crisis itself. Ever.</li>
+      <li>It escalates instantly — to a named leader, not a general inbox.</li>
+      <li>Every escalation is logged. Nothing is silently lost.</li>
+      <li>Location can be shared, with the person's consent.</li>
+    </ul>
+  </div>
+</div></section>
+
+<!-- ═══════════ WHO TALKS ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>Six people. One number.</h2>
+  <p class="lead">The same WhatsApp line — but what each person sees is scoped to their role. A member can't approve a budget. A finance officer can't see counselling notes.</p>
+  <div class="card-grid">
+    <div class="card"><h4>Church Member</h4><p>Give &middot; Ask questions &middot; Register &middot; Join a department &middot; Request prayer &middot; Report an issue &middot; Get announcements &middot; Book appointments &middot; Receive reminders</p></div>
+    <div class="card"><h4>Pastor</h4><p>View reports &middot; Receive prayer requests &middot; Approve spending &middot; Assign workers &middot; Broadcast messages &middot; Check attendance &middot; Follow up visitors</p></div>
+    <div class="card"><h4>Church Secretary</h4><p>Register members &middot; Create announcements &middot; Manage departments &middot; Respond to FAQs &middot; Produce letters &middot; Schedule appointments</p></div>
+    <div class="card"><h4>Finance</h4><p>View giving &middot; Record cash &middot; Export reports &middot; Reconcile payments &middot; Approve requests within budget</p></div>
+    <div class="card"><h4>Children's Church</h4><p>Check children in &middot; Verify guardians &middot; Record pickups &middot; Handle emergencies &middot; Track allergies</p></div>
+    <div class="card"><h4>Department Leaders</h4><p>Track attendance &middot; Manage members &middot; Handle requests &middot; Run events &middot; Communicate with teams</p></div>
+  </div>
+</div></section>
+
+<!-- ═══════════ JOURNEYS ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>The journeys that matter</h2>
+  <p class="lead">Get these right and most of the day‑to‑day friction in a church disappears. This is bigger than digitising a few forms.</p>
+  <div class="chains">
+    <div class="chain"><span>Visitor</span><span class="arr">&rarr;</span><span>Member</span><span class="arr">&rarr;</span><span>Volunteer</span><span class="arr">&rarr;</span><span>Leader</span></div>
+    <div class="chain"><span>Prayer request</span><span class="arr">&rarr;</span><span>Follow‑up</span></div>
+    <div class="chain"><span>Giving</span><span class="arr">&rarr;</span><span>Receipt</span><span class="arr">&rarr;</span><span>Finance</span></div>
+    <div class="chain"><span>Counselling</span><span class="arr">&rarr;</span><span>Appointment</span><span class="arr">&rarr;</span><span>Resolution</span></div>
+    <div class="chain"><span>Event</span><span class="arr">&rarr;</span><span>Attendance</span><span class="arr">&rarr;</span><span>Follow‑up</span></div>
+    <div class="chain"><span>New convert</span><span class="arr">&rarr;</span><span>Discipleship</span><span class="arr">&rarr;</span><span>Baptism</span></div>
+    <div class="chain"><span>Child</span><span class="arr">&rarr;</span><span>Parent pickup</span></div>
+  </div>
+</div></section>
+
+<!-- ═══════════ SCENARIOS ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>Every scenario, end to end</h2>
+  <p class="lead">The real question was never "what features do we build." It was: what already happens inside WhatsApp every Sunday — and what breaks because nobody's tracking it.</p>
+
+  <h3 class="subhead">Sunday morning</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">01</span><h5>Walking into church</h5><div class="flow"><b>Daniel:</b> Hi<br><b>Chertt:</b> Good morning Daniel 👋 Today — 9:00am, "The Power of Faith." Need directions, prayer, or kids' check‑in?</div><div class="why">Solves: forgot the time, venue, or what's happening today.</div></div>
+    <div class="scenario"><span class="num">02</span><h5>Running late</h5><div class="flow"><b>Member:</b> Running late<br><b>Chertt:</b> Noted — your seat's still yours. We'll adjust the count.</div><div class="why">Solves: nobody at the door knows who's still on the way.</div></div>
+    <div class="scenario"><span class="num">09</span><h5>Attendance that actually works</h5><div class="flow">Usher scans a QR code → attendance is logged instantly. Phone dead? No signal? Name, phone number, or a 6‑digit backup code works too.</div><div class="why">Solves: attendance breaking the moment tech fails.</div></div>
+  </div>
+
+  <h3 class="subhead">Welcoming people</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">03</span><h5>First‑time visitor</h5><div class="flow"><b>Visitor scans QR or says Hi</b><br><b>Chertt:</b> Welcome ❤️ What's your name? Phone? Birthday? Who invited you? Need transport or a follow‑up?<br>The pastor sees it land — immediately.</div><div class="why">Solves: the paper form someone currently carries around.</div></div>
+    <div class="scenario"><span class="num">16</span><h5>Follow‑up that doesn't need reminding</h5><div class="flow"><b>Chertt, unprompted:</b> Hi Grace — we missed you ❤️ Need prayer, transport, or have questions?<br>The pastor gets a dashboard of who's drifting.</div><div class="why">Solves: the visitor who came once and never came back.</div></div>
+  </div>
+
+  <h3 class="subhead">Children</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">04</span><h5>Child check‑in</h5><div class="flow"><b>Parent:</b> Check in David<br><b>Chertt:</b> How many children? Names, ages, allergies, photo, guardian? → QR code generated.<br>At pickup: volunteer scans QR, releases child.</div><div class="why">Solves: wrong child, missing child, unknown guardian.</div></div>
+  </div>
+
+  <h3 class="subhead">Money</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">05</span><h5>Giving</h5><div class="flow"><b>Member:</b> I want to give<br><b>Chertt:</b> Tithe &middot; Offering &middot; Building &middot; Mission &middot; Special Seed → pick one, pay, receipt arrives instantly.</div><div class="why">Solves: missing receipts, wrong account, painful reconciliation.</div></div>
+    <div class="scenario"><span class="num">22</span><h5>Financial request</h5><div class="flow"><b>Department:</b> Need ₦80,000<br><b>Chertt:</b> What's it for? Which budget line? Got a receipt? → routed through the approval chain.</div><div class="why">Solves: spending with no paper trail.</div></div>
+  </div>
+
+  <h3 class="subhead">Care</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">06</span><h5>Prayer request</h5><div class="flow"><b>Member:</b> Please pray for my mother<br><b>Chertt:</b> With your name, or anonymous? → sent to the prayer team.</div><div class="why">Solves: requests getting lost, or exposed when they shouldn't be.</div></div>
+    <div class="scenario"><span class="num">07</span><h5>Counselling</h5><div class="flow"><b>Member:</b> I need to speak to the pastor<br><b>Chertt:</b> Marriage, finance, spiritual, health, business? → appointment booked.</div><div class="why">Solves: one pastor's inbox getting flooded.</div></div>
+    <div class="scenario"><span class="num">23</span><h5>Pastoral visit</h5><div class="flow"><b>Member:</b> Can the pastor visit?<br><b>Chertt:</b> Hospital, home, bereavement, or new birth? → scheduled.</div><div class="why">Solves: visit requests that go nowhere.</div></div>
+    <div class="scenario"><span class="num">18</span><h5>Bereavement</h5><div class="flow"><b>Member:</b> Brother James has passed<br><b>Chertt:</b> Notifies pastor, prayer team, funeral committee. Drafts the announcement for review.</div><div class="why">Solves: a workflow churches currently run entirely by hand.</div></div>
+  </div>
+
+  <h3 class="subhead">Growing &amp; belonging</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">10</span><h5>Joining a department</h5><div class="flow"><b>Member:</b> I want to join the choir<br><b>Chertt:</b> Current openings, rehearsal days, who leads it → apply, leader approves.</div><div class="why">Solves: nobody remembers who applied where.</div></div>
+    <div class="scenario"><span class="num">19</span><h5>Marriage</h5><div class="flow"><b>Member:</b> I want to get married<br><b>Chertt:</b> Premarital form, document upload, counselling booked.</div><div class="why">Solves: an entirely manual, multi‑step intake.</div></div>
+    <div class="scenario"><span class="num">20</span><h5>Baptism</h5><div class="flow"><b>Member:</b> I want to be baptised<br><b>Chertt:</b> Next class date, register, reminder, certificate when done.</div><div class="why">Solves: classes people forget to attend.</div></div>
+    <div class="scenario"><span class="num">21</span><h5>New convert</h5><div class="flow"><b>Chertt starts:</b> A 30‑day discipleship journey — a verse and a short lesson each day, with a check‑in. A leader follows your progress.</div><div class="why">Solves: a decision made once, then never followed up.</div></div>
+  </div>
+
+  <h3 class="subhead">Events &amp; operations</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">08</span><h5>Event registration</h5><div class="flow"><b>Member:</b> Register me for the retreat<br><b>Chertt:</b> Adult or child? Accommodation? Transport? Food? → pay, done.</div><div class="why">Solves: the manual spreadsheet.</div></div>
+    <div class="scenario"><span class="num">15</span><h5>Volunteer scheduling</h5><div class="flow"><b>Leader:</b> Need ushers for Sunday<br><b>Chertt:</b> Asks everyone who's available, collects responses, builds the roster.</div><div class="why">Solves: hours spent chasing people one by one.</div></div>
+    <div class="scenario"><span class="num">17</span><h5>Birthdays</h5><div class="flow"><b>Chertt, unprompted:</b> Happy Birthday 🎉 Would you like a pastoral visit today?</div><div class="why">Solves: the small human touch nobody has time to remember.</div></div>
+  </div>
+
+  <h3 class="subhead">Admin &amp; communication</h3>
+  <div class="scenario-grid">
+    <div class="scenario"><span class="num">11</span><h5>Announcements</h5><div class="flow">Admin sends today's three announcements → Chertt delivers them, tracks reactions, offers reminders.</div><div class="why">Solves: WhatsApp groups turning into noise.</div></div>
+    <div class="scenario"><span class="num">12</span><h5>FAQs</h5><div class="flow"><b>Member:</b> What's today's memory verse? Where's the church? Offering account?<br><b>Chertt:</b> Answers directly — no secretary needed.</div><div class="why">Solves: the same questions, asked over and over.</div></div>
+    <div class="scenario"><span class="num">13</span><h5>Lost &amp; found</h5><div class="flow"><b>Member:</b> I lost my Bible<br><b>Chertt:</b> Describe it, send a photo, where you last had it → a volunteer is notified.</div><div class="why">Solves: lost items nobody's tracking.</div></div>
+    <div class="scenario"><span class="num">14</span><h5>Facility issue</h5><div class="flow"><b>Member:</b> The toilet isn't working<br><b>Chertt:</b> Photo attached → maintenance notified.</div><div class="why">Solves: problems that go unreported until someone complains loudly.</div></div>
+  </div>
+
+  <p style="margin-top:28px;font-size:12px;color:#3f3f46">Scenario 24 — a message signalling real danger or self‑harm — is handled separately under "Where it stops being clever." It never runs through a normal flow.</p>
+</div></section>
+
+<!-- ═══════════ REALITY ═══════════ -->
+<section class="section"><div class="section-inner reveal">
+  <h2>Built for how people actually use WhatsApp</h2>
+  <p class="lead">A menu‑driven bot breaks the moment someone goes off‑script. Chertt was designed for the messiness of real conversation.</p>
+  <div class="reality">
+    <div class="reality-item"><b>People don't follow menus</b><span>"My son has malaria and I need the pastor" has to work exactly like picking option 3. That takes real language understanding, not a numbered list.</span></div>
+    <div class="reality-item"><b>Voice notes</b><span>Transcribed automatically before Chertt reads them. Someone can speak their request and get the same result as typing it.</span></div>
+    <div class="reality-item"><b>Photos</b><span>Read, not just stored. Send a picture of a receipt — Chertt pulls the numbers out and logs the expense.</span></div>
+    <div class="reality-item"><b>PDFs</b><span>Parsed for the data inside them. Upload a document and Chertt extracts what matters.</span></div>
+    <div class="reality-item"><b>People vanish mid‑conversation</b><span>They come back next week — Chertt remembers exactly where they left off. No starting over.</span></div>
+    <div class="reality-item"><b>Shared phone</b><span>Husband and wife, same WhatsApp. Chertt figures out who's speaking and keeps their identities separate.</span></div>
+    <div class="reality-item"><b>One person, several churches</b><span>Switching between workspaces happens automatically. The member never has to think about it.</span></div>
+    <div class="reality-item"><b>Member changes number</b><span>Their identity carries over. It's not lost with the old SIM card.</span></div>
+    <div class="reality-item"><b>Deleted WhatsApp</b><span>Session recovers cleanly on reinstall. No data lost.</span></div>
+    <div class="reality-item"><b>Pastor changes</b><span>Permissions transfer as a config update — not a support ticket.</span></div>
+  </div>
+</div></section>
+
+<!-- ═══════════ DEMO ═══════════ -->
+<style>
+.demo-section{margin-top:clamp(12px,2vw,20px)}
+.demo-section:first-of-type{margin-top:clamp(24px,4vw,36px)}
+.demo-label{
+  font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:clamp(8px,2vw,12px);
+  padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.demo-thread{display:flex;flex-direction:column;gap:8px}
+.demo-msg{
+  background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  padding:clamp(12px,2vw,16px) clamp(14px,2.5vw,18px);
+  max-width:92%;font-size:13px;line-height:1.6;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.demo-msg.user{align-self:flex-end;text-align:right;color:var(--text);border-color:rgba(240,129,44,.18);background:rgba(240,129,44,.06)}
+.demo-msg.chertt{align-self:flex-start;color:var(--muted)}
+.demo-msg b{color:var(--text);font-weight:600}
+.demo-msg .highlight{color:var(--accent);font-weight:600}
+.demo-divider{
+  display:flex;align-items:center;gap:12px;margin:clamp(28px,4vw,40px) 0 clamp(14px,2vw,20px);
+  color:#3f3f46;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+}
+.demo-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
+</style>
+
+<section class="section"><div class="section-inner reveal">
+  <h2>What it feels like</h2>
+  <p class="lead">Not a menu. Not a chatbot. Just a conversation that gets things done. Here's what Chertt actually sounds like — across a normal week in the life of a church.</p>
+
+  <!-- Sunday Morning -->
+  <div class="demo-section">
+    <div class="demo-label">Sunday Morning</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">Good morning</div>
+      <div class="demo-msg chertt">Good morning 👋 Today's service — <b>9:00am</b>, Pastor Ade is preaching on <b>"The Power of Faith."</b> Need directions, prayer, or kids' check‑in?</div>
+      <div class="demo-msg user">I'm running a bit late. Just leaving the house.</div>
+      <div class="demo-msg chertt">No worries. I've noted it — your seat's still yours. See you soon 🙏</div>
+      <div class="demo-msg user">Also, my wife is coming with our son David. Can you check him into children's church?</div>
+      <div class="demo-msg chertt">Of course. David — 4 years old, no allergies on file. I've generated his check‑in QR. Show this to the children's church volunteer at drop‑off: <b>CHK‑D4V1D</b>. For pickup, the volunteer will scan it to release him to you or your wife.</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Later that week</div>
+
+  <!-- Prayer + Giving -->
+  <div class="demo-section">
+    <div class="demo-label">Prayer &amp; Giving</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">Please pray for my mother. She's been ill and we're at the hospital.</div>
+      <div class="demo-msg chertt">I'm sorry to hear that ❤️ I've sent your request to the prayer team. Would you like this to be anonymous, or can they mention your name?</div>
+      <div class="demo-msg user">With my name is fine. And I want to give my tithe — ₦15,000.</div>
+      <div class="demo-msg chertt">Done. Your tithe of <b>₦15,000</b> has been processed. Your receipt is below — I've also emailed it to the address on file. Bless you 🙏</div>
+      <div class="demo-msg user">Thanks. Can I also give an offering? ₦5,000.</div>
+      <div class="demo-msg chertt">Absolutely. <b>₦5,000</b> offering received. That's ₦20,000 total for today. Both receipts are now in your giving history — you can pull them up anytime by asking "show me my giving."</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Midweek</div>
+
+  <!-- Expense + Facility -->
+  <div class="demo-section">
+    <div class="demo-label">Operations</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">Bought diesel for the generator — ₦45,000. I have the receipt.</div>
+      <div class="demo-msg chertt">Got it. Please send a photo of the receipt and I'll pull the numbers out. Which department does this fall under?</div>
+      <div class="demo-msg user">Facilities. *sends photo of receipt*</div>
+      <div class="demo-msg chertt">Read: ₦45,000, TotalEnergies, 15/07/2026. Logged under Facilities &mdash; petty cash. Your balance before this was ₦500,000. Now at <b>₦455,000</b>. Want me to flag this for finance to review?</div>
+      <div class="demo-msg user">Yes please.</div>
+      <div class="demo-msg chertt">Done — Finance has been notified. Also: the last diesel log was 12 days ago. Should I set a reminder to check levels every two weeks?</div>
+      <div class="demo-msg user">That'd be helpful. And the toilet in the main building isn't flushing properly.</div>
+      <div class="demo-msg chertt">Reported. I've created an issue ticket — <b>FAC‑042</b> — and sent it to the maintenance team. They usually respond within 48 hours. Want me to follow up if there's no update by Friday?</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">A first‑time visitor</div>
+
+  <!-- First Timer -->
+  <div class="demo-section">
+    <div class="demo-label">Welcoming someone new</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">Hi, I'm new here. Visited last Sunday — my name is Grace.</div>
+      <div class="demo-msg chertt">Grace! Welcome ❤️ We're so glad you came. I can get you properly registered — it only takes a minute. What's your phone number and birthday?</div>
+      <div class="demo-msg user">0803 456 7890. 14th March.</div>
+      <div class="demo-msg chertt">Lovely. Who invited you, if anyone? And would you like someone from the church to follow up with you this week — answer questions, show you around, just chat?</div>
+      <div class="demo-msg user">My friend Tolu invited me. And yes, a follow-up would be nice.</div>
+      <div class="demo-msg chertt">Noted. I've let Pastor John know — someone from the welcome team will reach out in the next 48 hours. In the meantime: our next service is Sunday 9am. There's a women's fellowship on Wednesday at 5pm if you'd like to meet people. Need anything else?</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Pastoral care</div>
+
+  <!-- Counselling + Visit -->
+  <div class="demo-section">
+    <div class="demo-label">Counselling &amp; pastoral visits</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">I need to speak to someone. Things have been difficult at home.</div>
+      <div class="demo-msg chertt">I hear you. Let me connect you with the right person. Would this be about — marriage, finances, spiritual guidance, health, or something else? Whatever you share stays confidential.</div>
+      <div class="demo-msg user">Marriage. My husband and I are struggling.</div>
+      <div class="demo-msg chertt">Thank you for trusting me with that. Pastor Ade is available Thursday at 4pm or Saturday at 11am. Either works for a private session at the church office. Which would you prefer? You can also request a phone call instead.</div>
+      <div class="demo-msg user">Thursday 4pm is fine.</div>
+      <div class="demo-msg chertt">Booked. Thursday, 4pm, with Pastor Ade. I'll send a reminder that morning. You're not alone in this ❤️</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Events &amp; belonging</div>
+
+  <!-- Events + Departments -->
+  <div class="demo-section">
+    <div class="demo-label">Events, departments &amp; staying connected</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">I want to register for the women's retreat next month.</div>
+      <div class="demo-msg chertt">Great timing — registration closes next Friday. It's Friday 22nd to Sunday 24th at Redemption Camp. ₦25,000 covers transport, accommodation, and meals. Would you like to register? I'll need to know: any dietary restrictions, and would you need transport from the church?</div>
+      <div class="demo-msg user">Yes, register me. No dietary issues. And I'll use the church transport.</div>
+      <div class="demo-msg chertt">You're in! 🎉 Transport from the church — departure 4pm Friday. I've sent your registration details. Pay here: <b>Paystack link</b>. Once paid, your spot is confirmed. 17 spots left.</div>
+      <div class="demo-msg user">Paid. Also — how do I join the choir?</div>
+      <div class="demo-msg chertt">The choir has open rehearsals every Tuesday at 6pm. Sister Funke leads it. Want me to send her your name so she knows to expect you next week? No audition needed — just show up.</div>
+      <div class="demo-msg user">Yes please.</div>
+      <div class="demo-msg chertt">Done. Sister Funke has been notified. Rehearsals are in the main auditorium. Bring water! 🎵</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">The tough ones</div>
+
+  <!-- Crisis -->
+  <div class="demo-section">
+    <div class="demo-label">When it's serious</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">I don't think I can do this anymore. I just want it all to stop.</div>
+      <div class="demo-msg chertt" style="border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.06)">I want you to know — you're not alone, and there are people who care about you right now. I've alerted <b>Pastor Ade</b> personally. He will call you within the next 5 minutes. Please stay on the line. You can also call <b>0803 200 2000</b> to speak with someone immediately. You matter.</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Admin &amp; knowledge</div>
+
+  <!-- Admin / Knowledge -->
+  <div class="demo-section">
+    <div class="demo-label">Quick answers &amp; admin</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">What's the offering account number?</div>
+      <div class="demo-msg chertt">Chertt Church — GTBank — <b>0457883921</b>. For tithes use <b>0457883910</b>. Need anything else?</div>
+      <div class="demo-msg user">And what time is the workers' meeting on Saturday?</div>
+      <div class="demo-msg chertt">Saturday, 8am, in the main hall. All department heads and volunteers. Agenda was sent out yesterday — need me to resend it?</div>
+      <div class="demo-msg user">No, I have it. What's next Sunday's memory verse?</div>
+      <div class="demo-msg chertt">Isaiah 41:10 — "Fear not, for I am with you; be not dismayed, for I am your God." Preaching theme: Overcoming Fear. Want me to send it as a reminder on Saturday evening?</div>
+      <div class="demo-msg user">Sure.</div>
+      <div class="demo-msg chertt">Set. I'll send it Saturday at 7pm. Have a blessed week ahead 🙏</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">Sunday evening</div>
+
+  <!-- Service Reporting -->
+  <div class="demo-section">
+    <div class="demo-label">Reports that roll up on their own</div>
+    <div class="demo-thread">
+      <div class="demo-msg chertt" style="align-self:flex-start">Hi John — how did Media go this morning? Takes two minutes.</div>
+      <div class="demo-msg user">Good. Sound and livestream both worked fine. About 380 watching online.</div>
+      <div class="demo-msg chertt">Noted — 380 online, logged for Media. Anything to flag for next week?</div>
+      <div class="demo-msg user">No, all smooth today.</div>
+      <div class="demo-msg chertt">Great. That's already on Pastor Ade's dashboard now, next to attendance, salvations, and today's offering. Thanks, John 🙏</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">One number, two churches</div>
+
+  <!-- Multi-tenant -->
+  <div class="demo-section">
+    <div class="demo-label">When someone belongs to more than one church</div>
+    <div class="demo-thread">
+      <div class="demo-msg user">I want to give my offering</div>
+      <div class="demo-msg chertt">You're registered with two churches on Chertt — reply <b>1</b> for Grace Chapel, or <b>2</b> for New Life Fellowship.</div>
+      <div class="demo-msg user">1</div>
+      <div class="demo-msg chertt">Grace Chapel it is. Tithe, Offering, Building, or Mission?</div>
+    </div>
+  </div>
+
+  <div class="demo-divider">A month later</div>
+
+  <!-- Memory / Follow-up -->
+  <div class="demo-section">
+    <div class="demo-label">It remembers</div>
+    <div class="demo-thread">
+      <div class="demo-msg chertt" style="align-self:flex-start">Hi Grace — we missed you the last two Sundays ❤️ Everything okay? Need prayer, transport, or anything at all?</div>
+      <div class="demo-msg user">I've just been busy with work. I'll be there this Sunday.</div>
+      <div class="demo-msg chertt">That's great to hear! The service is 9am — Pastor Ade is continuing the "Overcoming Fear" series. Also, you asked for prayer for your mother last month — how is she doing?</div>
+      <div class="demo-msg user">She's much better now, thank you. Back home.</div>
+      <div class="demo-msg chertt">Wonderful news. The prayer team will be happy to hear that — I'll pass it along. See you Sunday, Grace 💛</div>
+    </div>
+  </div>
+
+</div></section>
+
+<footer>Chertt ChurchBase &middot; Product Overview</footer>
+
+<!-- ═══════════ SCROLL REVEAL ═══════════ -->
+<script>
+(function(){
+  var els=document.querySelectorAll('.reveal');
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}})
+  },{threshold:.12,rootMargin:'0px 0px -40px 0px'});
+  els.forEach(function(el){obs.observe(el)})
+})();
+</script>
+
+<!-- ═══════════ ECOSYSTEM CONNECTOR LINES ═══════════ -->
+<!-- Draws the hub-to-node lines from actual rendered positions instead of
+     hardcoded coordinates, so they stay aligned at every desktop width
+     between the 768px breakpoint and the 1100px max-width, not just at
+     exactly 1100px. -->
+<script>
+(function(){
+  var wrap = document.querySelector('.eco-desktop');
+  var svg = document.getElementById('eco-svg');
+  var hub = wrap ? wrap.querySelector('.hub') : null;
+  var nodes = wrap ? Array.prototype.slice.call(wrap.querySelectorAll('.n')) : [];
+  if(!wrap || !svg || !hub || !nodes.length) return;
+
+  function centerOf(el, containerRect){
+    var r = el.getBoundingClientRect();
+    return { x: r.left - containerRect.left + r.width / 2, y: r.top - containerRect.top + r.height / 2 };
+  }
+
+  function draw(){
+    if(wrap.offsetParent === null) return; // hidden on mobile, nothing to draw
+    var containerRect = wrap.getBoundingClientRect();
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if(!w || !h) return;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    var hc = centerOf(hub, containerRect);
+    var markup = '';
+    nodes.forEach(function(n){
+      var nc = centerOf(n, containerRect);
+      markup += '<line x1="' + hc.x + '" y1="' + hc.y + '" x2="' + nc.x + '" y2="' + nc.y + '"></line>';
+    });
+    svg.innerHTML = markup;
+  }
+
+  var raf;
+  function schedule(){ cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); }
+  window.addEventListener('resize', schedule);
+  window.addEventListener('load', schedule);
+  if(window.ResizeObserver){ new ResizeObserver(schedule).observe(wrap); }
+  schedule();
+  setTimeout(schedule, 150);
+  setTimeout(schedule, 600);
+})();
+</script>
+
+</body>
+</html>
