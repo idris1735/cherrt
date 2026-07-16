@@ -261,6 +261,28 @@ footer{
   .scenario{padding:14px 16px}
   .hero h1{font-size:36px}
 }
+
+/* ── ONBOARDING ── */
+.onboard-steps{display:flex;flex-direction:column;gap:clamp(8px,2vw,12px);margin-top:clamp(20px,3vw,28px);counter-reset:step}
+.onboard-step{display:flex;gap:clamp(12px,2vw,18px);align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:clamp(16px,3vw,22px);transition:border-color .3s}
+.onboard-step:hover{border-color:rgba(255,255,255,.16)}
+.onboard-step .step-num{flex-shrink:0;width:clamp(28px,4vw,34px);height:clamp(28px,4vw,34px);border-radius:50%;background:var(--accent-soft);border:1px solid rgba(240,129,44,.25);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent)}
+.onboard-step .step-body h4{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.onboard-step .step-body p{font-size:13px;color:var(--muted);line-height:1.6}
+.onboard-illustration{margin-top:clamp(20px,3vw,28px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:clamp(10px,2vw,14px)}
+
+/* ── DEMO CONVERSATIONS ── */
+.demo-section{margin-top:clamp(12px,2vw,20px)}
+.demo-section:first-of-type{margin-top:clamp(24px,4vw,36px)}
+.demo-label{font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:clamp(8px,2vw,12px);padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.demo-thread{display:flex;flex-direction:column;gap:8px}
+.demo-msg{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:clamp(12px,2vw,16px) clamp(14px,2.5vw,18px);max-width:92%;font-size:13px;line-height:1.6;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.demo-msg.user{align-self:flex-end;text-align:right;color:var(--text);border-color:rgba(240,129,44,.18);background:rgba(240,129,44,.06)}
+.demo-msg.chertt{align-self:flex-start;color:var(--muted)}
+.demo-msg b{color:var(--text);font-weight:600}
+.demo-msg .highlight{color:var(--accent);font-weight:600}
+.demo-divider{display:flex;align-items:center;gap:12px;margin:clamp(28px,4vw,40px) 0 clamp(14px,2vw,20px);color:#3f3f46;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.demo-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
 </style>
 </head>
 <body>
@@ -314,28 +336,6 @@ footer{
 </div></section>
 
 <!-- ═══════════ ONBOARDING ═══════════ -->
-<style>
-.onboard-steps{display:flex;flex-direction:column;gap:clamp(8px,2vw,12px);margin-top:clamp(20px,3vw,28px);counter-reset:step}
-.onboard-step{
-  display:flex;gap:clamp(12px,2vw,18px);align-items:flex-start;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:clamp(16px,3vw,22px);transition:border-color .3s;
-}
-.onboard-step:hover{border-color:rgba(255,255,255,.16)}
-.onboard-step .step-num{
-  flex-shrink:0;width:clamp(28px,4vw,34px);height:clamp(28px,4vw,34px);
-  border-radius:50%;background:var(--accent-soft);border:1px solid rgba(240,129,44,.25);
-  display:flex;align-items:center;justify-content:center;
-  font-size:13px;font-weight:700;color:var(--accent);
-}
-.onboard-step .step-body h4{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
-.onboard-step .step-body p{font-size:13px;color:var(--muted);line-height:1.6}
-.onboard-illustration{
-  margin-top:clamp(20px,3vw,28px);
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));
-  gap:clamp(10px,2vw,14px);
-}
-</style>
 
 <section class="section"><div class="section-inner reveal">
   <h2>Getting started — five minutes, not five days</h2>
@@ -523,31 +523,6 @@ footer{
 </div></section>
 
 <!-- ═══════════ DEMO ═══════════ -->
-<style>
-.demo-section{margin-top:clamp(12px,2vw,20px)}
-.demo-section:first-of-type{margin-top:clamp(24px,4vw,36px)}
-.demo-label{
-  font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;
-  letter-spacing:.08em;margin-bottom:clamp(8px,2vw,12px);
-  padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06);
-}
-.demo-thread{display:flex;flex-direction:column;gap:8px}
-.demo-msg{
-  background:var(--surface);border:1px solid var(--border);border-radius:11px;
-  padding:clamp(12px,2vw,16px) clamp(14px,2.5vw,18px);
-  max-width:92%;font-size:13px;line-height:1.6;
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-}
-.demo-msg.user{align-self:flex-end;text-align:right;color:var(--text);border-color:rgba(240,129,44,.18);background:rgba(240,129,44,.06)}
-.demo-msg.chertt{align-self:flex-start;color:var(--muted)}
-.demo-msg b{color:var(--text);font-weight:600}
-.demo-msg .highlight{color:var(--accent);font-weight:600}
-.demo-divider{
-  display:flex;align-items:center;gap:12px;margin:clamp(28px,4vw,40px) 0 clamp(14px,2vw,20px);
-  color:#3f3f46;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
-}
-.demo-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
-</style>
 
 <section class="section"><div class="section-inner reveal">
   <h2>What it feels like</h2>
