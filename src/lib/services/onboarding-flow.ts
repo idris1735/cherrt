@@ -12,7 +12,6 @@ import {
   saveGivingCategories,
   saveMinistryUnits,
   codeFromWorkspaceId,
-  normalizePhoneNumber,
   type PendingOrganization,
 } from "@/lib/services/whatsapp-workspace";
 import { sendTextMessage } from "@/lib/services/whatsapp";
@@ -195,8 +194,6 @@ function setupPromptFor(step: SetupStep): string {
       return "What's the branch called?";
     case "branch_city":
       return "Which city is that branch in?";
-    case "branch_admin_phone":
-      return "What's the phone number for that branch's admin/pastor? Include the country code, e.g. 234...";
     case "branch_more":
       return "Another branch? Reply YES or NO.";
     case "done":
@@ -219,12 +216,16 @@ async function finishSetup(phoneNumber: string, collected: SetupCollected): Prom
   await updateSession(phoneNumber, { onboarding: undefined });
 
   const joinCode = codeFromWorkspaceId(collected.workspaceId);
+  const branchLines = collected.branches.map(
+    (b) => `• ${b.name} — its admin joins with "ADMIN ${codeFromWorkspaceId(b.workspaceId)}"`,
+  );
+
   const lines = [
     "You're all set! 🎉",
     "",
     collected.givingCategories?.length ? `Giving categories: ${collected.givingCategories.join(", ")}` : null,
     collected.ministryUnits?.length ? `Ministry units: ${collected.ministryUnits.join(", ")}` : null,
-    collected.branches.length ? `Branches added: ${collected.branches.length} (each one gets its own code once you check the dashboard, or ask me "invite code for [branch name]")` : null,
+    branchLines.length ? `Branches added:\n${branchLines.join("\n")}` : null,
     "",
     "Share this with your congregation so they can join:",
     `"JOIN ${joinCode}" to this number`,
@@ -278,47 +279,29 @@ export async function advanceSetupFlow(
     }
 
     case "branch_city": {
-      collected.branchDraft = { ...collected.branchDraft, city: trimmed };
-      await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_admin_phone", collected } });
-      return setupPromptFor("branch_admin_phone");
-    }
-
-    case "branch_admin_phone": {
-      const normalizedPhone = normalizePhoneNumber(trimmed);
-      if (!normalizedPhone) {
-        return `That doesn't look like a valid phone number — please include the country code, e.g. 2347069181608.\n\n${setupPromptFor("branch_admin_phone")}`;
-      }
-
       const draft = collected.branchDraft ?? {};
       const branchResult = await createBranch({
         organizationId: collected.organizationId,
         name: draft.name ?? "Branch",
-        city: draft.city ?? "",
-        adminPhone: normalizedPhone,
-        adminName: "",
+        city: trimmed,
       });
-      collected.branches = [...collected.branches, { name: draft.name ?? "Branch", city: draft.city ?? "", adminPhone: normalizedPhone }];
       collected.branchDraft = undefined;
-      await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_more", collected } });
 
-      // Note: this is a cold, business-initiated message to someone who has
-      // never contacted Chertt -- flagged as a real policy risk (see
-      // 2026-07-18 onboarding audit), not just a template gap. Left as
-      // free-form pending that decision; wrapped so a delivery failure here
-      // never breaks the rest of the setup flow for the org admin.
-      if (branchResult) {
-        try {
-          await sendTextMessage(
-            normalizedPhone,
-            `You've been added as the admin for *${branchResult.workspaceName}* on Chertt. Say "Hi" here anytime to get started, or reply "JOIN ${codeFromWorkspaceId(branchResult.workspaceId)}" from any other number to test how members join.`,
-          );
-        } catch (err) {
-          console.error("Failed to notify branch admin:", err instanceof Error ? err.message : err);
-        }
+      if (!branchResult) {
+        await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_more", collected } });
+        return `Something went wrong creating that branch — please try again.\n\n${setupPromptFor("branch_more")}`;
       }
 
-      const confirmLine = branchResult ? `${branchResult.workspaceName} added — its admin has been notified.` : "Branch added.";
-      return `${confirmLine}\n\n${setupPromptFor("branch_more")}`;
+      collected.branches = [...collected.branches, { name: branchResult.workspaceName, city: trimmed, workspaceId: branchResult.workspaceId }];
+      await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_more", collected } });
+
+      const adminCode = codeFromWorkspaceId(branchResult.workspaceId);
+      return [
+        `${branchResult.workspaceName} added.`,
+        `Send its admin this to claim it: *"ADMIN ${adminCode}"* — they message it to this number themselves, whenever they're ready.`,
+        "",
+        setupPromptFor("branch_more"),
+      ].join("\n");
     }
 
     case "branch_more": {

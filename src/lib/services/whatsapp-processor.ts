@@ -27,6 +27,7 @@ import {
   rejectOrganization,
   findWorkspaceByJoinCode,
   linkPhoneToWorkspace,
+  claimBranchAdmin,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
@@ -686,6 +687,30 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         return;
       }
       await sendTextMessage(from, "I couldn't find a church with that code — check with your admin, or just tell me your church's name.");
+      return;
+    }
+  }
+
+  // ── Branch admin claim-by-code ──
+  // Symmetric to member join-by-code, but grants owner instead of member.
+  // The branch admin messages this in themselves -- Chertt never initiates
+  // contact with them (2026-07-18 policy decision, see onboarding-flow.ts).
+  // claimBranchAdmin guards against a code being reused after a branch
+  // already has an owner.
+  if (!link && trimmed) {
+    const adminMatch = trimmed.match(/^admin[\s-]?([a-z0-9]{8})$/i);
+    if (adminMatch) {
+      const workspace = await findWorkspaceByJoinCode(adminMatch[1]);
+      if (workspace) {
+        const claimed = await claimBranchAdmin(workspace.id, from, session.userName ?? "");
+        if (claimed) {
+          await sendTextMessage(from, `Welcome to *${claimed.workspaceName}* — you're set up as the admin. Just tell me what you need: giving reports, member updates, anything else.`);
+          return;
+        }
+        await sendTextMessage(from, "That branch already has an admin. If that's wrong, contact support@chertt.app.");
+        return;
+      }
+      await sendTextMessage(from, "I couldn't find a branch with that code — check with whoever gave it to you.");
       return;
     }
   }

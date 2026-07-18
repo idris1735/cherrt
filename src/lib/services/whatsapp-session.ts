@@ -27,14 +27,18 @@ export type WhatsAppSession = {
       }
     | {
         flow: "post-approval-setup";
-        step: "giving_categories" | "ministry_units" | "ask_branch" | "branch_name" | "branch_city" | "branch_admin_phone" | "branch_more" | "done";
+        step: "giving_categories" | "ministry_units" | "ask_branch" | "branch_name" | "branch_city" | "branch_more" | "done";
         collected: {
           organizationId: string;
           workspaceId: string;
           givingCategories?: string[];
           ministryUnits?: string[];
-          branches: Array<{ name: string; city: string; adminPhone: string }>;
-          branchDraft?: { name?: string; city?: string };
+          // Chertt never contacts a branch admin directly (2026-07-18
+          // policy decision) -- just tracks what was created, for the
+          // final summary. No phone here; the ADMIN code is how ownership
+          // actually gets claimed, by the branch admin messaging in.
+          branches: Array<{ name: string; city: string; workspaceId: string }>;
+          branchDraft?: { name?: string };
         };
       };
   pendingConfirmation?: {

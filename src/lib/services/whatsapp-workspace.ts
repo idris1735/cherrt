@@ -586,12 +586,18 @@ export type CreatedBranch = {
 // approval time; everything under it is the org admin's own call (design
 // doc, "post-approval setup"). Reuses the same slug-uniqueness pattern as
 // approveOrganization's first-workspace creation.
+//
+// Deliberately does NOT link a branch admin phone here. Chertt cold-
+// messaging someone who has never contacted the business is a real
+// WhatsApp policy risk, not just a missing-template gap (2026-07-18
+// onboarding audit) — so the branch admin has to message in themselves,
+// same as a regular member, using the ADMIN code returned here. The org
+// admin is responsible for getting that code to them by whatever channel
+// they like; Chertt never initiates that contact.
 export async function createBranch(opts: {
   organizationId: string;
   name: string;
   city: string;
-  adminPhone: string;
-  adminName: string;
 }): Promise<CreatedBranch | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
@@ -622,16 +628,43 @@ export async function createBranch(opts: {
     return null;
   }
 
+  return { workspaceId: workspace.id, workspaceSlug: workspace.slug, workspaceName: workspace.name };
+}
+
+// Redemption side of an "ADMIN <code>" message. Guarded: only works while
+// the workspace has no owner yet, so a code that leaks or gets reused after
+// the branch is already set up can't be used to hijack admin access later —
+// the same code that grants ownership once becomes inert after that.
+export async function claimBranchAdmin(
+  workspaceId: string,
+  phoneNumber: string,
+  userName: string,
+): Promise<{ workspaceSlug: string; workspaceName: string } | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const { data: existingOwner } = await db
+    .from("whatsapp_phone_links")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("user_role", "owner")
+    .maybeSingle();
+
+  if (existingOwner) return null;
+
+  const { data: workspace } = await db.from("workspaces").select("id, slug, name").eq("id", workspaceId).maybeSingle();
+  if (!workspace) return null;
+
   await linkPhoneToWorkspace({
-    phoneNumber: opts.adminPhone,
+    phoneNumber,
     workspaceId: workspace.id,
     workspaceSlug: workspace.slug,
     workspaceName: workspace.name,
-    userName: opts.adminName,
+    userName,
     userRole: "owner",
   });
 
-  return { workspaceId: workspace.id, workspaceSlug: workspace.slug, workspaceName: workspace.name };
+  return { workspaceSlug: workspace.slug, workspaceName: workspace.name };
 }
 
 // Both accept a plain comma-separated string from the guided flow and
