@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient, getSupabaseUserClient } from "@/lib/services/supabase-server";
+import { normalizePhoneNumber } from "@/lib/services/whatsapp-workspace";
 
 async function verifyUser(request: NextRequest) {
   const token = request.headers.get("Authorization")?.replace("Bearer ", "").trim();
@@ -39,12 +40,10 @@ export async function POST(request: NextRequest) {
     userRole: string;
   };
 
-  const raw = body.phoneNumber?.replace(/[\s\-().+]/g, "");
-  if (!raw || raw.length < 7) {
+  const normalized = normalizePhoneNumber(body.phoneNumber ?? "");
+  if (!normalized) {
     return NextResponse.json({ error: "A valid phone number is required." }, { status: 400 });
   }
-  // Ensure it starts with country code (no leading zero)
-  const normalized = raw.startsWith("0") ? `234${raw.slice(1)}` : raw;
 
   const db = getSupabaseServerClient();
   if (!db) return NextResponse.json({ error: "Service temporarily unavailable." }, { status: 503 });

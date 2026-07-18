@@ -12,6 +12,7 @@ import {
   saveGivingCategories,
   saveMinistryUnits,
   codeFromWorkspaceId,
+  normalizePhoneNumber,
   type PendingOrganization,
 } from "@/lib/services/whatsapp-workspace";
 import { sendTextMessage } from "@/lib/services/whatsapp";
@@ -173,6 +174,15 @@ type SetupState = Extract<NonNullable<WhatsAppSession["onboarding"]>, { flow: "p
 type SetupStep = SetupState["step"];
 type SetupCollected = SetupState["collected"];
 
+// Returns true/false for a clear yes/no, or null for anything else --
+// callers re-prompt on null rather than silently defaulting to "no", same
+// discipline the signup flow's confirm step already applies.
+function parseYesNo(text: string): boolean | null {
+  if (/^(yes|y|yeah|yep)$/i.test(text)) return true;
+  if (/^(no|n|nope|nah)$/i.test(text)) return false;
+  return null;
+}
+
 function setupPromptFor(step: SetupStep): string {
   switch (step) {
     case "giving_categories":
@@ -250,7 +260,11 @@ export async function advanceSetupFlow(
     }
 
     case "ask_branch": {
-      if (/^(yes|y)$/i.test(trimmed)) {
+      const answer = parseYesNo(trimmed);
+      if (answer === null) {
+        return `Sorry, just reply YES or NO.\n\n${setupPromptFor("ask_branch")}`;
+      }
+      if (answer) {
         await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_name", collected } });
         return setupPromptFor("branch_name");
       }
@@ -270,23 +284,37 @@ export async function advanceSetupFlow(
     }
 
     case "branch_admin_phone": {
+      const normalizedPhone = normalizePhoneNumber(trimmed);
+      if (!normalizedPhone) {
+        return `That doesn't look like a valid phone number — please include the country code, e.g. 2347069181608.\n\n${setupPromptFor("branch_admin_phone")}`;
+      }
+
       const draft = collected.branchDraft ?? {};
       const branchResult = await createBranch({
         organizationId: collected.organizationId,
         name: draft.name ?? "Branch",
         city: draft.city ?? "",
-        adminPhone: trimmed,
+        adminPhone: normalizedPhone,
         adminName: "",
       });
-      collected.branches = [...collected.branches, { name: draft.name ?? "Branch", city: draft.city ?? "", adminPhone: trimmed }];
+      collected.branches = [...collected.branches, { name: draft.name ?? "Branch", city: draft.city ?? "", adminPhone: normalizedPhone }];
       collected.branchDraft = undefined;
       await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_more", collected } });
 
+      // Note: this is a cold, business-initiated message to someone who has
+      // never contacted Chertt -- flagged as a real policy risk (see
+      // 2026-07-18 onboarding audit), not just a template gap. Left as
+      // free-form pending that decision; wrapped so a delivery failure here
+      // never breaks the rest of the setup flow for the org admin.
       if (branchResult) {
-        await sendTextMessage(
-          trimmed,
-          `You've been added as the admin for *${branchResult.workspaceName}* on Chertt. Say "Hi" here anytime to get started, or reply "JOIN ${codeFromWorkspaceId(branchResult.workspaceId)}" from any other number to test how members join.`,
-        ).catch(() => {});
+        try {
+          await sendTextMessage(
+            normalizedPhone,
+            `You've been added as the admin for *${branchResult.workspaceName}* on Chertt. Say "Hi" here anytime to get started, or reply "JOIN ${codeFromWorkspaceId(branchResult.workspaceId)}" from any other number to test how members join.`,
+          );
+        } catch (err) {
+          console.error("Failed to notify branch admin:", err instanceof Error ? err.message : err);
+        }
       }
 
       const confirmLine = branchResult ? `${branchResult.workspaceName} added — its admin has been notified.` : "Branch added.";
@@ -294,7 +322,11 @@ export async function advanceSetupFlow(
     }
 
     case "branch_more": {
-      if (/^(yes|y)$/i.test(trimmed)) {
+      const answer = parseYesNo(trimmed);
+      if (answer === null) {
+        return `Sorry, just reply YES or NO.\n\n${setupPromptFor("branch_more")}`;
+      }
+      if (answer) {
         await updateSession(phoneNumber, { onboarding: { flow: "post-approval-setup", step: "branch_name", collected } });
         return setupPromptFor("branch_name");
       }

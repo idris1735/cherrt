@@ -594,16 +594,37 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (approveMatch) {
       const result = await approveOrganization(approveMatch[1], from);
       if (result) {
+        // Platform admin's own confirmation first, unconditionally -- this
+        // is always within-session (they just messaged), so it's the one
+        // send in this block guaranteed to work regardless of what happens
+        // below.
         await sendTextMessage(from, `Approved — ${result.workspaceName} is live.`);
-        await sendTextMessage(
-          result.requestedByPhone,
-          `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt!`,
-        );
-        // Immediately continue into setup (giving categories, ministry
-        // units, branches) rather than leaving the admin to figure out how
-        // to start it themselves.
-        const setupPrompt = await startSetupFlow(result.requestedByPhone, result.organizationId, result.workspaceId);
-        await sendTextMessage(result.requestedByPhone, setupPrompt);
+
+        // The requester's activation message is almost always outside the
+        // 24h window by design (signup copy itself says approval can take
+        // a day or two) -- flagged in the 2026-07-18 onboarding audit as
+        // needing a real message template, not fixed here. Wrapped so a
+        // delivery failure doesn't prevent the setup flow from being
+        // seeded below.
+        try {
+          await sendTextMessage(
+            result.requestedByPhone,
+            `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt!`,
+          );
+        } catch (err) {
+          console.error("Failed to send activation message:", err instanceof Error ? err.message : err);
+        }
+
+        // Seeded regardless of whether the message above delivered -- if it
+        // didn't, the admin's next message (even just "Hi") still needs to
+        // land somewhere sane rather than being silently swallowed as an
+        // answer to a question they never saw.
+        try {
+          const setupPrompt = await startSetupFlow(result.requestedByPhone, result.organizationId, result.workspaceId);
+          await sendTextMessage(result.requestedByPhone, setupPrompt);
+        } catch (err) {
+          console.error("Failed to start setup flow:", err instanceof Error ? err.message : err);
+        }
       } else {
         await sendTextMessage(from, "Couldn't find a pending signup with that code — it may already be resolved.");
       }
@@ -614,7 +635,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       const result = await rejectOrganization(rejectMatch[1]);
       if (result) {
         await sendTextMessage(from, "Rejected.");
-        await sendTextMessage(result.requestedByPhone, `Thanks for your interest in Chertt for ${result.name}. We won't be moving forward with this request right now — feel free to reach out if anything changes.`);
+        try {
+          await sendTextMessage(result.requestedByPhone, `Thanks for your interest in Chertt for ${result.name}. We won't be moving forward with this request right now — feel free to reach out if anything changes.`);
+        } catch (err) {
+          console.error("Failed to send rejection message:", err instanceof Error ? err.message : err);
+        }
       } else {
         await sendTextMessage(from, "Couldn't find a pending signup with that code — it may already be resolved.");
       }

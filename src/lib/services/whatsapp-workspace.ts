@@ -376,6 +376,17 @@ function codeFromOrgId(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
+// Shared with /api/user/whatsapp-link -- both need to produce the exact
+// same phone shape Meta's webhook sends (full international, no leading
+// zero, no punctuation), or a link written from one path silently never
+// matches an inbound message from the other. Returns null rather than a
+// best-effort guess when the input is too short to plausibly be a number.
+export function normalizePhoneNumber(raw: string): string | null {
+  const stripped = raw.replace(/[\s\-().+]/g, "");
+  if (!stripped || stripped.length < 7 || !/^\d+$/.test(stripped)) return null;
+  return stripped.startsWith("0") ? `234${stripped.slice(1)}` : stripped;
+}
+
 // Same derivation, applied to a workspace id -- a member-facing join code,
 // distinct from the org-approval code above. No dedicated column needed:
 // the code is always re-derivable from the id, so lookup is by scanning
