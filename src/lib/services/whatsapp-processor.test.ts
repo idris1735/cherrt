@@ -28,7 +28,7 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
     approveWorkspaceRequest: vi.fn().mockResolvedValue(true),
     rejectWorkspaceRequest: vi.fn().mockResolvedValue(true),
     getWorkflowRequest: vi.fn().mockResolvedValue(null),
-    loadWorkspaceContext: vi.fn().mockResolvedValue({ pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [] }),
+    loadWorkspaceContext: vi.fn().mockResolvedValue({ pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [], givingCategories: [], ministryUnits: [] }),
   };
 });
 

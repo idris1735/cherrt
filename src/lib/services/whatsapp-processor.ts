@@ -289,6 +289,12 @@ function buildWorkspaceCtx(
   if (ctx.pendingIssues.length) {
     parts.push("Open issues: " + ctx.pendingIssues.map((i) => i.title + " [" + i.severity + "]").join(", ") + ".");
   }
+  if (ctx.givingCategories?.length) {
+    parts.push("This church's giving categories: " + ctx.givingCategories.join(", ") + ". If someone names one of these, mention it back to them naturally, but still set givingType to the closest of tithe/offering/donation/pledge.");
+  }
+  if (ctx.ministryUnits?.length) {
+    parts.push("This church's ministry units: " + ctx.ministryUnits.join(", ") + ". Use one of these exact names for directoryUnit when adding a person, if their role fits one.");
+  }
   if (mediaAttachment) parts.push("Attached media is provided to Gemini as inlineData. Inspect it before creating the record.");
   const role = link.userRole === "owner" || link.userRole === "admin" ? "owner" : "operations";
   return {
@@ -670,8 +676,17 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Checked here rather than earlier: an already-linked, disambiguated
   // number has no reason to redeem a code, and platform-admin/onboarding
   // states above take priority.
+  //
+  // The bare-code fallback (no "JOIN" prefix) only applies to someone's
+  // very first message -- that's the wa.me deep-link case, where the code
+  // is pre-filled as the entire message text. Restricting it to
+  // !session.welcomed (2026-07-18 audit finding) stops a random 8-char
+  // string typed later in an ongoing guest conversation from silently
+  // joining them to whatever workspace happens to own that code.
   if (!link && trimmed) {
-    const joinMatch = trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i) ?? (/^[a-z0-9]{8}$/i.test(trimmed) ? [trimmed, trimmed] : null);
+    const joinMatch =
+      trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i) ??
+      (!session.welcomed && /^[a-z0-9]{8}$/i.test(trimmed) ? [trimmed, trimmed] : null);
     if (joinMatch) {
       const workspace = await findWorkspaceByJoinCode(joinMatch[1]);
       if (workspace) {

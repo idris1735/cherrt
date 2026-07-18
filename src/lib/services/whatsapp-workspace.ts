@@ -21,6 +21,11 @@ export type WorkspaceContext = {
   recentExpenses: Array<{ title: string; amount: number }>;
   lowInventoryItems: Array<{ name: string; inStock: number; minLevel: number }>;
   pendingIssues: Array<{ title: string; severity: string }>;
+  // Admin-named during post-approval setup (see onboarding-flow.ts). Fed
+  // into the Gemini prompt so it uses this workspace's real category/unit
+  // names instead of inventing generic ones.
+  givingCategories: string[];
+  ministryUnits: string[];
 };
 
 export async function claimWhatsAppMessage(
@@ -790,9 +795,9 @@ export async function getWorkflowRequest(
 
 export async function loadWorkspaceContext(workspaceId: string): Promise<WorkspaceContext> {
   const db = getSupabaseServerClient();
-  if (!db) return { pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [] };
+  if (!db) return { pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [], givingCategories: [], ministryUnits: [] };
 
-  const [reqRes, expRes, invRes, issRes] = await Promise.allSettled([
+  const [reqRes, expRes, invRes, issRes, givingCatRes, ministryRes] = await Promise.allSettled([
     db.from("workflow_requests")
       .select("id, title, amount, requester_name")
       .eq("workspace_id", workspaceId)
@@ -817,6 +822,14 @@ export async function loadWorkspaceContext(workspaceId: string): Promise<Workspa
       .in("status", ["pending", "in-progress"])
       .order("created_at", { ascending: false })
       .limit(5),
+
+    db.from("giving_categories")
+      .select("name")
+      .eq("workspace_id", workspaceId),
+
+    db.from("ministry_units")
+      .select("name")
+      .eq("workspace_id", workspaceId),
   ]);
 
   const pendingRequests =
@@ -852,5 +865,15 @@ export async function loadWorkspaceContext(workspaceId: string): Promise<Workspa
         }))
       : [];
 
-  return { pendingRequests, recentExpenses, lowInventoryItems, pendingIssues };
+  const givingCategories =
+    givingCatRes.status === "fulfilled" && givingCatRes.value.data
+      ? givingCatRes.value.data.map((c: Record<string, unknown>) => c.name as string)
+      : [];
+
+  const ministryUnits =
+    ministryRes.status === "fulfilled" && ministryRes.value.data
+      ? ministryRes.value.data.map((u: Record<string, unknown>) => u.name as string)
+      : [];
+
+  return { pendingRequests, recentExpenses, lowInventoryItems, pendingIssues, givingCategories, ministryUnits };
 }
