@@ -2,7 +2,7 @@ import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
 import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
 import { computeMetrics, type WorkspaceData } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
-import type { PhoneLink, WorkspaceContext } from "@/lib/services/whatsapp-workspace";
+import type { GivingSummary, PhoneLink, WorkspaceContext } from "@/lib/services/whatsapp-workspace";
 
 export type ReportKey =
   | "overview"
@@ -12,7 +12,8 @@ export type ReportKey =
   | "requests"
   | "inventory"
   | "wallet"
-  | "issues";
+  | "issues"
+  | "giving";
 
 const CREATE_VERBS = /\b(log|add|raise|draft|create|new|report a\b|report an\b|report the\b|record(?:ing)?|make)\b/i;
 
@@ -68,6 +69,14 @@ export function matchReportIntent(text: string): ReportKey | null {
   if (/\bopen issues\b/i.test(t)) return "issues";
   if (/\bfacility issues?\b/i.test(t)) return "issues";
 
+  // Giving — note: "raise" is deliberately not matched here, it's in CREATE_VERBS
+  // above (for "raise a request") and would never reach this point.
+  if (/^giving$/i.test(t) || /\bgiving (?:report|overview|summary|history)\b/i.test(t)) return "giving";
+  if (/\bhow much (?:did|have) (?:we|you) (?:receive|get|collect)\b/i.test(t)) return "giving";
+  if (/\btotal (?:giving|tithes?|offerings?)\b/i.test(t)) return "giving";
+  if (/\btithes? and offerings?\b/i.test(t)) return "giving";
+  if (/\bgiving this (?:month|week|year)\b/i.test(t)) return "giving";
+
   return null;
 }
 
@@ -76,6 +85,7 @@ type ReportContext = {
   session: WhatsAppSession;
   workspaceContext?: WorkspaceContext;
   liveData?: WorkspaceData;
+  givingSummary?: GivingSummary;
 };
 
 function fmt(n: number): string {
@@ -286,5 +296,60 @@ export async function buildReport(
         buttons: [{ id: "rpt:overview", title: "Overview" }],
       };
     }
+
+    case "giving": {
+      if (isGuest) {
+        return {
+          text: [
+            "🙏 *Giving*",
+            "",
+            "Giving history is tracked per workspace — set up your own workspace to see real totals here.",
+            "",
+            `_Try: "I want to give ₦${(20000).toLocaleString("en-NG")} tithe" to see how it works in demo mode._`,
+          ].join("\n"),
+        };
+      }
+
+      const summary = ctx.givingSummary;
+      if (!summary || summary.countThisMonth === 0) {
+        return {
+          text: [
+            "🙏 *Giving*",
+            "",
+            "No giving recorded yet this month.",
+            "",
+            "_Members can give by saying \"I want to give\" — it takes seconds._",
+          ].join("\n"),
+          buttons: [{ id: "rpt:overview", title: "Overview" }],
+        };
+      }
+
+      const delta = deltaPct(summary.totalThisMonth, summary.totalLastMonth);
+      const typeLines = Object.entries(summary.byType)
+        .sort(([, a], [, b]) => b - a)
+        .map(([type, total]) => `• ${type.charAt(0).toUpperCase() + type.slice(1)}: ${fmt(total)}`);
+
+      return {
+        text: [
+          "🙏 *Giving Report*",
+          "",
+          `• This month: *${fmt(summary.totalThisMonth)}* from ${summary.countThisMonth} gift${summary.countThisMonth !== 1 ? "s" : ""} (${deltaEmoji(delta)} ${Math.abs(delta)}% vs last month)`,
+          "",
+          "*By type*",
+          ...typeLines,
+          "",
+          "*Recent*",
+          ...summary.recent.slice(0, 3).map((g) => `• ${g.donor} — ${fmt(g.amount)} (${g.givingType}) · ${g.createdAtLabel}`),
+          "",
+          "_Tap for overview._",
+        ].join("\n"),
+        buttons: [{ id: "rpt:overview", title: "Overview" }],
+      };
+    }
   }
+}
+
+function deltaPct(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
 }

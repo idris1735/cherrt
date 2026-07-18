@@ -11,7 +11,8 @@ import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadM
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
 import {
-  lookupPhoneLink,
+  lookupAllPhoneLinks,
+  resolveActivePhoneLink,
   persistWorkspaceAiResult,
   getApproverPhone,
   approveWorkspaceRequest,
@@ -20,9 +21,14 @@ import {
   loadWorkspaceContext,
   loadKnowledgeContext,
   claimWhatsAppMessage,
+  getGivingSummary,
+  isPlatformAdmin,
+  approveOrganization,
+  rejectOrganization,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
+import { isSignupTrigger, startSignupFlow, advanceSignupFlow, cancelSignupFlow } from "@/lib/services/onboarding-flow";
 import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
 import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
 import { loadWorkspaceData } from "@/lib/services/workspace-data";
@@ -459,14 +465,15 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
 
   // ── Report navigation buttons ──
   if (buttonId.startsWith("rpt:")) {
-    const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues";
-    const [workspaceContext, liveData] = link
+    const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues" | "giving";
+    const [workspaceContext, liveData, givingSummary] = link
       ? await Promise.all([
           loadWorkspaceContext(link.workspaceId),
           loadWorkspaceData(link.workspaceId).catch(() => undefined),
+          key === "giving" ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
         ])
-      : [undefined, undefined];
-    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData });
+      : [undefined, undefined, undefined];
+    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData, givingSummary });
     if (buttons?.length) {
       try { await sendInteractiveButtons(from, text, buttons); }
       catch { await sendTextMessage(from, text); }
@@ -558,13 +565,69 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const claimed = await claimWhatsAppMessage(message.messageId, from, type);
   if (!claimed) return;
 
-  const [session, link] = await Promise.all([getSession(from), lookupPhoneLink(from)]);
+  const [session, allLinks] = await Promise.all([getSession(from), lookupAllPhoneLinks(from)]);
+  let link = resolveActivePhoneLink(allLinks, session.activeWorkspaceId);
   const trimmed = (message.text ?? "").trim();
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
     await sendTextMessage(from, link ? buildWorkspaceWelcome(link) : buildGuestWelcome(session.demoBalance));
     if (shouldStopAfterWelcome(message, trimmed)) return;
+  }
+
+  // ── Platform-admin: new church signup approval/rejection ──
+  // Checked before the generic pendingApproval bare "approve"/"reject"
+  // handlers below, and gated by an explicit 8-char code so it can never
+  // collide with a workflow-request approval, even for someone who happens
+  // to be both a platform admin and a workspace approver.
+  if (isPlatformAdmin(from)) {
+    const approveMatch = trimmed.match(/^approve\s+([a-z0-9]{8})$/i);
+    if (approveMatch) {
+      const result = await approveOrganization(approveMatch[1], from);
+      if (result) {
+        await sendTextMessage(from, `Approved — ${result.workspaceName} is live.`);
+        await sendTextMessage(
+          result.requestedByPhone,
+          `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt! Just say "Hi" here anytime to get started, or ask me anything.`,
+        );
+      } else {
+        await sendTextMessage(from, "Couldn't find a pending signup with that code — it may already be resolved.");
+      }
+      return;
+    }
+    const rejectMatch = trimmed.match(/^reject\s+([a-z0-9]{8})$/i);
+    if (rejectMatch) {
+      const result = await rejectOrganization(rejectMatch[1]);
+      if (result) {
+        await sendTextMessage(from, "Rejected.");
+        await sendTextMessage(result.requestedByPhone, `Thanks for your interest in Chertt for ${result.name}. We won't be moving forward with this request right now — feel free to reach out if anything changes.`);
+      } else {
+        await sendTextMessage(from, "Couldn't find a pending signup with that code — it may already be resolved.");
+      }
+      return;
+    }
+  }
+
+  // ── Multi-church disambiguation ──
+  // Phone is linked to more than one workspace and the active context isn't
+  // resolved. Numeric reply picks one; anything else re-prompts.
+  if (!link && allLinks.length > 1) {
+    const numeric = /^\d+$/.test(trimmed) ? parseInt(trimmed, 10) : null;
+    if (numeric && numeric >= 1 && numeric <= allLinks.length) {
+      const chosen = allLinks[numeric - 1];
+      await updateSession(from, { activeWorkspaceId: chosen.workspaceId });
+      link = chosen;
+    } else {
+      const options = allLinks.map((l, i) => `${i + 1}. ${l.workspaceName}`).join("\n");
+      await sendTextMessage(from, `You're registered with more than one church — which one is this about?\n\n${options}`);
+      return;
+    }
+  }
+
+  // ── In-progress guided signup flow ──
+  if (trimmed && session.onboarding) {
+    const reply = await advanceSignupFlow(from, session, trimmed);
+    if (reply) { await sendTextMessage(from, reply); return; }
   }
 
   if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link); return; }
@@ -576,11 +639,21 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     await sendTextMessage(from, "Your messages are stored only to power this conversation and are never shared with third parties. Workspace actions are visible to your workspace admins. To request data deletion, contact support@chertt.app.");
     return;
   }
-  if (/^cancel$/i.test(trimmed)) { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
+  if (/^cancel$/i.test(trimmed)) {
+    if (session.onboarding) { await cancelSignupFlow(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
+    await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return;
+  }
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) { await handleConfirm(from, session, link); return; }
   if (/^no$/i.test(trimmed)) {
     if (session.pendingConfirmation) { await clearPending(from); await sendTextMessage(from, "No problem — cancelled. What else can I help you with?"); }
     else { await sendTextMessage(from, "Got it. What would you like to do instead?"); }
+    return;
+  }
+
+  // ── New church signup trigger ──
+  if (trimmed && isSignupTrigger(trimmed) && !session.onboarding) {
+    const reply = await startSignupFlow(from);
+    await sendTextMessage(from, reply);
     return;
   }
 
@@ -610,13 +683,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed) {
     const reportKey = matchReportIntent(trimmed);
     if (reportKey) {
-      const [workspaceContext, liveData] = link
+      const [workspaceContext, liveData, givingSummary] = link
         ? await Promise.all([
             loadWorkspaceContext(link.workspaceId),
             loadWorkspaceData(link.workspaceId).catch(() => undefined),
+            reportKey === "giving" ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
           ])
-        : [undefined, undefined];
-      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData });
+        : [undefined, undefined, undefined];
+      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData, givingSummary });
       if (buttons?.length) {
         try { await sendInteractiveButtons(from, text, buttons); }
         catch { await sendTextMessage(from, text); }

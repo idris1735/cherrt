@@ -9,6 +9,7 @@ import type {
   ExpenseEntry,
   FeedbackPoll,
   FormDefinition,
+  GivingRecord,
   InventoryItem,
   IssueReport,
   Message,
@@ -139,6 +140,18 @@ type PersonRow = {
   title: string;
   unit: string;
   phone: string;
+};
+
+type GivingRow = {
+  id: string;
+  donor_name: string;
+  amount: number;
+  channel: string;
+  service: string;
+  church_name: string | null;
+  virtual_account: string | null;
+  giving_type: string;
+  created_at: string;
 };
 
 function isUuid(value: string) {
@@ -314,6 +327,20 @@ function mapPerson(row: PersonRow): Person {
     title: row.title,
     unit: row.unit,
     phone: row.phone,
+  };
+}
+
+function mapGiving(row: GivingRow): GivingRecord {
+  return {
+    id: row.id,
+    donor: row.donor_name,
+    amount: row.amount,
+    channel: row.channel,
+    service: row.service,
+    churchName: row.church_name ?? undefined,
+    virtualAccount: row.virtual_account ?? undefined,
+    givingType: row.giving_type,
+    createdAtLabel: formatRelativeLabel(row.created_at),
   };
 }
 
@@ -572,6 +599,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     canLoadExpenses,
     canLoadPolls,
     canLoadPeople,
+    canLoadGiving,
   ] = await Promise.all([
     isTableAvailable("workflow_requests"),
     isTableAvailable("smart_documents"),
@@ -585,6 +613,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     isTableAvailable("toolkit_expense_entries"),
     isTableAvailable("toolkit_feedback_polls"),
     isTableAvailable("toolkit_people"),
+    isTableAvailable("giving_records"),
   ]);
 
   const [
@@ -599,6 +628,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     expensesResponse,
     pollsResponse,
     peopleResponse,
+    givingResponse,
   ] = await Promise.all([
     canLoadRequests
       ? supabase
@@ -677,6 +707,13 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
           .eq("workspace_id", workspaceRow.id)
           .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] as PersonRow[], error: null }),
+    canLoadGiving
+      ? supabase
+          .from("giving_records")
+          .select("id, donor_name, amount, channel, service, church_name, virtual_account, giving_type, created_at")
+          .eq("workspace_id", workspaceRow.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as GivingRow[], error: null }),
   ]);
 
   if (
@@ -690,7 +727,8 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
     issuesResponse.error ||
     expensesResponse.error ||
     pollsResponse.error ||
-    peopleResponse.error
+    peopleResponse.error ||
+    givingResponse.error
   ) {
     return null;
   }
@@ -731,6 +769,7 @@ export async function loadWorkspaceSnapshotFromSupabase(workspaceSlug: string) {
   snapshot.expenses = (expensesResponse.data as ExpenseRow[]).map(mapExpense);
   snapshot.polls = (pollsResponse.data as PollRow[]).map(mapPoll);
   snapshot.directory = (peopleResponse.data as PersonRow[]).map(mapPerson);
+  snapshot.giving = (givingResponse.data as GivingRow[]).map(mapGiving);
 
   const messagesByConversation = new Map<string, Message[]>();
   for (const row of messagesResponse.data as MessageRow[]) {
@@ -926,6 +965,7 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
     canWriteExpenses,
     canWritePolls,
     canWritePeople,
+    canWriteGiving,
   ] = await Promise.all([
     isTableAvailable("workflow_requests"),
     isTableAvailable("smart_documents"),
@@ -937,6 +977,7 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
     isTableAvailable("toolkit_expense_entries"),
     isTableAvailable("toolkit_feedback_polls"),
     isTableAvailable("toolkit_people"),
+    isTableAvailable("giving_records"),
   ]);
 
   const writes: Array<PromiseLike<{ error: { message: string } | null }>> = [];
@@ -1078,6 +1119,22 @@ export async function persistAiResult(snapshot: WorkspaceSnapshot, result: AiCom
         title: result.generatedPerson.title,
         unit: result.generatedPerson.unit,
         phone: result.generatedPerson.phone,
+      }),
+    );
+  }
+
+  if (result.generatedGivingRecord && canWriteGiving) {
+    writes.push(
+      supabase.from("giving_records").upsert({
+        id: result.generatedGivingRecord.id,
+        workspace_id: workspace.id,
+        donor_name: result.generatedGivingRecord.donor,
+        amount: result.generatedGivingRecord.amount,
+        channel: result.generatedGivingRecord.channel,
+        service: result.generatedGivingRecord.service,
+        church_name: result.generatedGivingRecord.churchName ?? null,
+        virtual_account: result.generatedGivingRecord.virtualAccount ?? null,
+        giving_type: result.generatedGivingRecord.givingType ?? "donation",
       }),
     );
   }

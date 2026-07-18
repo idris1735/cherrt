@@ -1,10 +1,14 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { buildKnowledgeContextString, demoKnowledgeArticles, type KnowledgeArticle } from "@/lib/data/knowledge";
+import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
 import type { AiCommandResult } from "@/lib/types";
 
 export type PhoneLink = {
   phoneNumber: string;
-  userId: string;
+  // Nullable: WhatsApp-native links (invite-code join, no web signup) have
+  // no Supabase Auth user behind them — phone number is the identity.
+  // Populated only if the person separately claims web dashboard access.
+  userId: string | null;
   workspaceId: string;
   workspaceSlug: string;
   workspaceName: string;
@@ -42,17 +46,15 @@ export async function claimWhatsAppMessage(
   return true;
 }
 
-export async function lookupPhoneLink(phoneNumber: string): Promise<PhoneLink | null> {
-  const db = getSupabaseServerClient();
-  if (!db) return null;
-
-  const { data } = await db
-    .from("whatsapp_phone_links")
-    .select("*")
-    .eq("phone_number", phoneNumber)
-    .maybeSingle();
-
-  if (!data) return null;
+function mapPhoneLinkRow(data: {
+  phone_number: string;
+  user_id: string | null;
+  workspace_id: string;
+  workspace_slug: string;
+  workspace_name: string;
+  user_name: string;
+  user_role: string;
+}): PhoneLink {
   return {
     phoneNumber: data.phone_number,
     userId: data.user_id,
@@ -62,6 +64,87 @@ export async function lookupPhoneLink(phoneNumber: string): Promise<PhoneLink | 
     userName: data.user_name,
     userRole: data.user_role,
   };
+}
+
+// Every workspace (church/branch) this phone number is linked to. A phone
+// can hold more than one link — the same person belonging to two churches
+// is an explicit, supported case, not an edge case to special-case around.
+export async function lookupAllPhoneLinks(phoneNumber: string): Promise<PhoneLink[]> {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+
+  const { data } = await db.from("whatsapp_phone_links").select("*").eq("phone_number", phoneNumber);
+  return (data ?? []).map(mapPhoneLinkRow);
+}
+
+// Pure resolution logic, no DB access — easy to reason about and test.
+// Returns the link to actually use, or null when it's genuinely ambiguous
+// and the caller needs to prompt for disambiguation.
+export function resolveActivePhoneLink(links: PhoneLink[], activeWorkspaceId?: string | null): PhoneLink | null {
+  if (links.length === 0) return null;
+  if (links.length === 1) return links[0];
+  if (activeWorkspaceId) {
+    const match = links.find((link) => link.workspaceId === activeWorkspaceId);
+    if (match) return match;
+  }
+  return null;
+}
+
+// Back-compat convenience for call sites that don't need multi-church
+// disambiguation (e.g. one-off lookups outside the main message flow).
+// Resolves only when there's exactly one link, matching the old behavior.
+export async function lookupPhoneLink(phoneNumber: string): Promise<PhoneLink | null> {
+  const links = await lookupAllPhoneLinks(phoneNumber);
+  return resolveActivePhoneLink(links);
+}
+
+// Insert-only link creation — used by both the WhatsApp-native invite-code
+// join flow and organization/branch provisioning on approval. Never deletes
+// existing links, unlike the web /api/user/whatsapp-link route (which is
+// scoped to one authenticated user managing their own single link and is
+// left as-is — a different identity model, not touched here).
+export async function linkPhoneToWorkspace(opts: {
+  phoneNumber: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+  userName: string;
+  userRole: string;
+}): Promise<boolean> {
+  const db = getSupabaseServerClient();
+  if (!db) return false;
+
+  const { error } = await db.from("whatsapp_phone_links").upsert(
+    {
+      phone_number: opts.phoneNumber,
+      workspace_id: opts.workspaceId,
+      workspace_slug: opts.workspaceSlug,
+      workspace_name: opts.workspaceName,
+      user_name: opts.userName,
+      user_role: opts.userRole,
+    },
+    { onConflict: "phone_number,workspace_id" },
+  );
+
+  if (error) {
+    console.error("Failed to link phone to workspace:", error.message);
+    return false;
+  }
+  return true;
+}
+
+// Small, explicit allowlist rather than a table — the group of people who
+// can approve a new church signup is expected to stay tiny. Move to a table
+// if that stops being true.
+export function isPlatformAdmin(phoneNumber: string): boolean {
+  const raw = process.env.PLATFORM_ADMIN_PHONES ?? "";
+  const allowlist = raw.split(",").map((p) => p.trim()).filter(Boolean);
+  return allowlist.includes(phoneNumber);
+}
+
+export function platformAdminPhones(): string[] {
+  const raw = process.env.PLATFORM_ADMIN_PHONES ?? "";
+  return raw.split(",").map((p) => p.trim()).filter(Boolean);
 }
 
 export async function persistWorkspaceAiResult(
@@ -192,7 +275,271 @@ export async function persistWorkspaceAiResult(
     }));
   }
 
+  if (result.generatedGivingRecord) {
+    writes.push(db.from("giving_records").upsert({
+      id: result.generatedGivingRecord.id,
+      workspace_id: workspaceId,
+      donor_name: result.generatedGivingRecord.donor ?? userName,
+      amount: result.generatedGivingRecord.amount,
+      channel: result.generatedGivingRecord.channel ?? "virtual-transfer",
+      service: result.generatedGivingRecord.service ?? "giving",
+      church_name: result.generatedGivingRecord.churchName ?? null,
+      virtual_account: result.generatedGivingRecord.virtualAccount ?? null,
+      giving_type: result.generatedGivingRecord.givingType ?? "donation",
+    }));
+  }
+
   await Promise.allSettled(writes.map((w) => Promise.resolve(w)));
+}
+
+export type GivingSummary = {
+  totalThisMonth: number;
+  totalLastMonth: number;
+  countThisMonth: number;
+  byType: Record<string, number>;
+  recent: Array<{ donor: string; amount: number; givingType: string; createdAtLabel: string }>;
+};
+
+function startOfMonth(d: Date): Date {
+  const s = new Date(d);
+  s.setDate(1);
+  s.setHours(0, 0, 0, 0);
+  return s;
+}
+
+export async function getGivingSummary(workspaceId: string): Promise<GivingSummary> {
+  const empty: GivingSummary = { totalThisMonth: 0, totalLastMonth: 0, countThisMonth: 0, byType: {}, recent: [] };
+
+  const db = getSupabaseServerClient();
+  if (!db) return empty;
+
+  const now = new Date();
+  const thisMonthStart = startOfMonth(now);
+  const lastMonthStart = new Date(thisMonthStart);
+  lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+
+  const { data, error } = await db
+    .from("giving_records")
+    .select("donor_name, amount, giving_type, created_at")
+    .eq("workspace_id", workspaceId)
+    .gte("created_at", lastMonthStart.toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return empty;
+
+  let totalThisMonth = 0;
+  let totalLastMonth = 0;
+  let countThisMonth = 0;
+  const byType: Record<string, number> = {};
+
+  for (const row of data as Array<{ donor_name: string; amount: number; giving_type: string; created_at: string }>) {
+    const createdAt = new Date(row.created_at);
+    if (createdAt >= thisMonthStart) {
+      totalThisMonth += row.amount;
+      countThisMonth += 1;
+      byType[row.giving_type] = (byType[row.giving_type] ?? 0) + row.amount;
+    } else {
+      totalLastMonth += row.amount;
+    }
+  }
+
+  const recent = (data as Array<{ donor_name: string; amount: number; giving_type: string; created_at: string }>)
+    .slice(0, 5)
+    .map((row) => ({
+      donor: row.donor_name,
+      amount: row.amount,
+      givingType: row.giving_type,
+      createdAtLabel: new Date(row.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" }),
+    }));
+
+  return { totalThisMonth, totalLastMonth, countThisMonth, byType, recent };
+}
+
+// ─── Organizations (churches) & branches ──────────────────────────────────
+//
+// New organizations are human-approved (client decision, 2026-07-18 design
+// doc), not self-serve. A short approval code is derived from the
+// organization's own id rather than stored separately — one fewer column,
+// still effectively unique for the small number of signups pending at once.
+
+export type PendingOrganization = {
+  id: string;
+  code: string;
+  name: string;
+  requestedByPhone: string;
+  requestedByName: string;
+  requestedCity: string;
+  requestedSize: string;
+};
+
+function codeFromOrgId(id: string): string {
+  return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+export async function createPendingOrganization(fields: {
+  name: string;
+  requestedByPhone: string;
+  requestedByName: string;
+  requestedCity: string;
+  requestedSize: string;
+}): Promise<PendingOrganization | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const { data, error } = await db
+    .from("organizations")
+    .insert({
+      name: fields.name,
+      status: "pending_approval",
+      requested_by_phone: fields.requestedByPhone,
+      requested_by_name: fields.requestedByName,
+      requested_city: fields.requestedCity,
+      requested_size: fields.requestedSize,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to create pending organization:", error?.message);
+    return null;
+  }
+
+  return { id: data.id, code: codeFromOrgId(data.id), ...fields };
+}
+
+async function findPendingOrganizationByCode(code: string): Promise<PendingOrganization | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const { data } = await db
+    .from("organizations")
+    .select("id, name, requested_by_phone, requested_by_name, requested_city, requested_size")
+    .eq("status", "pending_approval");
+
+  const match = (data ?? []).find((row) => codeFromOrgId(row.id) === code.toUpperCase());
+  if (!match) return null;
+
+  return {
+    id: match.id,
+    code: codeFromOrgId(match.id),
+    name: match.name,
+    requestedByPhone: match.requested_by_phone ?? "",
+    requestedByName: match.requested_by_name ?? "",
+    requestedCity: match.requested_city ?? "",
+    requestedSize: match.requested_size ?? "",
+  };
+}
+
+export type ApprovedOrganization = {
+  organizationId: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+  requestedByPhone: string;
+  requestedByName: string;
+};
+
+// Approves the organization, creates its first workspace (branch), grants
+// the requester Organization Admin + Senior Pastor, and links their phone.
+// No memberships row and no auth.users account — that table/RLS model is
+// for web dashboard access, which is optional and decoupled (see design
+// doc). Runs entirely through the service-role client.
+export async function approveOrganization(code: string, approverPhone: string): Promise<ApprovedOrganization | null> {
+  const pending = await findPendingOrganizationByCode(code);
+  if (!pending) return null;
+
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const baseSlug = slugifyWorkspaceName(pending.name);
+  let slug = baseSlug;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing } = await db.from("workspaces").select("id").eq("slug", slug).maybeSingle();
+    if (!existing) break;
+    slug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  const { data: workspace, error: workspaceError } = await db
+    .from("workspaces")
+    .insert({
+      slug,
+      name: pending.name,
+      legal_name: pending.name,
+      city: pending.requestedCity || "Unspecified",
+      timezone: "Africa/Lagos",
+      organization_id: pending.id,
+    })
+    .select("id, slug, name")
+    .single();
+
+  if (workspaceError || !workspace) {
+    console.error("Failed to create workspace for approved organization:", workspaceError?.message);
+    return null;
+  }
+
+  await db.from("organizations").update({
+    status: "active",
+    approved_by: approverPhone,
+    approved_at: new Date().toISOString(),
+  }).eq("id", pending.id);
+
+  await db.from("organization_admins").insert({
+    organization_id: pending.id,
+    phone_number: pending.requestedByPhone,
+  });
+
+  await linkPhoneToWorkspace({
+    phoneNumber: pending.requestedByPhone,
+    workspaceId: workspace.id,
+    workspaceSlug: workspace.slug,
+    workspaceName: workspace.name,
+    userName: pending.requestedByName,
+    userRole: "owner",
+  });
+
+  return {
+    organizationId: pending.id,
+    workspaceId: workspace.id,
+    workspaceSlug: workspace.slug,
+    workspaceName: workspace.name,
+    requestedByPhone: pending.requestedByPhone,
+    requestedByName: pending.requestedByName,
+  };
+}
+
+export async function rejectOrganization(code: string): Promise<{ requestedByPhone: string; name: string } | false> {
+  const pending = await findPendingOrganizationByCode(code);
+  if (!pending) return false;
+
+  const db = getSupabaseServerClient();
+  if (!db) return false;
+
+  const { error } = await db.from("organizations").update({ status: "rejected" }).eq("id", pending.id);
+  if (error) return false;
+  return { requestedByPhone: pending.requestedByPhone, name: pending.name };
+}
+
+// Returns the workspaces (branches) an organization admin can see rolled-up
+// data across, distinct from the single-workspace membership every other
+// role gets via whatsapp_phone_links.
+export async function getOrganizationWorkspaces(phoneNumber: string): Promise<Array<{ id: string; name: string }>> {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+
+  const { data: adminRows } = await db
+    .from("organization_admins")
+    .select("organization_id")
+    .eq("phone_number", phoneNumber);
+
+  const orgIds = (adminRows ?? []).map((row) => row.organization_id);
+  if (!orgIds.length) return [];
+
+  const { data: workspaceRows } = await db
+    .from("workspaces")
+    .select("id, name")
+    .in("organization_id", orgIds);
+
+  return workspaceRows ?? [];
 }
 
 // Returns the owner/admin phone number for approval notifications

@@ -18,6 +18,12 @@ supabase/.temp/
 # Worktrees
 .worktrees/
 
+# Claude Code local settings — per-machine permission allowlist, can end up
+# recording literal secrets from approved commands (see 2026-07-18 incident:
+# a Supabase access token got written here via an approved curl command).
+# Never meant to be shared/tracked.
+.claude/settings.local.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,3 +34,5 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel

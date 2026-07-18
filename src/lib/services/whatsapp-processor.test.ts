@@ -11,16 +11,26 @@ vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
 
-vi.mock("@/lib/services/whatsapp-workspace", () => ({
-  claimWhatsAppMessage: vi.fn().mockResolvedValue(true),
-  lookupPhoneLink: vi.fn().mockResolvedValue(null),
-  persistWorkspaceAiResult: vi.fn().mockResolvedValue(undefined),
-  getApproverPhone: vi.fn().mockResolvedValue(null),
-  approveWorkspaceRequest: vi.fn().mockResolvedValue(true),
-  rejectWorkspaceRequest: vi.fn().mockResolvedValue(true),
-  getWorkflowRequest: vi.fn().mockResolvedValue(null),
-  loadWorkspaceContext: vi.fn().mockResolvedValue({ pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [] }),
-}));
+vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
+  // resolveActivePhoneLink (pure logic), isPlatformAdmin/approveOrganization/
+  // rejectOrganization/getGivingSummary etc. keep their real implementations
+  // via the spread below — they're either pure or safely no-op without a
+  // configured Supabase client, matching how they behave in production when
+  // Supabase isn't set up. Only the calls the existing tests assert against
+  // are stubbed.
+  const actual = await importOriginal<typeof import("@/lib/services/whatsapp-workspace")>();
+  return {
+    ...actual,
+    claimWhatsAppMessage: vi.fn().mockResolvedValue(true),
+    lookupAllPhoneLinks: vi.fn().mockResolvedValue([]),
+    persistWorkspaceAiResult: vi.fn().mockResolvedValue(undefined),
+    getApproverPhone: vi.fn().mockResolvedValue(null),
+    approveWorkspaceRequest: vi.fn().mockResolvedValue(true),
+    rejectWorkspaceRequest: vi.fn().mockResolvedValue(true),
+    getWorkflowRequest: vi.fn().mockResolvedValue(null),
+    loadWorkspaceContext: vi.fn().mockResolvedValue({ pendingRequests: [], recentExpenses: [], lowInventoryItems: [], pendingIssues: [] }),
+  };
+});
 
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
 import { downloadMedia, sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
