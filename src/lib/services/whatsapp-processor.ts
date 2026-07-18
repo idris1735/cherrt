@@ -25,10 +25,19 @@ import {
   isPlatformAdmin,
   approveOrganization,
   rejectOrganization,
+  findWorkspaceByJoinCode,
+  linkPhoneToWorkspace,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
-import { isSignupTrigger, startSignupFlow, advanceSignupFlow, cancelSignupFlow } from "@/lib/services/onboarding-flow";
+import {
+  isSignupTrigger,
+  startSignupFlow,
+  advanceSignupFlow,
+  cancelOnboardingFlow,
+  startSetupFlow,
+  advanceSetupFlow,
+} from "@/lib/services/onboarding-flow";
 import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
 import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
 import { loadWorkspaceData } from "@/lib/services/workspace-data";
@@ -588,8 +597,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         await sendTextMessage(from, `Approved — ${result.workspaceName} is live.`);
         await sendTextMessage(
           result.requestedByPhone,
-          `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt! Just say "Hi" here anytime to get started, or ask me anything.`,
+          `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt!`,
         );
+        // Immediately continue into setup (giving categories, ministry
+        // units, branches) rather than leaving the admin to figure out how
+        // to start it themselves.
+        const setupPrompt = await startSetupFlow(result.requestedByPhone, result.organizationId, result.workspaceId);
+        await sendTextMessage(result.requestedByPhone, setupPrompt);
       } else {
         await sendTextMessage(from, "Couldn't find a pending signup with that code — it may already be resolved.");
       }
@@ -624,9 +638,39 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // ── In-progress guided signup flow ──
+  // ── Member join-by-code ──
+  // A brand-new or unlinked number texting an invite code auto-links as a
+  // member, no approval needed (matches the self-serve-member decision).
+  // Checked here rather than earlier: an already-linked, disambiguated
+  // number has no reason to redeem a code, and platform-admin/onboarding
+  // states above take priority.
+  if (!link && trimmed) {
+    const joinMatch = trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i) ?? (/^[a-z0-9]{8}$/i.test(trimmed) ? [trimmed, trimmed] : null);
+    if (joinMatch) {
+      const workspace = await findWorkspaceByJoinCode(joinMatch[1]);
+      if (workspace) {
+        await linkPhoneToWorkspace({
+          phoneNumber: from,
+          workspaceId: workspace.id,
+          workspaceSlug: workspace.slug,
+          workspaceName: workspace.name,
+          userName: session.userName ?? "",
+          userRole: "member",
+        });
+        await sendTextMessage(from, `Welcome to *${workspace.name}*! You're in. Just tell me what you need — give, ask for prayer, or anything else.`);
+        return;
+      }
+      await sendTextMessage(from, "I couldn't find a church with that code — check with your admin, or just tell me your church's name.");
+      return;
+    }
+  }
+
+  // ── In-progress guided flows (signup or post-approval setup) ──
   if (trimmed && session.onboarding) {
-    const reply = await advanceSignupFlow(from, session, trimmed);
+    const reply =
+      session.onboarding.flow === "new-church-signup"
+        ? await advanceSignupFlow(from, session, trimmed)
+        : await advanceSetupFlow(from, session, trimmed);
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
@@ -640,7 +684,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
   if (/^cancel$/i.test(trimmed)) {
-    if (session.onboarding) { await cancelSignupFlow(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
+    if (session.onboarding) { await cancelOnboardingFlow(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
     await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return;
   }
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) { await handleConfirm(from, session, link); return; }

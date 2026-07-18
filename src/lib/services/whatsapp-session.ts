@@ -9,19 +9,34 @@ export type WhatsAppSession = {
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."
   activeWorkspaceId?: string;
-  // In-progress guided flow (e.g. new church signup) — deterministic
-  // step-by-step state, separate from the free-form Gemini artifact path.
-  onboarding?: {
-    flow: "new-church-signup";
-    step: "name" | "admin_name" | "admin_role" | "city" | "size" | "confirm";
-    collected: {
-      name?: string;
-      adminName?: string;
-      adminRole?: string;
-      city?: string;
-      size?: string;
-    };
-  };
+  // In-progress guided flow (e.g. new church signup, post-approval setup) —
+  // deterministic step-by-step state, separate from the free-form Gemini
+  // artifact path. Discriminated union so the two flows can have
+  // independent step vocabularies and collected shapes.
+  onboarding?:
+    | {
+        flow: "new-church-signup";
+        step: "name" | "admin_name" | "admin_role" | "city" | "size" | "confirm";
+        collected: {
+          name?: string;
+          adminName?: string;
+          adminRole?: string;
+          city?: string;
+          size?: string;
+        };
+      }
+    | {
+        flow: "post-approval-setup";
+        step: "giving_categories" | "ministry_units" | "ask_branch" | "branch_name" | "branch_city" | "branch_admin_phone" | "branch_more" | "done";
+        collected: {
+          organizationId: string;
+          workspaceId: string;
+          givingCategories?: string[];
+          ministryUnits?: string[];
+          branches: Array<{ name: string; city: string; adminPhone: string }>;
+          branchDraft?: { name?: string; city?: string };
+        };
+      };
   pendingConfirmation?: {
     originalPrompt: string;
     artifactKind: string;

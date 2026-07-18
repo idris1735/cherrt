@@ -376,6 +376,28 @@ function codeFromOrgId(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
+// Same derivation, applied to a workspace id -- a member-facing join code,
+// distinct from the org-approval code above. No dedicated column needed:
+// the code is always re-derivable from the id, so lookup is by scanning
+// workspaces and matching the derived code (fine at this volume, same
+// tradeoff as findPendingOrganizationByCode).
+export function codeFromWorkspaceId(id: string): string {
+  return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+export async function findWorkspaceByJoinCode(code: string): Promise<{ id: string; slug: string; name: string } | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const normalized = code.trim().toUpperCase();
+  // Fetches all workspaces and matches the derived code in JS -- same
+  // tradeoff as findPendingOrganizationByCode: fine at low tenant counts,
+  // would need a real indexed code column if this ever needs to scale.
+  const { data } = await db.from("workspaces").select("id, slug, name");
+  const match = (data ?? []).find((row) => codeFromWorkspaceId(row.id) === normalized);
+  return match ?? null;
+}
+
 export async function createPendingOrganization(fields: {
   name: string;
   requestedByPhone: string;
@@ -540,6 +562,113 @@ export async function getOrganizationWorkspaces(phoneNumber: string): Promise<Ar
     .in("organization_id", orgIds);
 
   return workspaceRows ?? [];
+}
+
+export type CreatedBranch = {
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
+};
+
+// Adds a branch under an already-approved organization. No platform-admin
+// approval gate here — that trust decision was made once at organization
+// approval time; everything under it is the org admin's own call (design
+// doc, "post-approval setup"). Reuses the same slug-uniqueness pattern as
+// approveOrganization's first-workspace creation.
+export async function createBranch(opts: {
+  organizationId: string;
+  name: string;
+  city: string;
+  adminPhone: string;
+  adminName: string;
+}): Promise<CreatedBranch | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+
+  const baseSlug = slugifyWorkspaceName(opts.name);
+  let slug = baseSlug;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existing } = await db.from("workspaces").select("id").eq("slug", slug).maybeSingle();
+    if (!existing) break;
+    slug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  const { data: workspace, error } = await db
+    .from("workspaces")
+    .insert({
+      slug,
+      name: opts.name,
+      legal_name: opts.name,
+      city: opts.city || "Unspecified",
+      timezone: "Africa/Lagos",
+      organization_id: opts.organizationId,
+    })
+    .select("id, slug, name")
+    .single();
+
+  if (error || !workspace) {
+    console.error("Failed to create branch:", error?.message);
+    return null;
+  }
+
+  await linkPhoneToWorkspace({
+    phoneNumber: opts.adminPhone,
+    workspaceId: workspace.id,
+    workspaceSlug: workspace.slug,
+    workspaceName: workspace.name,
+    userName: opts.adminName,
+    userRole: "owner",
+  });
+
+  return { workspaceId: workspace.id, workspaceSlug: workspace.slug, workspaceName: workspace.name };
+}
+
+// Both accept a plain comma-separated string from the guided flow and
+// parse it here, rather than pushing parsing logic into the conversation
+// layer -- keeps onboarding-flow.ts focused on state transitions, not text
+// processing.
+function parseListInput(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+export async function saveGivingCategories(workspaceId: string, raw: string): Promise<string[]> {
+  const names = parseListInput(raw);
+  if (!names.length) return [];
+
+  const db = getSupabaseServerClient();
+  if (!db) return names;
+
+  const { error } = await db
+    .from("giving_categories")
+    .upsert(
+      names.map((name) => ({ workspace_id: workspaceId, name })),
+      { onConflict: "workspace_id,name" },
+    );
+
+  if (error) console.error("Failed to save giving categories:", error.message);
+  return names;
+}
+
+export async function saveMinistryUnits(workspaceId: string, raw: string): Promise<string[]> {
+  const names = parseListInput(raw);
+  if (!names.length) return [];
+
+  const db = getSupabaseServerClient();
+  if (!db) return names;
+
+  const { error } = await db
+    .from("ministry_units")
+    .upsert(
+      names.map((name) => ({ workspace_id: workspaceId, name })),
+      { onConflict: "workspace_id,name" },
+    );
+
+  if (error) console.error("Failed to save ministry units:", error.message);
+  return names;
 }
 
 // Returns the owner/admin phone number for approval notifications
