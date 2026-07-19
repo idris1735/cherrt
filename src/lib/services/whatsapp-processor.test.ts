@@ -273,4 +273,40 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("budget exceeded"));
   });
+
+  it("REJECT <code> <reason> from a platform admin sends the org-rejected template with the typed reason", async () => {
+    vi.stubEnv("PLATFORM_ADMIN_PHONES", PHONE);
+    const workspaceModule = await import("@/lib/services/whatsapp-workspace");
+    const rejectSpy = vi
+      .spyOn(workspaceModule, "rejectOrganization")
+      .mockResolvedValueOnce({ requestedByPhone: "2348099999999", name: "Grace Chapel" });
+    const templatesModule = await import("@/lib/services/whatsapp-templates");
+    const templateSpy = vi.spyOn(templatesModule, "sendOrgRejectedTemplate");
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "REJECT ab12cd34 budget exceeded" });
+
+    expect(rejectSpy).toHaveBeenCalledWith("ab12cd34");
+    expect(templateSpy).toHaveBeenCalledWith("2348099999999", "Grace Chapel", "budget exceeded");
+
+    vi.unstubAllEnvs();
+  });
+
+  it("REJECT <code> with no reason from a platform admin uses a default reason", async () => {
+    vi.stubEnv("PLATFORM_ADMIN_PHONES", PHONE);
+    const workspaceModule = await import("@/lib/services/whatsapp-workspace");
+    vi.spyOn(workspaceModule, "rejectOrganization").mockResolvedValueOnce({
+      requestedByPhone: "2348099999999",
+      name: "Grace Chapel",
+    });
+    const templatesModule = await import("@/lib/services/whatsapp-templates");
+    const templateSpy = vi.spyOn(templatesModule, "sendOrgRejectedTemplate");
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "REJECT ab12cd34" });
+
+    expect(templateSpy).toHaveBeenCalledWith("2348099999999", "Grace Chapel", "doesn't fit right now");
+
+    vi.unstubAllEnvs();
+  });
 });

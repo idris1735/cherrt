@@ -635,13 +635,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       }
       return;
     }
-    const rejectMatch = trimmed.match(/^reject\s+([a-z0-9]{8})$/i);
+    const rejectMatch = trimmed.match(/^reject\s+([a-z0-9]{8})(?:\s+(.+))?$/i);
     if (rejectMatch) {
+      const reason = rejectMatch[2]?.trim() || "doesn't fit right now";
       const result = await rejectOrganization(rejectMatch[1]);
       if (result) {
         await sendTextMessage(from, "Rejected.");
         try {
-          await sendTextMessage(result.requestedByPhone, `Thanks for your interest in Chertt for ${result.name}. We won't be moving forward with this request right now — feel free to reach out if anything changes.`);
+          await sendOrgRejectedTemplate(result.requestedByPhone, result.name, reason);
         } catch (err) {
           console.error("Failed to send rejection message:", err instanceof Error ? err.message : err);
         }
