@@ -14,7 +14,7 @@ import {
   codeFromWorkspaceId,
   type PendingOrganization,
 } from "@/lib/services/whatsapp-workspace";
-import { sendTextMessage } from "@/lib/services/whatsapp";
+import { sendNewSignupAlertTemplate } from "@/lib/services/whatsapp-templates";
 
 type SignupState = Extract<NonNullable<WhatsAppSession["onboarding"]>, { flow: "new-church-signup" }>;
 type OnboardingStep = SignupState["step"];
@@ -73,18 +73,18 @@ async function notifyPlatformAdmins(pending: PendingOrganization): Promise<void>
     return;
   }
 
-  const message = [
-    "*New church pending*",
-    "",
-    `Church: ${pending.name}`,
-    `Contact: ${pending.requestedByName} (${pending.requestedByPhone})`,
-    `City: ${pending.requestedCity}`,
-    `Size: ~${pending.requestedSize}`,
-    "",
-    `Reply *APPROVE ${pending.code}* or *REJECT ${pending.code}*`,
-  ].join("\n");
-
-  await Promise.allSettled(admins.map((phone) => sendTextMessage(phone, message)));
+  await Promise.allSettled(
+    admins.map((phone) =>
+      sendNewSignupAlertTemplate(phone, {
+        churchName: pending.name,
+        adminName: pending.requestedByName,
+        adminPhone: pending.requestedByPhone,
+        city: pending.requestedCity,
+        size: pending.requestedSize,
+        code: pending.code,
+      }),
+    ),
+  );
 }
 
 // Returns the reply to send back, or null if there's no in-progress
