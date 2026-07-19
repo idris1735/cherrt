@@ -8,6 +8,7 @@ import {
   type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
 import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia } from "@/lib/services/whatsapp";
+import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
 import {
@@ -607,17 +608,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         // below.
         await sendTextMessage(from, `Approved — ${result.workspaceName} is live.`);
 
-        // The requester's activation message is almost always outside the
-        // 24h window by design (signup copy itself says approval can take
-        // a day or two) -- flagged in the 2026-07-18 onboarding audit as
-        // needing a real message template, not fixed here. Wrapped so a
-        // delivery failure doesn't prevent the setup flow from being
+        // The requester's activation message uses a pre-approved WhatsApp
+        // template (see docs/superpowers/specs/2026-07-19-whatsapp-template-messages-design.md)
+        // since it's almost always outside the 24h session window -- the
+        // signup copy itself says approval can take a day or two. Wrapped
+        // so a delivery failure doesn't prevent the setup flow from being
         // seeded below.
         try {
-          await sendTextMessage(
-            result.requestedByPhone,
-            `Great news, ${result.requestedByName || "there"} — *${result.workspaceName}* is approved and live on Chertt!`,
-          );
+          await sendOrgApprovedTemplate(result.requestedByPhone, result.requestedByName, result.workspaceName);
         } catch (err) {
           console.error("Failed to send activation message:", err instanceof Error ? err.message : err);
         }

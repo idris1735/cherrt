@@ -11,6 +11,12 @@ vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
 
+vi.mock("@/lib/services/whatsapp-templates", () => ({
+  sendNewSignupAlertTemplate: vi.fn().mockResolvedValue(undefined),
+  sendOrgApprovedTemplate: vi.fn().mockResolvedValue(undefined),
+  sendOrgRejectedTemplate: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
   // resolveActivePhoneLink (pure logic), isPlatformAdmin/approveOrganization/
   // rejectOrganization/getGivingSummary etc. keep their real implementations
