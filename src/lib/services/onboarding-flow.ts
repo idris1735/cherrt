@@ -73,7 +73,7 @@ async function notifyPlatformAdmins(pending: PendingOrganization): Promise<void>
     return;
   }
 
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     admins.map((phone) =>
       sendNewSignupAlertTemplate(phone, {
         churchName: pending.name,
@@ -85,6 +85,11 @@ async function notifyPlatformAdmins(pending: PendingOrganization): Promise<void>
       }),
     ),
   );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Failed to send new-signup alert:", result.reason instanceof Error ? result.reason.message : result.reason);
+    }
+  }
 }
 
 // Returns the reply to send back, or null if there's no in-progress
