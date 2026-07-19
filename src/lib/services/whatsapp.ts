@@ -38,6 +38,26 @@ export async function sendTextMessage(to: string, text: string): Promise<void> {
   });
 }
 
+export async function sendTemplateMessage(
+  to: string,
+  templateName: string,
+  languageCode: string,
+  params: string[],
+): Promise<void> {
+  await postToGraph({
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      components: params.length
+        ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }]
+        : [],
+    },
+  });
+}
+
 export type InteractiveButton = {
   id: string;    // up to 256 chars — encode all action state here
   title: string; // up to 20 chars shown on button face
