@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
+import { matchReportIntent, buildReport, matchOrgReportIntent } from "@/lib/services/whatsapp-reports";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
 function guestSession(): WhatsAppSession {
@@ -153,6 +153,48 @@ describe("matchReportIntent", () => {
   });
   it("returns null for casual chat", () => {
     expect(matchReportIntent("hello there")).toBeNull();
+  });
+});
+
+describe("matchOrgReportIntent", () => {
+  it("matches org-overview: all branches", () => {
+    expect(matchOrgReportIntent("all branches")).toBe("org-overview");
+  });
+  it("matches org-overview: across all branches", () => {
+    expect(matchOrgReportIntent("across all branches")).toBe("org-overview");
+  });
+  it("matches org-overview: across branches", () => {
+    expect(matchOrgReportIntent("across branches")).toBe("org-overview");
+  });
+  it("matches org-overview: every branch", () => {
+    expect(matchOrgReportIntent("how did we do across every branch")).toBe("org-overview");
+  });
+  it("matches org-overview: org overview", () => {
+    expect(matchOrgReportIntent("org overview")).toBe("org-overview");
+  });
+  it("matches org-overview: organization overview", () => {
+    expect(matchOrgReportIntent("organization overview")).toBe("org-overview");
+  });
+  it("matches org-giving: giving across all branches", () => {
+    expect(matchOrgReportIntent("giving across all branches")).toBe("org-giving");
+  });
+  it("matches org-giving: total tithes across branches", () => {
+    expect(matchOrgReportIntent("total tithes across branches")).toBe("org-giving");
+  });
+  it("matches org-giving: org giving", () => {
+    expect(matchOrgReportIntent("org giving")).toBe("org-giving");
+  });
+  it("matches org-giving: offerings across all branches", () => {
+    expect(matchOrgReportIntent("offerings across all branches")).toBe("org-giving");
+  });
+  it("returns null for a create verb even with an org phrase", () => {
+    expect(matchOrgReportIntent("log an expense across all branches")).toBeNull();
+  });
+  it("returns null for casual chat", () => {
+    expect(matchOrgReportIntent("hello there")).toBeNull();
+  });
+  it("returns null for single-branch overview phrasing", () => {
+    expect(matchOrgReportIntent("business overview")).toBeNull();
   });
 });
 

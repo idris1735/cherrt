@@ -80,6 +80,26 @@ export function matchReportIntent(text: string): ReportKey | null {
   return null;
 }
 
+export type OrgReportKey = "org-overview" | "org-giving";
+
+export function matchOrgReportIntent(text: string): OrgReportKey | null {
+  const t = text.toLowerCase().trim();
+
+  // Never match if the message contains a CREATE verb
+  if (CREATE_VERBS.test(t)) return null;
+
+  const mentionsAllBranches =
+    /\ball branches\b/i.test(t) ||
+    /\bacross (?:all )?branches\b/i.test(t) ||
+    /\bevery branch\b/i.test(t) ||
+    /\borg(?:anization)?\b/i.test(t);
+
+  if (!mentionsAllBranches) return null;
+
+  const mentionsGiving = /\bgiving\b/i.test(t) || /\btithes?\b/i.test(t) || /\bofferings?\b/i.test(t);
+  return mentionsGiving ? "org-giving" : "org-overview";
+}
+
 type ReportContext = {
   link: PhoneLink | null;
   session: WhatsAppSession;
