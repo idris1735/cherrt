@@ -1,6 +1,6 @@
 import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
 import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
-import { computeMetrics, type WorkspaceData } from "@/lib/services/business-metrics";
+import { computeMetrics, type WorkspaceData, type ComputedMetrics } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { GivingSummary, PhoneLink, WorkspaceContext } from "@/lib/services/whatsapp-workspace";
 
@@ -372,4 +372,64 @@ export async function buildReport(
 function deltaPct(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+export type OrgBranchOverview = { id: string; name: string; metrics?: ComputedMetrics };
+
+export function buildOrgOverviewReport(
+  branches: OrgBranchOverview[],
+): { text: string; buttons?: Array<{ id: string; title: string }> } {
+  const loaded = branches.filter((b) => b.metrics);
+  const totalSales = loaded.reduce((s, b) => s + (b.metrics?.totalSales ?? 0), 0);
+  const totalWallet = loaded.reduce((s, b) => s + (b.metrics?.walletBalance ?? 0), 0);
+  const totalCustomers = loaded.reduce((s, b) => s + (b.metrics?.customers ?? 0), 0);
+  const totalPending = loaded.reduce((s, b) => s + (b.metrics?.pendingApprovals ?? 0), 0);
+  const totalOpenIssues = loaded.reduce((s, b) => s + (b.metrics?.openIssues ?? 0), 0);
+  const totalLowStock = loaded.reduce((s, b) => s + (b.metrics?.lowStock ?? 0), 0);
+
+  const branchLines = branches.map((b) =>
+    b.metrics ? `• ${b.name}: ${fmt(b.metrics.totalSales)} sales` : `• ${b.name}: ⚠️ couldn't load`,
+  );
+
+  return {
+    text: [
+      "📊 *All Branches — Overview*",
+      "",
+      `💰 Sales this month (combined): *${fmt(totalSales)}*`,
+      `👛 Wallet (combined): ${fmt(totalWallet)} · 👥 Customers (combined): ${totalCustomers}`,
+      `🧾 Pending: ${totalPending} · Open issues: ${totalOpenIssues} · Low stock: ${totalLowStock}`,
+      "",
+      "*By branch*",
+      ...branchLines,
+    ].join("\n"),
+    buttons: [{ id: "rpt:org-giving", title: "Giving (all branches)" }],
+  };
+}
+
+export type OrgBranchGiving = { id: string; name: string; givingSummary?: GivingSummary };
+
+export function buildOrgGivingReport(
+  branches: OrgBranchGiving[],
+): { text: string; buttons?: Array<{ id: string; title: string }> } {
+  const loaded = branches.filter((b) => b.givingSummary);
+  const totalGiving = loaded.reduce((s, b) => s + (b.givingSummary?.totalThisMonth ?? 0), 0);
+  const totalCount = loaded.reduce((s, b) => s + (b.givingSummary?.countThisMonth ?? 0), 0);
+
+  const branchLines = branches.map((b) =>
+    b.givingSummary
+      ? `• ${b.name}: ${fmt(b.givingSummary.totalThisMonth)} (${b.givingSummary.countThisMonth} gift${b.givingSummary.countThisMonth !== 1 ? "s" : ""})`
+      : `• ${b.name}: ⚠️ couldn't load`,
+  );
+
+  return {
+    text: [
+      "🙏 *All Branches — Giving*",
+      "",
+      `• This month (combined): *${fmt(totalGiving)}* from ${totalCount} gift${totalCount !== 1 ? "s" : ""}`,
+      "",
+      "*By branch*",
+      ...branchLines,
+    ].join("\n"),
+    buttons: [{ id: "rpt:org-overview", title: "Overview (all branches)" }],
+  };
 }

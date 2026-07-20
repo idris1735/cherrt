@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { matchReportIntent, buildReport, matchOrgReportIntent } from "@/lib/services/whatsapp-reports";
+import { matchReportIntent, buildReport, matchOrgReportIntent, buildOrgOverviewReport, buildOrgGivingReport } from "@/lib/services/whatsapp-reports";
+import type { ComputedMetrics } from "@/lib/services/business-metrics";
+import type { GivingSummary } from "@/lib/services/whatsapp-workspace";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
 function guestSession(): WhatsAppSession {
@@ -17,6 +19,42 @@ function guestCtx() {
     session: guestSession(),
     workspaceContext: undefined,
   };
+}
+
+function fixtureMetrics(overrides: Partial<ComputedMetrics> = {}): ComputedMetrics {
+  return {
+    totalSales: 100_000,
+    salesDeltaPct: 5,
+    walletBalance: 50_000,
+    cashback: 1_000,
+    customers: 10,
+    customersDeltaPct: 2,
+    spend: 20_000,
+    spendDeltaPct: 1,
+    pendingApprovals: 2,
+    approvedCount: 3,
+    openIssues: 1,
+    lowStock: 1,
+    awaitingSig: 0,
+    series: [],
+    recentActivity: [],
+    ...overrides,
+  };
+}
+
+function fixtureGiving(overrides: Partial<GivingSummary> = {}): GivingSummary {
+  return {
+    totalThisMonth: 50_000,
+    totalLastMonth: 40_000,
+    countThisMonth: 5,
+    byType: {},
+    recent: [],
+    ...overrides,
+  };
+}
+
+function naira(n: number): string {
+  return "₦" + n.toLocaleString("en-NG");
 }
 
 describe("matchReportIntent", () => {
@@ -249,5 +287,50 @@ describe("buildReport", () => {
   it("issues contains open issues", async () => {
     const { text } = await buildReport("issues", guestCtx());
     expect(text).toContain("Issues");
+  });
+});
+
+describe("buildOrgOverviewReport", () => {
+  it("sums totals across branches and lists each by name", () => {
+    const { text, buttons } = buildOrgOverviewReport([
+      { id: "a", name: "Lagos", metrics: fixtureMetrics({ totalSales: 100_000, walletBalance: 50_000, customers: 10, pendingApprovals: 2, openIssues: 1, lowStock: 1 }) },
+      { id: "b", name: "Abuja", metrics: fixtureMetrics({ totalSales: 200_000, walletBalance: 30_000, customers: 5, pendingApprovals: 1, openIssues: 0, lowStock: 2 }) },
+    ]);
+    expect(text).toContain("All Branches — Overview");
+    expect(text).toContain(naira(300_000));
+    expect(text).toContain("Lagos");
+    expect(text).toContain("Abuja");
+    expect(buttons).toEqual([{ id: "rpt:org-giving", title: "Giving (all branches)" }]);
+  });
+
+  it("shows a fallback line for a branch whose data failed to load, and excludes it from totals", () => {
+    const { text } = buildOrgOverviewReport([
+      { id: "a", name: "Lagos", metrics: fixtureMetrics({ totalSales: 100_000 }) },
+      { id: "c", name: "Enugu", metrics: undefined },
+    ]);
+    expect(text).toContain("Enugu: ⚠️ couldn't load");
+    expect(text).toContain(naira(100_000));
+  });
+});
+
+describe("buildOrgGivingReport", () => {
+  it("sums giving totals across branches and lists each by name", () => {
+    const { text, buttons } = buildOrgGivingReport([
+      { id: "a", name: "Lagos", givingSummary: fixtureGiving({ totalThisMonth: 50_000, countThisMonth: 5 }) },
+      { id: "b", name: "Abuja", givingSummary: fixtureGiving({ totalThisMonth: 30_000, countThisMonth: 3 }) },
+    ]);
+    expect(text).toContain("All Branches — Giving");
+    expect(text).toContain(naira(80_000));
+    expect(text).toContain("8 gifts");
+    expect(buttons).toEqual([{ id: "rpt:org-overview", title: "Overview (all branches)" }]);
+  });
+
+  it("shows a fallback line for a branch whose data failed to load, and excludes it from totals", () => {
+    const { text } = buildOrgGivingReport([
+      { id: "a", name: "Lagos", givingSummary: fixtureGiving({ totalThisMonth: 50_000, countThisMonth: 5 }) },
+      { id: "c", name: "Enugu", givingSummary: undefined },
+    ]);
+    expect(text).toContain("Enugu: ⚠️ couldn't load");
+    expect(text).toContain(naira(50_000));
   });
 });
