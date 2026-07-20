@@ -92,7 +92,7 @@ export function matchOrgReportIntent(text: string): OrgReportKey | null {
     /\ball branches\b/i.test(t) ||
     /\bacross (?:all )?branches\b/i.test(t) ||
     /\bevery branch\b/i.test(t) ||
-    /\borg(?:anization)?\b/i.test(t);
+    /\borg(?:anization)? (?:overview|report|summary|giving)\b/i.test(t);
 
   if (!mentionsAllBranches) return null;
 

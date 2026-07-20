@@ -196,6 +196,9 @@ describe("matchOrgReportIntent", () => {
   it("returns null for single-branch overview phrasing", () => {
     expect(matchOrgReportIntent("business overview")).toBeNull();
   });
+  it("returns null for a message that merely mentions 'organization' without a report word", () => {
+    expect(matchOrgReportIntent("please update my organization details")).toBeNull();
+  });
 });
 
 describe("buildReport", () => {
