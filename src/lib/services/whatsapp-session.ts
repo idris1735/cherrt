@@ -40,6 +40,22 @@ export type WhatsAppSession = {
           branches: Array<{ name: string; city: string; workspaceId: string }>;
           branchDraft?: { name?: string };
         };
+      }
+    | {
+        // Deterministic assign-role flow (identity spine). An admin changes an
+        // existing member's role in the active branch — guided/list-based, no
+        // fuzzy name resolution. Reuses this guided-flow column, no new table.
+        flow: "assign-role";
+        step: "pick_member" | "pick_role" | "confirm";
+        collected: {
+          workspaceId: string;
+          actorRole: string;
+          candidates: Array<{ personId: string; fullName: string; role: string }>;
+          roleOptions: string[];
+          targetPersonId?: string;
+          targetName?: string;
+          chosenRole?: string;
+        };
       };
   pendingConfirmation?: {
     originalPrompt: string;

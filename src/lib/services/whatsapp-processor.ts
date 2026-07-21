@@ -33,6 +33,8 @@ import {
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
+import { canAssignRole } from "@/lib/services/identity/role-catalog";
 import {
   isSignupTrigger,
   startSignupFlow,
@@ -780,12 +782,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // ── In-progress guided flows (signup or post-approval setup) ──
+  // ── In-progress guided flows (signup, post-approval setup, assign-role) ──
   if (trimmed && session.onboarding) {
     const reply =
       session.onboarding.flow === "new-church-signup"
         ? await advanceSignupFlow(from, session, trimmed)
-        : await advanceSetupFlow(from, session, trimmed);
+        : session.onboarding.flow === "post-approval-setup"
+          ? await advanceSetupFlow(from, session, trimmed)
+          : await advanceAssignRoleFlow(from, session, trimmed);
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
@@ -813,6 +817,19 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed && isSignupTrigger(trimmed) && !session.onboarding) {
     const reply = await startSignupFlow(from);
     await sendTextMessage(from, reply);
+    return;
+  }
+
+  // ── Assign-role trigger (branch admins only) ──
+  // Gated on the actor holding assign authority in their active branch
+  // (canAssignRole against the lowest role = "does this role assign at all").
+  if (trimmed && isAssignRoleTrigger(trimmed) && link && !session.onboarding) {
+    if (canAssignRole(link.userRole, "member")) {
+      const reply = await startAssignRoleFlow(from, link.workspaceId, link.userRole);
+      await sendTextMessage(from, reply);
+    } else {
+      await sendTextMessage(from, "Only branch admins can change roles.");
+    }
     return;
   }
 
