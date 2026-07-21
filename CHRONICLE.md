@@ -14,7 +14,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 1. **Identity & Tenancy Spine** ← *in progress* — who is speaking, which branch, what role/authority.
 2. **Roles & Authority** — folded into #1 (curated per-vertical role catalog → capability bundles).
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
-4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *Biggest engine gap; next after the spine.*
+4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: foundation built.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
@@ -45,6 +45,18 @@ Reused as-is (not rebuilt): org→branch hierarchy, one-phone-many-branches link
 3. **Security housekeeping:** rotate the Supabase DB password (shared in chat) and the leaked WhatsApp token in `probs.txt`; gitignore `probs.txt`.
 
 **Housekeeping flag:** `probs.txt` (untracked, contains a leaked WhatsApp token per earlier notes) still needs the token rotated + the file gitignored.
+
+### 2026-07-21 — Agentic Engine (foundation built, not yet wired)
+**Spec:** `docs/superpowers/specs/2026-07-21-agentic-engine-design.md`
+
+Today's `runCherttCommand` is a single-shot classifier (one Gemini call → one flat artifact; can't query/read or chain). Moving to a bounded **tool-calling loop** where Gemini calls typed, workspace-scoped tools.
+
+**Built (Increment 1 — foundation, standalone, not wired into the processor yet):**
+- `src/lib/services/agent/tools.ts` — `AgentTool`/`AgentContext` + 5 read-only tools wired to existing services (`get_giving_summary`, `get_pending_requests`, `get_low_stock`, `get_open_issues`, `list_members`).
+- `src/lib/services/agent/runtime.ts` — `runAgentLoop` (injected `generate` for testability; executes tools, feeds results back, step-capped, catches tool errors) + `runAgentQuery` (real Gemini 2.5 Flash function-calling entry).
+- 11 tests (loop happy-path, ctx scoping, unknown-tool + throwing-tool error feedback, step cap; tool registry + handler scoping). 184 tests pass, typecheck clean.
+
+**Next:** Increment 2 — wire `runAgentQuery` as the handler for free-text the deterministic report matcher/known creation intents don't catch (closes the "can't answer questions" gap). Then Increment 3 — action tools behind the existing confirmation gate.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.
