@@ -66,8 +66,11 @@ Today's `runCherttCommand` is a single-shot classifier (one Gemini call → one 
 
 **Agentic engine status:** the agent is now a genuine read+write, confirmation-aware tool-caller covering the church module's core operations. The single-shot creator remains only as a fallback (and for non-church verticals). **Remaining (lower priority for church):** member-giving *payment* flow (virtual account / Paystack — the real-payments gap), event registration + child check-in tools, and eventually retiring the creator.
 
+### Children's check-in DONE (agent-native, 2026-07-21)
+New table `child_checkins` (migration `20260724`, applied). Tools in `src/lib/services/agent/child-tools.ts`: `check_in_child` (captures name/age/allergies/guardian, returns a 4-digit pickup code), `lookup_child_pickup` (volunteer verifies the guardian by code), `release_child` (**confirmation-gated** for child-safety — proposes, executes on YES, refuses an unknown/already-collected code). WhatsApp-native — no camera scanner needed. Routing via `CHURCH_ACTION_RE` (check-in/pickup/drop-off/release). 218 tests pass.
+
 ### Church module — capability coverage snapshot (2026-07-21)
-Live via the agent: giving summary + record giving, prayer requests (capture + list), first-timers (capture + list), pastoral care (capture), members (list + assign role), facility issues (report + list), documents (gated draft). Still on the single-shot creator / not yet agent-native: child check-in, event registration, department joining, announcements, bereavement/marriage/baptism/discipleship journeys, real giving payments.
+Live via the agent: giving summary + record giving, prayer requests (capture + list), first-timers (capture + list), pastoral care (capture), **child check-in (check-in + pickup verify + gated release)**, members (list + assign role), facility issues (report + list), documents (gated draft). Still on the single-shot creator / not yet agent-native: event registration, department joining, announcements, bereavement/marriage/baptism/discipleship journeys, real giving *payments*.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.

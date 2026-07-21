@@ -56,6 +56,13 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("new visitor: John from Ada")).toBe(true);
   });
 
+  it("routes children's check-in / pickup to the agent", () => {
+    expect(looksLikeAgentAction("check in Timmy age 5")).toBe(true);
+    expect(looksLikeAgentAction("pickup code 4821")).toBe(true);
+    expect(looksLikeAgentAction("release the child with code 4821")).toBe(true);
+    expect(looksLikeAgentAction("dropping off my daughter")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
   });
