@@ -40,15 +40,15 @@ describe("looksLikeQuestion", () => {
 });
 
 describe("looksLikeAgentAction", () => {
-  it("matches the safe non-confirmation actions the agent has tools for", () => {
+  it("matches the actions the agent has tools for (incl. gated document drafting)", () => {
     expect(looksLikeAgentAction("log ₦15k expense for diesel")).toBe(true);
     expect(looksLikeAgentAction("report an issue: the toilet is broken")).toBe(true);
     expect(looksLikeAgentAction("add 40 chairs to inventory")).toBe(true);
     expect(looksLikeAgentAction("restock the printer paper")).toBe(true);
+    expect(looksLikeAgentAction("draft a letter to the bank")).toBe(true);
   });
 
-  it("does not intercept confirmation-gated creations", () => {
-    expect(looksLikeAgentAction("draft a letter to the bank")).toBe(false);
+  it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
     expect(looksLikeAgentAction("I want to give 10000 tithe")).toBe(false);
   });
@@ -58,7 +58,7 @@ describe("runAgentLoop", () => {
   it("returns text immediately when the model asks for no tools", async () => {
     const { fn } = scriptedGenerate([{ text: "Hello there." }]);
     const out = await runAgentLoop({ generate: fn, tools: [], ctx, systemPrompt: "sys", userPrompt: "hi" });
-    expect(out).toBe("Hello there.");
+    expect(out).toEqual({ kind: "text", text: "Hello there." });
   });
 
   it("executes a requested tool, feeds the result back, then returns the final text", async () => {
@@ -78,11 +78,28 @@ describe("runAgentLoop", () => {
     });
 
     expect(handler).toHaveBeenCalledWith({}, ctx);
-    expect(out).toContain("300,000");
+    expect(out.kind).toBe("text");
+    if (out.kind === "text") expect(out.text).toContain("300,000");
     // second generate call must have seen the tool result fed back
     const secondCallContents = JSON.stringify(calls[1]);
     expect(secondCallContents).toContain("functionResponse");
     expect(secondCallContents).toContain("300000");
+  });
+
+  it("surfaces a confirmation-required tool as a pending outcome, without executing it", async () => {
+    const handler = vi.fn();
+    const gated: AgentTool = {
+      name: "draft_document",
+      description: "draft",
+      parameters: { type: "object", properties: {} },
+      requiresConfirmation: true,
+      preview: (a) => `Draft ${a.title}?`,
+      handler,
+    };
+    const { fn } = scriptedGenerate([{ functionCalls: [{ name: "draft_document", args: { title: "Letter" } }] }]);
+    const out = await runAgentLoop({ generate: fn, tools: [gated], ctx, systemPrompt: "s", userPrompt: "u" });
+    expect(out).toEqual({ kind: "pending", toolName: "draft_document", args: { title: "Letter" }, preview: "Draft Letter?" });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("passes the workspace-scoped ctx to the tool handler", async () => {
@@ -101,7 +118,7 @@ describe("runAgentLoop", () => {
       { text: "sorry" },
     ]);
     const out = await runAgentLoop({ generate: fn, tools: [], ctx, systemPrompt: "s", userPrompt: "u" });
-    expect(out).toBe("sorry");
+    expect(out).toEqual({ kind: "text", text: "sorry" });
     expect(JSON.stringify(calls[1])).toContain("Unknown tool");
   });
 
@@ -114,7 +131,7 @@ describe("runAgentLoop", () => {
       { text: "handled" },
     ]);
     const out = await runAgentLoop({ generate: fn, tools: [boom], ctx, systemPrompt: "s", userPrompt: "u" });
-    expect(out).toBe("handled");
+    expect(out).toEqual({ kind: "text", text: "handled" });
     expect(JSON.stringify(calls[1])).toContain("db down");
   });
 
@@ -130,7 +147,8 @@ describe("runAgentLoop", () => {
       userPrompt: "u",
       maxSteps: 3,
     });
-    expect(out).toMatch(/couldn't finish/i);
+    expect(out.kind).toBe("text");
+    if (out.kind === "text") expect(out.text).toMatch(/couldn't finish/i);
     expect(calls.length).toBe(3);
   });
 });

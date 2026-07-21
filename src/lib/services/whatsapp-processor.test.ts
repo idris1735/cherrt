@@ -369,7 +369,7 @@ describe("processWhatsAppMessage", () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
     ]);
-    vi.mocked(runAgentQuery).mockResolvedValueOnce("You have 12 members.");
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "You have 12 members." });
 
     await skipWelcome();
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "how many members do we have" });
@@ -379,15 +379,15 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("does not route a document/payment creation command to the agent", async () => {
+  it("falls back to the creation path when the agent is unavailable", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
     ]);
-
+    // runAgentQuery default mock resolves null (no Gemini) → creator handles it
     await skipWelcome();
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "draft a letter to the bank" });
 
-    expect(runAgentQuery).not.toHaveBeenCalled();
+    expect(runAgentQuery).toHaveBeenCalledOnce();
     expect(mockRun).toHaveBeenCalledOnce();
   });
 
@@ -395,13 +395,35 @@ describe("processWhatsAppMessage", () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
     ]);
-    vi.mocked(runAgentQuery).mockResolvedValueOnce("Logged ₦15,000 for diesel.");
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "Logged ₦15,000 for diesel." });
 
     await skipWelcome();
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "log ₦15k expense for diesel" });
 
     expect(runAgentQuery).toHaveBeenCalledOnce();
     expect(mockSend).toHaveBeenCalledWith(PHONE, "Logged ₦15,000 for diesel.");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("stores a pending agent action on a gated proposal, then runs it on YES", async () => {
+    const link = { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" };
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([link]).mockResolvedValueOnce([link]);
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({
+      kind: "pending",
+      toolName: "draft_document",
+      args: { title: "Bank letter", type: "letter", body: "Dear Bank..." },
+      preview: "📄 Draft this letter: *Bank letter*?",
+    });
+
+    await skipWelcome();
+    // 1) proposal → stored + confirm prompt
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "draft a letter to the bank" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Reply *YES*"));
+
+    // 2) YES → the real draft_document handler runs (no Supabase in tests, so it
+    // surfaces a graceful storage error) and does NOT fall to the creation path.
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "yes" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Couldn't complete"));
     expect(mockRun).not.toHaveBeenCalled();
   });
 });

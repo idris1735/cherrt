@@ -18,7 +18,19 @@ export type GenerateResult = { functionCalls?: ToolCall[]; text?: string };
 // to the loop). Returns either tool calls to run or a final text answer.
 export type GenerateFn = (contents: unknown[]) => Promise<GenerateResult>;
 
+// The loop either answers in text, or proposes a consequential action that
+// needs the user's confirmation before its handler runs.
+export type AgentOutcome =
+  | { kind: "text"; text: string }
+  | { kind: "pending"; toolName: string; args: Record<string, unknown>; preview: string };
+
 const DEFAULT_MAX_STEPS = 5;
+
+// Look up any agent tool (read or action) by name — used by the processor to
+// execute a confirmed pending action.
+export function getAgentTool(name: string): AgentTool | undefined {
+  return AGENT_TOOLS.find((t) => t.name === name);
+}
 
 const CREATE_VERBS_RE = /\b(create|draft|log|add|make|send|raise|record|generate|issue|register|book|schedule|write)\b/i;
 const QUESTION_RE = /(\?\s*$)|^\s*(how|what|when|who|where|why|which|do|does|did|is|are|was|were|can|could|should|show|list|tell me|give me)\b/i;
@@ -38,7 +50,7 @@ export function looksLikeQuestion(text: string): boolean {
 // payments, giving, requests — is left to the single-shot creator, so this
 // only intercepts creations that need no confirmation.
 const SAFE_ACTION_RE =
-  /\b(log|record)\b[^?]*\b(expense|spent|paid|cost|diesel|fuel|petty\s*cash)\b|\breport\b[^?]*\b(issue|problem|fault|broken|leak|repair|not\s*working|facility)\b|\b(add|update)\b[^?]*\b(stock|inventory|item)\b|\brestock\b/i;
+  /\b(log|record)\b[^?]*\b(expense|spent|paid|cost|diesel|fuel|petty\s*cash)\b|\breport\b[^?]*\b(issue|problem|fault|broken|leak|repair|not\s*working|facility)\b|\b(add|update)\b[^?]*\b(stock|inventory|item)\b|\brestock\b|\b(draft|write|prepare)\b[^?]*\b(letter|memo|invoice|document|note)\b/i;
 
 export function looksLikeAgentAction(text: string): boolean {
   return SAFE_ACTION_RE.test(text.trim());
@@ -51,7 +63,7 @@ export async function runAgentLoop(opts: {
   systemPrompt: string;
   userPrompt: string;
   maxSteps?: number;
-}): Promise<string> {
+}): Promise<AgentOutcome> {
   const { generate, tools, ctx, systemPrompt, userPrompt } = opts;
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
   const byName = new Map(tools.map((t) => [t.name, t]));
@@ -64,7 +76,21 @@ export async function runAgentLoop(opts: {
     const result = await generate(contents);
 
     if (!result.functionCalls || result.functionCalls.length === 0) {
-      return result.text ?? "";
+      return { kind: "text", text: result.text ?? "" };
+    }
+
+    // A consequential tool is never executed during reasoning — surface it for
+    // confirmation instead, and execute nothing else this turn.
+    const confirmCall = result.functionCalls.find((c) => byName.get(c.name)?.requiresConfirmation);
+    if (confirmCall) {
+      const tool = byName.get(confirmCall.name)!;
+      const args = confirmCall.args ?? {};
+      return {
+        kind: "pending",
+        toolName: confirmCall.name,
+        args,
+        preview: tool.preview?.(args) ?? `Confirm ${confirmCall.name}?`,
+      };
     }
 
     // Record the model's tool-call turn.
@@ -94,7 +120,7 @@ export async function runAgentLoop(opts: {
   }
 
   // Step cap reached — bail gracefully rather than loop forever.
-  return "I couldn't finish looking that up — please try rephrasing your question.";
+  return { kind: "text", text: "I couldn't finish looking that up — please try rephrasing your question." };
 }
 
 const AGENT_SYSTEM_PROMPT = [
@@ -109,9 +135,9 @@ function getGeminiClient(): GoogleGenAI | null {
   return new GoogleGenAI({ apiKey });
 }
 
-// Production entry: builds the real Gemini `generate` and runs the read-tool
-// loop. Returns null when Gemini isn't configured (caller falls back).
-export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Promise<string | null> {
+// Production entry: builds the real Gemini `generate` and runs the tool loop.
+// Returns null when Gemini isn't configured (caller falls back to the creator).
+export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Promise<AgentOutcome | null> {
   const client = getGeminiClient();
   if (!client) return null;
 

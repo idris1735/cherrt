@@ -36,7 +36,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole } from "@/lib/services/identity/role-catalog";
-import { runAgentQuery, looksLikeQuestion, looksLikeAgentAction } from "@/lib/services/agent/runtime";
+import { runAgentQuery, looksLikeQuestion, looksLikeAgentAction, getAgentTool } from "@/lib/services/agent/runtime";
 import type { Role } from "@/lib/types";
 import {
   isSignupTrigger,
@@ -837,6 +837,31 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     await sendTextMessage(from, "Your messages are stored only to power this conversation and are never shared with third parties. Workspace actions are visible to your workspace admins. To request data deletion, contact support@chertt.app.");
     return;
   }
+  // ── Confirm / cancel a pending agent action ──
+  // Checked before the single-shot creator's confirm handler and before the
+  // agent routing, so a YES executes the exact proposed tool call rather than
+  // being treated as a new query.
+  if (session.pendingAgentAction) {
+    if (/^(yes|y|confirm)$/i.test(trimmed)) {
+      const pending = session.pendingAgentAction;
+      await updateSession(from, { pendingAgentAction: undefined });
+      const tool = getAgentTool(pending.toolName);
+      if (!tool || !link) { await sendTextMessage(from, "That action expired — please try again."); return; }
+      const res = (await tool.handler(pending.args, {
+        workspaceId: link.workspaceId,
+        role: link.userRole as Role,
+        userName: link.userName,
+      })) as { message?: string; error?: string };
+      await sendTextMessage(from, res.error ? `Couldn't complete that: ${res.error}` : (res.message ?? "Done."));
+      return;
+    }
+    if (/^(no|n|cancel)$/i.test(trimmed)) {
+      await updateSession(from, { pendingAgentAction: undefined });
+      await sendTextMessage(from, "No problem — cancelled. What else can I help you with?");
+      return;
+    }
+  }
+
   if (/^cancel$/i.test(trimmed)) {
     if (session.onboarding) { await cancelOnboardingFlow(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
     await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return;
@@ -933,15 +958,20 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // the tool-calling agent. Falls through to the creation path when the agent
   // is unavailable (no Gemini key) or produces no answer.
   if (trimmed && link && (looksLikeQuestion(trimmed) || looksLikeAgentAction(trimmed))) {
-    const answer = await runAgentQuery(trimmed, {
+    const outcome = await runAgentQuery(trimmed, {
       workspaceId: link.workspaceId,
       role: link.userRole as Role,
       userName: link.userName,
     });
-    if (answer) {
+    if (outcome?.kind === "pending") {
+      await updateSession(from, { pendingAgentAction: { toolName: outcome.toolName, args: outcome.args } });
+      await sendTextMessage(from, `${outcome.preview}\n\nReply *YES* to confirm or *NO* to cancel.`);
+      return;
+    }
+    if (outcome?.kind === "text" && outcome.text.trim()) {
       await addToHistory(from, "user", trimmed);
-      await addToHistory(from, "assistant", answer);
-      await sendTextMessage(from, answer);
+      await addToHistory(from, "assistant", outcome.text);
+      await sendTextMessage(from, outcome.text);
       return;
     }
   }

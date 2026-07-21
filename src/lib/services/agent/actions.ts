@@ -115,4 +115,40 @@ export const ACTION_TOOLS: AgentTool[] = [
       return { ok: true, added: { name, inStock } };
     },
   },
+  {
+    name: "draft_document",
+    description:
+      "Draft a letter, memo, or invoice. YOU write the full body text in the 'body' argument. This is consequential, so it is saved only after the user confirms.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Document title" },
+        type: { type: "string", description: "letter, memo, or invoice" },
+        body: { type: "string", description: "The full drafted document text you have written" },
+      },
+      required: ["title", "body"],
+    },
+    requiresConfirmation: true,
+    preview: (args) => `📄 Draft this ${String(args.type || "document")}: *${String(args.title || "Untitled")}*?`,
+    handler: async (args, ctx) => {
+      const title = String(args.title ?? "").trim();
+      const body = String(args.body ?? "").trim();
+      if (!title || !body) return { error: "Need a title and body." };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      const type = ["letter", "memo", "invoice"].includes(String(args.type)) ? String(args.type) : "letter";
+      const { error } = await db.from("smart_documents").insert({
+        id: newId(),
+        workspace_id: ctx.workspaceId,
+        title,
+        document_type: type,
+        body,
+        status: "pending",
+        prepared_by: ctx.userName ?? "You",
+        awaiting_signature_from: "Workspace approver",
+      });
+      if (error) return { error: error.message };
+      return { ok: true, message: `📄 Draft saved: *${title}*. It's pending sign-off.` };
+    },
+  },
 ];

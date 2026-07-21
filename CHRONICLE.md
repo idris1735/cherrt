@@ -14,7 +14,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 1. **Identity & Tenancy Spine** ← *in progress* — who is speaking, which branch, what role/authority.
 2. **Roles & Authority** — folded into #1 (curated per-vertical role catalog → capability bundles).
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
-4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: read + safe-write agent live; confirmation-gated actions next.*
+4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: read + write agent live, incl. confirmation-gated actions; broadening tool coverage next.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
@@ -60,7 +60,9 @@ Today's `runCherttCommand` is a single-shot classifier (one Gemini call → one 
 
 **Increment 3a DONE — safe action tools.** `src/lib/services/agent/actions.ts` adds `log_expense`, `report_issue`, `add_inventory_item` (direct workspace-scoped inserts, input-validated) — the creations the existing system makes WITHOUT a confirmation gate. The agent is offered read + these action tools. Routing: `looksLikeAgentAction` (a conservative regex for expense/issue/inventory phrasings) also sends free text to the agent. Confirmation-gated creations (documents, payments, giving, high-value requests) still go to the single-shot creator. 198 tests pass.
 
-**Next:** Increment 3b — confirmation-gated agent actions (documents/payments/giving) via a pending-action mechanism (agent proposes → session stores → user "YES" executes), then retire the single-shot creator.
+**Increment 3b DONE — confirmation-gated agent actions.** The loop returns an `AgentOutcome` (`text` | `pending`); a tool marked `requiresConfirmation` (first: `draft_document`) is surfaced as a proposal, never executed during reasoning. The processor stores it in `session.pendingAgentAction` (new persisted column `whatsapp_sessions.pending_agent_action`, migration `20260722` **applied to Supabase**), sends a preview, and executes the exact proposed tool call on "YES" (checked before the single-shot creator's confirm handler so they never cross-wire). Document phrasings now route to the agent; falls back to the creator when Gemini is unavailable. 200 tests pass.
+
+**Next:** broaden gated tool coverage (payment link, giving) on the same mechanism, then retire the single-shot creator once the agent covers all artifact types.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.

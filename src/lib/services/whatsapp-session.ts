@@ -67,6 +67,14 @@ export type WhatsAppSession = {
     requestTitle: string;
     requesterPhone?: string;
   };
+  // A consequential agent tool call awaiting the user's YES/NO. Stored between
+  // messages so "YES" executes the exact proposed action (identity spine +
+  // agentic engine). Separate from pendingConfirmation (the single-shot
+  // creator's gate) so the two never cross-wire.
+  pendingAgentAction?: {
+    toolName: string;
+    args: Record<string, unknown>;
+  };
   history: Array<{ role: "user" | "assistant"; text: string }>;
   // In-memory only — not persisted to DB. Resets on cold start (acceptable).
   clarificationStreak?: number;
@@ -87,6 +95,7 @@ type DbRow = {
   onboarding: WhatsAppSession["onboarding"] | null;
   pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
   pending_approval: WhatsAppSession["pendingApproval"] | null;
+  pending_agent_action: WhatsAppSession["pendingAgentAction"] | null;
   history: WhatsAppSession["history"];
   updated_at?: string;
 };
@@ -110,6 +119,7 @@ function toSession(row: DbRow): WhatsAppSession {
     onboarding: row.onboarding ?? undefined,
     pendingConfirmation: row.pending_confirmation ?? undefined,
     pendingApproval: row.pending_approval ?? undefined,
+    pendingAgentAction: row.pending_agent_action ?? undefined,
     history: row.history ?? [],
   };
 }
@@ -124,6 +134,7 @@ function toDbRow(session: WhatsAppSession): DbRow {
     onboarding: session.onboarding ?? null,
     pending_confirmation: session.pendingConfirmation ?? null,
     pending_approval: session.pendingApproval ?? null,
+    pending_agent_action: session.pendingAgentAction ?? null,
     history: session.history,
     updated_at: new Date().toISOString(),
   };

@@ -24,6 +24,12 @@ export type AgentTool = {
   name: string;
   description: string;
   parameters: ToolParameters;
+  // When true, the loop does NOT execute the tool during reasoning; it surfaces
+  // a pending action for the user to confirm, and the handler runs only after a
+  // "YES" (used for consequential actions — documents, payments, giving).
+  requiresConfirmation?: boolean;
+  // Human-readable confirmation prompt built from the proposed args.
+  preview?: (args: Record<string, unknown>) => string;
   // Handlers are workspace-scoped via ctx and return JSON-serializable data.
   handler: (args: Record<string, unknown>, ctx: AgentContext) => Promise<unknown>;
 };
