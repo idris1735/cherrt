@@ -70,6 +70,13 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("joining the media team")).toBe(true);
   });
 
+  it("routes life-journey intakes to the agent", () => {
+    expect(looksLikeAgentAction("my father passed away")).toBe(true);
+    expect(looksLikeAgentAction("we want marriage counselling")).toBe(true);
+    expect(looksLikeAgentAction("I'd like to get baptized")).toBe(true);
+    expect(looksLikeAgentAction("I gave my life to Christ today")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
   });
