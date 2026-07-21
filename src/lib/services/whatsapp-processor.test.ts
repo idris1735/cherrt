@@ -11,6 +11,14 @@ vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
 
+// Keep looksLikeQuestion real (routing logic under test) but stub the agent
+// call. Default null = "no answer / Gemini unavailable" so it falls through,
+// matching how it behaves in tests without a Gemini key.
+vi.mock("@/lib/services/agent/runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/agent/runtime")>();
+  return { ...actual, runAgentQuery: vi.fn().mockResolvedValue(null) };
+});
+
 vi.mock("@/lib/services/whatsapp-templates", () => ({
   sendNewSignupAlertTemplate: vi.fn().mockResolvedValue(undefined),
   sendOrgApprovedTemplate: vi.fn().mockResolvedValue(undefined),
@@ -41,7 +49,8 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
 import { downloadMedia, sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
-import { claimWhatsAppMessage } from "@/lib/services/whatsapp-workspace";
+import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
+import { runAgentQuery } from "@/lib/services/agent/runtime";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -354,5 +363,31 @@ describe("processWhatsAppMessage", () => {
     const [, text] = mockButtons.mock.calls[0] as [string, string];
     expect(text).toContain("All Branches — Giving");
     expect(text).toContain("Grace Chapel — Lagos");
+  });
+
+  it("answers a linked user's question via the tool-calling agent, not the creation path", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    vi.mocked(runAgentQuery).mockResolvedValueOnce("You have 12 members.");
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "how many members do we have" });
+
+    expect(runAgentQuery).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "You have 12 members.");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("does not route a creation command to the agent", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "draft a letter to the bank" });
+
+    expect(runAgentQuery).not.toHaveBeenCalled();
+    expect(mockRun).toHaveBeenCalledOnce();
   });
 });

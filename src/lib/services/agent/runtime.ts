@@ -15,6 +15,19 @@ export type GenerateFn = (contents: unknown[]) => Promise<GenerateResult>;
 
 const DEFAULT_MAX_STEPS = 5;
 
+const CREATE_VERBS_RE = /\b(create|draft|log|add|make|send|raise|record|generate|issue|register|book|schedule|write)\b/i;
+const QUESTION_RE = /(\?\s*$)|^\s*(how|what|when|who|where|why|which|do|does|did|is|are|was|were|can|could|should|show|list|tell me|give me)\b/i;
+
+// Cheap routing heuristic: is this free text a question to send to the read
+// agent, rather than the creation path? Conservative — anything with a
+// creation verb is left to the creator so we never steal a "create X" command.
+export function looksLikeQuestion(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (CREATE_VERBS_RE.test(t)) return false;
+  return QUESTION_RE.test(t);
+}
+
 export async function runAgentLoop(opts: {
   generate: GenerateFn;
   tools: AgentTool[];

@@ -36,6 +36,8 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole } from "@/lib/services/identity/role-catalog";
+import { runAgentQuery, looksLikeQuestion } from "@/lib/services/agent/runtime";
+import type { Role } from "@/lib/types";
 import {
   isSignupTrigger,
   startSignupFlow,
@@ -921,6 +923,24 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       } else {
         await sendTextMessage(from, text);
       }
+      return;
+    }
+  }
+
+  // ── Agentic query (linked users, question-like free text) ──
+  // Answers questions the deterministic report matcher didn't catch, using the
+  // tool-calling agent over read tools. Falls through to the creation path when
+  // the agent is unavailable (no Gemini key) or produces no answer.
+  if (trimmed && link && looksLikeQuestion(trimmed)) {
+    const answer = await runAgentQuery(trimmed, {
+      workspaceId: link.workspaceId,
+      role: link.userRole as Role,
+      userName: link.userName,
+    });
+    if (answer) {
+      await addToHistory(from, "user", trimmed);
+      await addToHistory(from, "assistant", answer);
+      await sendTextMessage(from, answer);
       return;
     }
   }

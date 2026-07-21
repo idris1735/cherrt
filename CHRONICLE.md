@@ -14,7 +14,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 1. **Identity & Tenancy Spine** ← *in progress* — who is speaking, which branch, what role/authority.
 2. **Roles & Authority** — folded into #1 (curated per-vertical role catalog → capability bundles).
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
-4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: foundation built.*
+4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: read-query agent live (wired); action tools next.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
@@ -56,7 +56,9 @@ Today's `runCherttCommand` is a single-shot classifier (one Gemini call → one 
 - `src/lib/services/agent/runtime.ts` — `runAgentLoop` (injected `generate` for testability; executes tools, feeds results back, step-capped, catches tool errors) + `runAgentQuery` (real Gemini 2.5 Flash function-calling entry).
 - 11 tests (loop happy-path, ctx scoping, unknown-tool + throwing-tool error feedback, step cap; tool registry + handler scoping). 184 tests pass, typecheck clean.
 
-**Next:** Increment 2 — wire `runAgentQuery` as the handler for free-text the deterministic report matcher/known creation intents don't catch (closes the "can't answer questions" gap). Then Increment 3 — action tools behind the existing confirmation gate.
+**Increment 2 DONE — wired into the processor.** A linked user's question-like free text (`looksLikeQuestion` heuristic — routes questions, leaves creation verbs to the creator) that the deterministic report matcher missed now goes to `runAgentQuery`; its answer is sent over WhatsApp. Falls through to the creation path when Gemini is unavailable or the agent returns nothing (so nothing breaks without a key). 189 tests pass.
+
+**Next:** Increment 3 — action tools (create request/expense/etc.) behind the existing confirmation gate; then gradually subsume the single-shot creator.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.

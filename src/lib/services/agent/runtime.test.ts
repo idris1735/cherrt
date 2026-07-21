@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runAgentLoop, type GenerateFn, type GenerateResult } from "@/lib/services/agent/runtime";
+import { runAgentLoop, looksLikeQuestion, type GenerateFn, type GenerateResult } from "@/lib/services/agent/runtime";
 import type { AgentTool, AgentContext } from "@/lib/services/agent/tools";
 
 const ctx: AgentContext = { workspaceId: "branch-a", role: "owner" };
@@ -18,6 +18,26 @@ function scriptedGenerate(script: GenerateResult[]): { fn: GenerateFn; calls: un
   };
   return { fn, calls };
 }
+
+describe("looksLikeQuestion", () => {
+  it("routes clear questions to the agent", () => {
+    expect(looksLikeQuestion("how many members do we have")).toBe(true);
+    expect(looksLikeQuestion("what did we spend this month?")).toBe(true);
+    expect(looksLikeQuestion("show me pending requests")).toBe(true);
+    expect(looksLikeQuestion("any low stock items?")).toBe(true);
+  });
+
+  it("leaves creation commands to the creation path", () => {
+    expect(looksLikeQuestion("draft a letter to the bank")).toBe(false);
+    expect(looksLikeQuestion("log ₦15k for diesel")).toBe(false);
+    expect(looksLikeQuestion("create a request for chairs")).toBe(false);
+    expect(looksLikeQuestion("register a new member")).toBe(false);
+  });
+
+  it("ignores empty text", () => {
+    expect(looksLikeQuestion("   ")).toBe(false);
+  });
+});
 
 describe("runAgentLoop", () => {
   it("returns text immediately when the model asks for no tools", async () => {
