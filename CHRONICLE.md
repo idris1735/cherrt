@@ -17,7 +17,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *✓ church module CORE COMPLETE — agent is the primary church handler (creator is fallback). Remaining church items are gated on external setup: payments, WhatsApp templates, cron.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer. *← recall DONE; proactive/scheduled cron scaffold DONE (daily discipleship live; more jobs pluggable).*
-7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
+7. **Capabilities & infra** — church executors ✓, cron ✓, **payments (Paystack) ✓ behind keys check**; Store/Events still on the old creator; approved WhatsApp templates still pending (external).
 
 ### 2026-07-21 — Identity & Tenancy Spine (v1 BUILT, tests green)
 **Spec:** `docs/superpowers/specs/2026-07-21-identity-tenancy-spine-design.md`
@@ -74,6 +74,12 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
+
+### Paystack real giving DONE (behind keys check, 2026-07-21)
+`src/lib/services/payments/paystack.ts` — `initializeGivingPayment` (hosted payment link, amounts in kobo, metadata for the webhook) + `verifyPaystackSignature` (HMAC-SHA512). Agent tool `give_now` (`src/lib/services/agent/payment-tools.ts`) generates a member's payment link; distinct from `record_giving` (finance recording received). Webhook `src/app/api/paystack/webhook/route.ts` verifies the signature and inserts a `giving_records` row (channel `paystack`) on `charge.success`. **Inactive until `PAYSTACK_SECRET_KEY` is set** — degrades gracefully ("online giving isn't set up yet"). Routed via a give-phrasing addition to `CHURCH_ACTION_RE`. 259 tests pass. **Setup needed:** set `PAYSTACK_SECRET_KEY` in env + point a Paystack webhook at `/api/paystack/webhook`.
+
+### CRON_SECRET set on Vercel (2026-07-21)
+Linked the repo to Vercel project `idris-projects-eb8461ae/cherrt` and set `CRON_SECRET` (production, encrypted) via CLI. Goes live on the next deployment.
 
 ### Vercel Cron scaffold DONE (2026-07-21)
 `vercel.json` schedules `/api/cron` daily (06:00 UTC). `src/app/api/cron/route.ts` is secret-gated (requires `Authorization: Bearer $CRON_SECRET`, fails closed if unset). `src/lib/services/cron/scheduler.ts` — `runScheduledJobs()` orchestrator; first job `deliverDiscipleshipDay()` sends each active new-convert their day-N message from `discipleship-plan.ts` (starter 7-day sequence, extend to 30) and marks the journey complete when finished. `AgentContext` gained `phone` (wired in the processor) so `enroll_discipleship` stores a reachable number. More jobs (event reminders, birthdays, missed-Sunday follow-up) plug into `runScheduledJobs`. **Same delivery caveat:** cold sends need approved templates — swap `notifyMember` for a template send. **Setup needed:** set `CRON_SECRET` in Vercel env. 248 tests pass.

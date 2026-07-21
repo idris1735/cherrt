@@ -83,6 +83,12 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("tell everyone service moved to 9am")).toBe(true);
   });
 
+  it("routes member giving payments to the agent", () => {
+    expect(looksLikeAgentAction("I want to give my tithe")).toBe(true);
+    expect(looksLikeAgentAction("give ₦5000 offering")).toBe(true);
+    expect(looksLikeAgentAction("pay my tithe")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
   });
