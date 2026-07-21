@@ -6,7 +6,18 @@ export type Role =
   | "operations"
   | "pastoral"
   | "store-manager"
-  | "event-manager";
+  | "event-manager"
+  // Identity-spine per-vertical catalog roles (2026-07-21). See
+  // docs/superpowers/specs/2026-07-21-identity-tenancy-spine-design.md and
+  // src/lib/services/identity/role-catalog.ts.
+  | "senior_pastor"
+  | "pastor"
+  | "secretary"
+  | "children"
+  | "dept_leader"
+  | "manager"
+  | "staff"
+  | "member";
 
 export type WorkflowStatus =
   | "draft"
