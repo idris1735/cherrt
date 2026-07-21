@@ -16,7 +16,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
 4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *✓ church module CORE COMPLETE — agent is the primary church handler (creator is fallback). Remaining church items are gated on external setup: payments, WhatsApp templates, cron.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
-6. **Memory & Context** — the "it remembers" layer. *← recall DONE (agent gets the member's history as context); proactive/scheduled half needs cron.*
+6. **Memory & Context** — the "it remembers" layer. *← recall DONE; proactive/scheduled cron scaffold DONE (daily discipleship live; more jobs pluggable).*
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
 
 ### 2026-07-21 — Identity & Tenancy Spine (v1 BUILT, tests green)
@@ -74,6 +74,9 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
+
+### Vercel Cron scaffold DONE (2026-07-21)
+`vercel.json` schedules `/api/cron` daily (06:00 UTC). `src/app/api/cron/route.ts` is secret-gated (requires `Authorization: Bearer $CRON_SECRET`, fails closed if unset). `src/lib/services/cron/scheduler.ts` — `runScheduledJobs()` orchestrator; first job `deliverDiscipleshipDay()` sends each active new-convert their day-N message from `discipleship-plan.ts` (starter 7-day sequence, extend to 30) and marks the journey complete when finished. `AgentContext` gained `phone` (wired in the processor) so `enroll_discipleship` stores a reachable number. More jobs (event reminders, birthdays, missed-Sunday follow-up) plug into `runScheduledJobs`. **Same delivery caveat:** cold sends need approved templates — swap `notifyMember` for a template send. **Setup needed:** set `CRON_SECRET` in Vercel env. 248 tests pass.
 
 ### Recall layer DONE — "it remembers" (2026-07-21)
 `src/lib/services/agent/member-context.ts` — `buildMemberContext(ctx)` gathers the member's recent prayer requests, open pastoral care, active life-journeys and recent giving (read-only, matched by name within the workspace) into a compact memory block, prepended to the agent's system prompt in `runAgentQuery` (best-effort, never blocks the answer). The prompt instructs the agent to follow up gently and never recite it. So the agent can say "how's your mum you asked prayer for?" naturally. 242 tests pass. **Proactive** recall (unprompted "we missed you last 3 Sundays") is the other half and needs a cron/scheduler.

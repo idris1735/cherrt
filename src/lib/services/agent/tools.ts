@@ -11,6 +11,9 @@ export type AgentContext = {
   workspaceId: string;
   role: Role;
   userName?: string;
+  // The sender's WhatsApp number, so tools can store a reachable contact for
+  // later proactive/scheduled follow-up (e.g. daily discipleship content).
+  phone?: string;
 };
 
 // JSON-schema-shaped parameter declaration, matching Gemini functionDeclarations.

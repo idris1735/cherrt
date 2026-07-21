@@ -851,6 +851,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         workspaceId: link.workspaceId,
         role: link.userRole as Role,
         userName: link.userName,
+        phone: from,
       })) as { message?: string; error?: string };
       await sendTextMessage(from, res.error ? `Couldn't complete that: ${res.error}` : (res.message ?? "Done."));
       return;
@@ -962,6 +963,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       workspaceId: link.workspaceId,
       role: link.userRole as Role,
       userName: link.userName,
+      phone: from,
     });
     if (outcome?.kind === "pending") {
       await updateSession(from, { pendingAgentAction: { toolName: outcome.toolName, args: outcome.args } });

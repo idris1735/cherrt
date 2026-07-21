@@ -101,7 +101,9 @@ export const JOURNEY_TOOLS: AgentTool[] = [
       startJourney(
         ctx,
         "discipleship",
-        { convert: String(args.convert ?? "") || ctx.userName || "" },
+        // Store the phone so the daily-content cron can reach them (see
+        // cron/scheduler.ts). Best-effort: it's the sender's number.
+        { convert: String(args.convert ?? "") || ctx.userName || "", phone: ctx.phone ?? "" },
         "🙌 Welcome to the family of God! You've been enrolled in our new-believer journey and a mentor will follow up with you.",
       ),
   },
