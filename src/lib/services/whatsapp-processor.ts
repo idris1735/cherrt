@@ -23,6 +23,7 @@ import {
   loadKnowledgeContext,
   claimWhatsAppMessage,
   getGivingSummary,
+  getOrganizationWorkspaces,
   isPlatformAdmin,
   approveOrganization,
   rejectOrganization,
@@ -41,8 +42,16 @@ import {
   advanceSetupFlow,
 } from "@/lib/services/onboarding-flow";
 import { buildKnowledgeContextString, demoKnowledgeArticles } from "@/lib/data/knowledge";
-import { matchReportIntent, buildReport } from "@/lib/services/whatsapp-reports";
+import {
+  matchReportIntent,
+  buildReport,
+  matchOrgReportIntent,
+  buildOrgOverviewReport,
+  buildOrgGivingReport,
+  type OrgReportKey,
+} from "@/lib/services/whatsapp-reports";
 import { loadWorkspaceData } from "@/lib/services/workspace-data";
+import { computeMetrics } from "@/lib/services/business-metrics";
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
@@ -475,6 +484,35 @@ async function handleConfirm(from: string, session: WhatsAppSession, link: Phone
   await handleAiResult(from, result, originalPrompt, freshSession, link);
 }
 
+async function buildOrgWideReport(
+  orgReportKey: OrgReportKey,
+  from: string,
+): Promise<{ text: string; buttons?: Array<{ id: string; title: string }> }> {
+  const branches = await getOrganizationWorkspaces(from).catch(() => []);
+  if (!branches.length) {
+    return { text: "This is for organization admins overseeing more than one branch." };
+  }
+
+  if (orgReportKey === "org-giving") {
+    const perBranch = await Promise.all(
+      branches.map(async (b) => ({
+        id: b.id,
+        name: b.name,
+        givingSummary: await getGivingSummary(b.id).catch(() => undefined),
+      })),
+    );
+    return buildOrgGivingReport(perBranch);
+  }
+
+  const perBranch = await Promise.all(
+    branches.map(async (b) => {
+      const data = await loadWorkspaceData(b.id).catch(() => undefined);
+      return { id: b.id, name: b.name, metrics: data ? computeMetrics(data, "month") : undefined };
+    }),
+  );
+  return buildOrgOverviewReport(perBranch);
+}
+
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
   if (await handleHelpButton(from, buttonId)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
@@ -786,6 +824,21 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   if (/^(status|my status|show status|dashboard|summary)$/i.test(trimmed)) { await handleStatusCommand(from, session, link); return; }
+
+  // ── Org-wide report intents (cross-branch, org admins only) ──
+  if (trimmed) {
+    const orgReportKey = matchOrgReportIntent(trimmed);
+    if (orgReportKey) {
+      const { text, buttons } = await buildOrgWideReport(orgReportKey, from);
+      if (buttons?.length) {
+        try { await sendInteractiveButtons(from, text, buttons); }
+        catch { await sendTextMessage(from, text); }
+      } else {
+        await sendTextMessage(from, text);
+      }
+      return;
+    }
+  }
 
   // ── Report / query intents ──
   if (trimmed) {

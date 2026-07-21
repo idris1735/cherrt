@@ -309,4 +309,35 @@ describe("processWhatsAppMessage", () => {
 
     vi.unstubAllEnvs();
   });
+
+  it("answers an org-wide overview query by combining metrics across all the sender's branches", async () => {
+    const workspaceModule = await import("@/lib/services/whatsapp-workspace");
+    vi.spyOn(workspaceModule, "getOrganizationWorkspaces").mockResolvedValueOnce([
+      { id: "branch-a", name: "Grace Chapel — Lagos" },
+      { id: "branch-b", name: "Grace Chapel — Abuja" },
+    ]);
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "how did we do across all branches" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, text, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(text).toContain("All Branches — Overview");
+    expect(text).toContain("Grace Chapel — Lagos");
+    expect(text).toContain("Grace Chapel — Abuja");
+    expect(buttons).toEqual([{ id: "rpt:org-giving", title: "Giving (all branches)" }]);
+  });
+
+  it("tells a phone with no resolvable org branches this feature is for org admins", async () => {
+    const workspaceModule = await import("@/lib/services/whatsapp-workspace");
+    vi.spyOn(workspaceModule, "getOrganizationWorkspaces").mockResolvedValueOnce([]);
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "giving across all branches" });
+
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("organization admins"));
+    expect(mockButtons).not.toHaveBeenCalled();
+  });
 });
