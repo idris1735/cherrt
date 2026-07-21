@@ -28,11 +28,11 @@ import {
   approveOrganization,
   rejectOrganization,
   findWorkspaceByJoinCode,
-  linkPhoneToWorkspace,
   claimBranchAdmin,
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
+import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import {
   isSignupTrigger,
   startSignupFlow,
@@ -740,13 +740,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (joinMatch) {
       const workspace = await findWorkspaceByJoinCode(joinMatch[1]);
       if (workspace) {
-        await linkPhoneToWorkspace({
+        await provisionPersonMembership({
           phoneNumber: from,
+          fullName: session.userName ?? "",
           workspaceId: workspace.id,
           workspaceSlug: workspace.slug,
           workspaceName: workspace.name,
-          userName: session.userName ?? "",
-          userRole: "member",
+          role: "member",
         });
         await sendTextMessage(from, `Welcome to *${workspace.name}*! You're in. Just tell me what you need — give, ask for prayer, or anything else.`);
         return;

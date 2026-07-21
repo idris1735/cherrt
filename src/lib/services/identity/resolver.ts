@@ -7,7 +7,7 @@
 // keeping the same disambiguation shape (pure pickActiveMembership, testable).
 
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
-import { normalizePhoneNumber } from "@/lib/services/whatsapp-workspace";
+import { normalizePhoneNumber } from "@/lib/services/phone";
 
 export type BranchMembership = {
   personId: string;

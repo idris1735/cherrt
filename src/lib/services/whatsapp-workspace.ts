@@ -1,6 +1,8 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { buildKnowledgeContextString, demoKnowledgeArticles, type KnowledgeArticle } from "@/lib/data/knowledge";
 import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
+import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { foundingAdminRole, branchLeadRole } from "@/lib/services/identity/role-catalog";
 import type { AiCommandResult } from "@/lib/types";
 
 export type PhoneLink = {
@@ -381,16 +383,9 @@ function codeFromOrgId(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
-// Shared with /api/user/whatsapp-link -- both need to produce the exact
-// same phone shape Meta's webhook sends (full international, no leading
-// zero, no punctuation), or a link written from one path silently never
-// matches an inbound message from the other. Returns null rather than a
-// best-effort guess when the input is too short to plausibly be a number.
-export function normalizePhoneNumber(raw: string): string | null {
-  const stripped = raw.replace(/[\s\-().+]/g, "");
-  if (!stripped || stripped.length < 7 || !/^\d+$/.test(stripped)) return null;
-  return stripped.startsWith("0") ? `234${stripped.slice(1)}` : stripped;
-}
+// Moved to @/lib/services/phone to break a module cycle with the identity
+// layer; re-exported here so existing importers keep working.
+export { normalizePhoneNumber } from "@/lib/services/phone";
 
 // Same derivation, applied to a workspace id -- a member-facing join code,
 // distinct from the org-approval code above. No dedicated column needed:
@@ -521,18 +516,18 @@ export async function approveOrganization(code: string, approverPhone: string): 
     approved_at: new Date().toISOString(),
   }).eq("id", pending.id);
 
-  await db.from("organization_admins").insert({
-    organization_id: pending.id,
-    phone_number: pending.requestedByPhone,
-  });
-
-  await linkPhoneToWorkspace({
+  // Seat the founder as the vertical's org-level role (church → senior_pastor),
+  // record them as an organization admin, and link their phone — all through
+  // the person-centric model (which also dual-writes legacy phone_links). The
+  // WhatsApp signup flow is church-oriented, so the vertical is "church".
+  await provisionPersonMembership({
     phoneNumber: pending.requestedByPhone,
+    fullName: pending.requestedByName,
     workspaceId: workspace.id,
     workspaceSlug: workspace.slug,
     workspaceName: workspace.name,
-    userName: pending.requestedByName,
-    userRole: "owner",
+    role: foundingAdminRole("church"),
+    organizationId: pending.id,
   });
 
   return {
@@ -648,25 +643,29 @@ export async function claimBranchAdmin(
   const db = getSupabaseServerClient();
   if (!db) return null;
 
-  const { data: existingOwner } = await db
-    .from("whatsapp_phone_links")
+  // Anti-hijack: only claimable while the branch has no lead yet. Checks the
+  // person-centric membership model for a branch-lead-or-higher role, so a
+  // code that leaks after the branch is set up can't grant access later.
+  const leadRole = branchLeadRole("church");
+  const { data: existingLead } = await db
+    .from("branch_memberships")
     .select("id")
     .eq("workspace_id", workspaceId)
-    .eq("user_role", "owner")
+    .in("role", [leadRole, "owner", "senior_pastor"])
     .maybeSingle();
 
-  if (existingOwner) return null;
+  if (existingLead) return null;
 
   const { data: workspace } = await db.from("workspaces").select("id, slug, name").eq("id", workspaceId).maybeSingle();
   if (!workspace) return null;
 
-  await linkPhoneToWorkspace({
+  await provisionPersonMembership({
     phoneNumber,
+    fullName: userName,
     workspaceId: workspace.id,
     workspaceSlug: workspace.slug,
     workspaceName: workspace.name,
-    userName,
-    userRole: "owner",
+    role: leadRole,
   });
 
   return { workspaceSlug: workspace.slug, workspaceName: workspace.name };
