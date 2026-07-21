@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runAgentLoop, looksLikeQuestion, type GenerateFn, type GenerateResult } from "@/lib/services/agent/runtime";
+import { runAgentLoop, looksLikeQuestion, looksLikeAgentAction, type GenerateFn, type GenerateResult } from "@/lib/services/agent/runtime";
 import type { AgentTool, AgentContext } from "@/lib/services/agent/tools";
 
 const ctx: AgentContext = { workspaceId: "branch-a", role: "owner" };
@@ -36,6 +36,21 @@ describe("looksLikeQuestion", () => {
 
   it("ignores empty text", () => {
     expect(looksLikeQuestion("   ")).toBe(false);
+  });
+});
+
+describe("looksLikeAgentAction", () => {
+  it("matches the safe non-confirmation actions the agent has tools for", () => {
+    expect(looksLikeAgentAction("log ₦15k expense for diesel")).toBe(true);
+    expect(looksLikeAgentAction("report an issue: the toilet is broken")).toBe(true);
+    expect(looksLikeAgentAction("add 40 chairs to inventory")).toBe(true);
+    expect(looksLikeAgentAction("restock the printer paper")).toBe(true);
+  });
+
+  it("does not intercept confirmation-gated creations", () => {
+    expect(looksLikeAgentAction("draft a letter to the bank")).toBe(false);
+    expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
+    expect(looksLikeAgentAction("I want to give 10000 tithe")).toBe(false);
   });
 });
 

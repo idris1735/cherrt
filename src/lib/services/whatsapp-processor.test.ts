@@ -379,7 +379,7 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("does not route a creation command to the agent", async () => {
+  it("does not route a document/payment creation command to the agent", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
     ]);
@@ -389,5 +389,19 @@ describe("processWhatsAppMessage", () => {
 
     expect(runAgentQuery).not.toHaveBeenCalled();
     expect(mockRun).toHaveBeenCalledOnce();
+  });
+
+  it("routes a safe action (log expense) to the agent", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    vi.mocked(runAgentQuery).mockResolvedValueOnce("Logged ₦15,000 for diesel.");
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "log ₦15k expense for diesel" });
+
+    expect(runAgentQuery).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Logged ₦15,000 for diesel.");
+    expect(mockRun).not.toHaveBeenCalled();
   });
 });

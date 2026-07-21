@@ -36,7 +36,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole } from "@/lib/services/identity/role-catalog";
-import { runAgentQuery, looksLikeQuestion } from "@/lib/services/agent/runtime";
+import { runAgentQuery, looksLikeQuestion, looksLikeAgentAction } from "@/lib/services/agent/runtime";
 import type { Role } from "@/lib/types";
 import {
   isSignupTrigger,
@@ -927,11 +927,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // ── Agentic query (linked users, question-like free text) ──
-  // Answers questions the deterministic report matcher didn't catch, using the
-  // tool-calling agent over read tools. Falls through to the creation path when
-  // the agent is unavailable (no Gemini key) or produces no answer.
-  if (trimmed && link && looksLikeQuestion(trimmed)) {
+  // ── Agentic query / safe action (linked users, free text) ──
+  // Answers questions the deterministic report matcher didn't catch, and
+  // handles the safe non-confirmation actions (expense/issue/inventory), using
+  // the tool-calling agent. Falls through to the creation path when the agent
+  // is unavailable (no Gemini key) or produces no answer.
+  if (trimmed && link && (looksLikeQuestion(trimmed) || looksLikeAgentAction(trimmed))) {
     const answer = await runAgentQuery(trimmed, {
       workspaceId: link.workspaceId,
       role: link.userRole as Role,

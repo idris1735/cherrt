@@ -6,6 +6,11 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { READ_TOOLS, type AgentTool, type AgentContext } from "@/lib/services/agent/tools";
+import { ACTION_TOOLS } from "@/lib/services/agent/actions";
+
+// The full tool set the query agent is offered: read tools + the safe
+// (non-confirmation) action tools.
+const AGENT_TOOLS: AgentTool[] = [...READ_TOOLS, ...ACTION_TOOLS];
 
 export type ToolCall = { name: string; args: Record<string, unknown> };
 export type GenerateResult = { functionCalls?: ToolCall[]; text?: string };
@@ -26,6 +31,17 @@ export function looksLikeQuestion(text: string): boolean {
   if (!t) return false;
   if (CREATE_VERBS_RE.test(t)) return false;
   return QUESTION_RE.test(t);
+}
+
+// Conservative match for the specific non-consequential actions the agent has
+// tools for (expense / issue / inventory). Everything else — documents,
+// payments, giving, requests — is left to the single-shot creator, so this
+// only intercepts creations that need no confirmation.
+const SAFE_ACTION_RE =
+  /\b(log|record)\b[^?]*\b(expense|spent|paid|cost|diesel|fuel|petty\s*cash)\b|\breport\b[^?]*\b(issue|problem|fault|broken|leak|repair|not\s*working|facility)\b|\b(add|update)\b[^?]*\b(stock|inventory|item)\b|\brestock\b/i;
+
+export function looksLikeAgentAction(text: string): boolean {
+  return SAFE_ACTION_RE.test(text.trim());
 }
 
 export async function runAgentLoop(opts: {
@@ -99,7 +115,7 @@ export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Prom
   const client = getGeminiClient();
   if (!client) return null;
 
-  const functionDeclarations = READ_TOOLS.map((t) => ({
+  const functionDeclarations = AGENT_TOOLS.map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters,
@@ -125,5 +141,5 @@ export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Prom
     };
   };
 
-  return runAgentLoop({ generate, tools: READ_TOOLS, ctx, systemPrompt: AGENT_SYSTEM_PROMPT, userPrompt });
+  return runAgentLoop({ generate, tools: AGENT_TOOLS, ctx, systemPrompt: AGENT_SYSTEM_PROMPT, userPrompt });
 }
