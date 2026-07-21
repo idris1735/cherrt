@@ -48,6 +48,17 @@ export const ANNOUNCEMENT_TOOLS: AgentTool[] = [
       const results = await Promise.allSettled(phones.map((p) => sendTextMessage(p, text)));
       const delivered = results.filter((r) => r.status === "fulfilled").length;
 
+      // ── Reliable cold delivery (ACTIVATE with an approved template) ──
+      // The free-form send above only reaches members inside their 24h WhatsApp
+      // session window. Once WHATSAPP_TEMPLATE_ANNOUNCEMENT is approved (see
+      // whatsapp-templates.ts), swap the send above for the template so members
+      // who haven't messaged recently also receive it:
+      //
+      //   import { sendAnnouncementTemplate } from "@/lib/services/whatsapp-templates";
+      //   const results = await Promise.allSettled(
+      //     phones.map((p) => sendAnnouncementTemplate(p, title, body)),
+      //   );
+
       await db.from("announcements").insert({
         id: randomUUID(),
         workspace_id: ctx.workspaceId,

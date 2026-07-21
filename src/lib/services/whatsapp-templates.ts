@@ -35,3 +35,20 @@ export async function sendOrgRejectedTemplate(to: string, churchName: string, re
     [churchName, reason],
   );
 }
+
+// ── Announcement broadcast template (ACTIVATE when a template is approved) ──
+// WhatsApp forbids free-form business-initiated messages to members outside the
+// 24h session window — those need a pre-approved template. Once you create and
+// get Meta approval for an announcement template (e.g. "chertt_announcement"
+// with two body params — {{1}} title, {{2}} body), set the env var
+// WHATSAPP_TEMPLATE_ANNOUNCEMENT and uncomment this. Then switch the fan-out in
+// agent/announcement-tools.ts to call it (see the commented block there).
+//
+// export async function sendAnnouncementTemplate(to: string, title: string, body: string): Promise<void> {
+//   await sendTemplateMessage(
+//     to,
+//     templateName("WHATSAPP_TEMPLATE_ANNOUNCEMENT", "chertt_announcement"),
+//     LANGUAGE_CODE,
+//     [title, body],
+//   );
+// }
