@@ -48,9 +48,16 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("draft a letter to the bank")).toBe(true);
   });
 
+  it("routes church operations to the agent", () => {
+    expect(looksLikeAgentAction("please pray for my mum")).toBe(true);
+    expect(looksLikeAgentAction("I'm a first timer today")).toBe(true);
+    expect(looksLikeAgentAction("I'd like to see a pastor")).toBe(true);
+    expect(looksLikeAgentAction("record 5000 offering received")).toBe(true);
+    expect(looksLikeAgentAction("new visitor: John from Ada")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
-    expect(looksLikeAgentAction("I want to give 10000 tithe")).toBe(false);
   });
 });
 

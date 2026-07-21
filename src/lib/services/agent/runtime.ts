@@ -7,10 +7,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { READ_TOOLS, type AgentTool, type AgentContext } from "@/lib/services/agent/tools";
 import { ACTION_TOOLS } from "@/lib/services/agent/actions";
+import { CHURCH_TOOLS } from "@/lib/services/agent/church-tools";
 
-// The full tool set the query agent is offered: read tools + the safe
-// (non-confirmation) action tools.
-const AGENT_TOOLS: AgentTool[] = [...READ_TOOLS, ...ACTION_TOOLS];
+// The full tool set the query agent is offered: read tools, the safe
+// (non-confirmation) action tools, and the church-operations tools.
+const AGENT_TOOLS: AgentTool[] = [...READ_TOOLS, ...ACTION_TOOLS, ...CHURCH_TOOLS];
 
 export type ToolCall = { name: string; args: Record<string, unknown> };
 export type GenerateResult = { functionCalls?: ToolCall[]; text?: string };
@@ -52,8 +53,13 @@ export function looksLikeQuestion(text: string): boolean {
 const SAFE_ACTION_RE =
   /\b(log|record)\b[^?]*\b(expense|spent|paid|cost|diesel|fuel|petty\s*cash)\b|\breport\b[^?]*\b(issue|problem|fault|broken|leak|repair|not\s*working|facility)\b|\b(add|update)\b[^?]*\b(stock|inventory|item)\b|\brestock\b|\b(draft|write|prepare)\b[^?]*\b(letter|memo|invoice|document|note)\b/i;
 
+// Church-operations phrasings that should reach the agent's church tools.
+const CHURCH_ACTION_RE =
+  /\bpray(?:er)?\b|\bfirst[\s-]?timer?\b|\bnew\s+here\b|\b(pastoral|counsel(?:l)?ing)\b|\bsee\s+(?:a\s+)?pastor\b|\brecord\b[^?]*\b(giving|offering|tithe|donation|pledge)\b|\bnew\s+(?:visitor|convert|member)\b/i;
+
 export function looksLikeAgentAction(text: string): boolean {
-  return SAFE_ACTION_RE.test(text.trim());
+  const t = text.trim();
+  return SAFE_ACTION_RE.test(t) || CHURCH_ACTION_RE.test(t);
 }
 
 export async function runAgentLoop(opts: {
@@ -124,9 +130,12 @@ export async function runAgentLoop(opts: {
 }
 
 const AGENT_SYSTEM_PROMPT = [
-  "You are Chertt, an assistant that helps run a business or church over WhatsApp.",
-  "Answer the user's question using the tools to look up real workspace data — do not guess numbers.",
-  "Be concise and specific. If a tool returns no data, say so plainly rather than inventing figures.",
+  "You are Chertt, a warm, capable assistant that helps run a church over WhatsApp.",
+  "Members give, ask for prayer, register as first-timers, and request pastoral care;",
+  "pastors and finance check giving, members, and what has come in.",
+  "Use the tools to look up real data and to record what the user asks for — never guess numbers or invent records.",
+  "Be warm and concise. For anything sensitive (like a document that needs sign-off) use the tool that asks for confirmation.",
+  "If a tool returns nothing, say so plainly.",
 ].join(" ");
 
 function getGeminiClient(): GoogleGenAI | null {

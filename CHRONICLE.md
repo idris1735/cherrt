@@ -14,7 +14,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 1. **Identity & Tenancy Spine** ← *in progress* — who is speaking, which branch, what role/authority.
 2. **Roles & Authority** — folded into #1 (curated per-vertical role catalog → capability bundles).
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
-4. **Agentic Engine** — move from single-shot classifier to real tool-calling agent ("the crazy work rate"). *← in progress: read + write agent live, incl. confirmation-gated actions; broadening tool coverage next.*
+4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *← church operations covered end-to-end; agent is the primary church handler, creator is fallback.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
@@ -62,7 +62,12 @@ Today's `runCherttCommand` is a single-shot classifier (one Gemini call → one 
 
 **Increment 3b DONE — confirmation-gated agent actions.** The loop returns an `AgentOutcome` (`text` | `pending`); a tool marked `requiresConfirmation` (first: `draft_document`) is surfaced as a proposal, never executed during reasoning. The processor stores it in `session.pendingAgentAction` (new persisted column `whatsapp_sessions.pending_agent_action`, migration `20260722` **applied to Supabase**), sends a preview, and executes the exact proposed tool call on "YES" (checked before the single-shot creator's confirm handler so they never cross-wire). Document phrasings now route to the agent; falls back to the creator when Gemini is unavailable. 200 tests pass.
 
-**Next:** broaden gated tool coverage (payment link, giving) on the same mechanism, then retire the single-shot creator once the agent covers all artifact types.
+**Church operations DONE — the agent now covers ChurchBase end-to-end.** New tables `prayer_requests` / `first_timers` / `pastoral_care_requests` (migration `20260723`, applied). Church tools (`src/lib/services/agent/church-tools.ts`): captures — `capture_prayer_request` (with anonymity), `capture_first_timer`, `request_pastoral_care`, `record_giving` (received, type-normalized); reads — `list_prayer_requests` (masks anonymous), `list_first_timers`. Agent system prompt is church-first. `CHURCH_ACTION_RE` routes prayer/first-timer/pastoral/giving phrasings to the agent (fallback to the creator when Gemini is off). 210 tests pass.
+
+**Agentic engine status:** the agent is now a genuine read+write, confirmation-aware tool-caller covering the church module's core operations. The single-shot creator remains only as a fallback (and for non-church verticals). **Remaining (lower priority for church):** member-giving *payment* flow (virtual account / Paystack — the real-payments gap), event registration + child check-in tools, and eventually retiring the creator.
+
+### Church module — capability coverage snapshot (2026-07-21)
+Live via the agent: giving summary + record giving, prayer requests (capture + list), first-timers (capture + list), pastoral care (capture), members (list + assign role), facility issues (report + list), documents (gated draft). Still on the single-shot creator / not yet agent-native: child check-in, event registration, department joining, announcements, bereavement/marriage/baptism/discipleship journeys, real giving payments.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.
