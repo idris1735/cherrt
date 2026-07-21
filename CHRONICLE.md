@@ -37,10 +37,12 @@ Reused as-is (not rebuilt): org→branch hierarchy, one-phone-many-branches link
 
 **Split-brain fix (commit `f11f45d`):** `getApproverPhone` now resolves the branch's most-senior member via the person model instead of the web-only `memberships` table (which the WhatsApp flow never wrote to — approval notifications had been silently returning null for WhatsApp-onboarded churches).
 
+**Migration APPLIED to Supabase (2026-07-21).** Reconciled CLI history (`migration repair` marked the 19 already-applied migrations as applied — the remote history table was empty), then `supabase db push` applied only `20260721_identity_spine.sql`. Backfill ran and correctly produced 0 rows: `whatsapp_phone_links` is empty (no real WhatsApp onboarding data yet; the 2 workspaces are demo). New tables (`people`/`phone_contacts`/`branch_memberships`) are live and RLS-enabled. Added a minimal `supabase/config.toml` (project_id) so CLI migrations run from the repo.
+
 **Remaining:**
-1. Apply the migration to Supabase (deploy step; new tables + backfill go live).
-2. Once the new model is authoritative in prod, retire the legacy `whatsapp_phone_links` table + the fallback path.
-3. Phase-2 behaviors: shared-phone "who's speaking", verified number-change, role-scoped invites.
+1. Once real onboarding data accrues in the new model, retire the legacy `whatsapp_phone_links` table + the fallback path.
+2. Phase-2 behaviors: shared-phone "who's speaking", verified number-change, role-scoped invites.
+3. **Security housekeeping:** rotate the Supabase DB password (shared in chat) and the leaked WhatsApp token in `probs.txt`; gitignore `probs.txt`.
 
 **Housekeeping flag:** `probs.txt` (untracked, contains a leaked WhatsApp token per earlier notes) still needs the token rotated + the file gitignored.
 
