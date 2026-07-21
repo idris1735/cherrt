@@ -340,4 +340,19 @@ describe("processWhatsAppMessage", () => {
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("organization admins"));
     expect(mockButtons).not.toHaveBeenCalled();
   });
+
+  it("flips from the org overview report to the org giving report via the button", async () => {
+    const workspaceModule = await import("@/lib/services/whatsapp-workspace");
+    vi.spyOn(workspaceModule, "getOrganizationWorkspaces").mockResolvedValueOnce([
+      { id: "branch-a", name: "Grace Chapel — Lagos" },
+    ]);
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "rpt:org-giving" });
+
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, text] = mockButtons.mock.calls[0] as [string, string];
+    expect(text).toContain("All Branches — Giving");
+    expect(text).toContain("Grace Chapel — Lagos");
+  });
 });

@@ -518,6 +518,19 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
+  // ── Org-wide report navigation buttons ──
+  if (buttonId === "rpt:org-overview" || buttonId === "rpt:org-giving") {
+    const orgReportKey = buttonId.slice(4) as OrgReportKey;
+    const { text, buttons } = await buildOrgWideReport(orgReportKey, from);
+    if (buttons?.length) {
+      try { await sendInteractiveButtons(from, text, buttons); }
+      catch { await sendTextMessage(from, text); }
+    } else {
+      await sendTextMessage(from, text);
+    }
+    return;
+  }
+
   // ── Report navigation buttons ──
   if (buttonId.startsWith("rpt:")) {
     const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues" | "giving";
