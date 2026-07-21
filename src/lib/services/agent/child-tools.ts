@@ -3,19 +3,24 @@
 // verify the guardian at pickup; releasing the child is confirmation-gated for
 // safety. See docs/superpowers/specs/2026-07-21-agentic-engine-design.md
 
+import { randomInt, randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
 
 function newId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return randomUUID();
 }
 
-// Short, human-readable pickup code (4 digits). Collisions among concurrently
-// checked-in children in one church are unlikely at real service sizes.
+// Cryptographically-strong 6-digit pickup code. A CSPRNG (not Math.random) with
+// 1,000,000 possibilities makes guessing a valid code for the checked-in cohort
+// infeasible — important because the code guards a child's identity and release.
+// Defence in depth: release_child is confirmation-gated and a volunteer must
+// visually verify the guardian against lookup_child_pickup before releasing, so
+// the code is never the sole control. (Follow-up hardening: per-workspace rate
+// limiting on lookup/release attempts, and binding release to the guardian's
+// verified WhatsApp identity.)
 function pickupCode(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
+  return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
 export const CHILD_TOOLS: AgentTool[] = [

@@ -50,7 +50,7 @@ describe("check_in_child", () => {
       message: string;
     };
     expect(out.ok).toBe(true);
-    expect(out.pickupCode).toMatch(/^\d{4}$/);
+    expect(out.pickupCode).toMatch(/^\d{6}$/);
     expect(store.inserts[0]).toMatchObject({
       table: "child_checkins",
       row: { workspace_id: "ws1", child_name: "Timmy", age: 5, allergies: "peanuts", guardian_name: "Ruth", status: "checked_in" },
