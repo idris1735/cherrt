@@ -9,11 +9,18 @@ import { READ_TOOLS, type AgentTool, type AgentContext } from "@/lib/services/ag
 import { ACTION_TOOLS } from "@/lib/services/agent/actions";
 import { CHURCH_TOOLS } from "@/lib/services/agent/church-tools";
 import { CHILD_TOOLS } from "@/lib/services/agent/child-tools";
+import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
 
 // The full tool set the query agent is offered: read tools, the safe
-// (non-confirmation) action tools, the church-operations tools, and the
-// children's check-in tools.
-const AGENT_TOOLS: AgentTool[] = [...READ_TOOLS, ...ACTION_TOOLS, ...CHURCH_TOOLS, ...CHILD_TOOLS];
+// (non-confirmation) action tools, church-operations tools, children's
+// check-in tools, and the community "belonging" tools (events, departments).
+const AGENT_TOOLS: AgentTool[] = [
+  ...READ_TOOLS,
+  ...ACTION_TOOLS,
+  ...CHURCH_TOOLS,
+  ...CHILD_TOOLS,
+  ...COMMUNITY_TOOLS,
+];
 
 export type ToolCall = { name: string; args: Record<string, unknown> };
 export type GenerateResult = { functionCalls?: ToolCall[]; text?: string };
@@ -58,7 +65,7 @@ const SAFE_ACTION_RE =
 // Church-operations phrasings that should reach the agent's church tools,
 // including children's check-in / pickup.
 const CHURCH_ACTION_RE =
-  /\bpray(?:er)?\b|\bfirst[\s-]?timer?\b|\bnew\s+here\b|\b(pastoral|counsel(?:l)?ing)\b|\bsee\s+(?:a\s+)?pastor\b|\brecord\b[^?]*\b(giving|offering|tithe|donation|pledge)\b|\bnew\s+(?:visitor|convert|member)\b|\bcheck[\s-]?in\b|\bcheckin\b|\bpick(?:ing)?[\s-]?up\b|\bpickup\s*code\b|\bdrop(?:ping)?\s*off\b|\brelease\s+(?:the\s+)?child\b/i;
+  /\bpray(?:er)?\b|\bfirst[\s-]?timer?\b|\bnew\s+here\b|\b(pastoral|counsel(?:l)?ing)\b|\bsee\s+(?:a\s+)?pastor\b|\brecord\b[^?]*\b(giving|offering|tithe|donation|pledge)\b|\bnew\s+(?:visitor|convert|member)\b|\bcheck[\s-]?in\b|\bcheckin\b|\bpick(?:ing)?[\s-]?up\b|\bpickup\s*code\b|\bdrop(?:ping)?\s*off\b|\brelease\s+(?:the\s+)?child\b|\b(register|sign\s*up)\b[^?]*\b(event|retreat|conference|programme?|camp|crusade|convention)\b|\b(join|joining)\b[^?]*\b(department|ministry|unit|choir|ushering|media|team|group|drama|band)\b/i;
 
 export function looksLikeAgentAction(text: string): boolean {
   const t = text.trim();

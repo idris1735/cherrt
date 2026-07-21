@@ -63,6 +63,13 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("dropping off my daughter")).toBe(true);
   });
 
+  it("routes event registration and department joining to the agent", () => {
+    expect(looksLikeAgentAction("register me for the youth retreat")).toBe(true);
+    expect(looksLikeAgentAction("sign up for the conference")).toBe(true);
+    expect(looksLikeAgentAction("I want to join the choir")).toBe(true);
+    expect(looksLikeAgentAction("joining the media team")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
   });
