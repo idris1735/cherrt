@@ -33,9 +33,13 @@ Decisions locked: person-centric identity (human is the entity; phones point at 
 
 Reused as-is (not rebuilt): org→branch hierarchy, one-phone-many-branches links, `organization_admins`, the full signup/approval/setup/join/claim choreography, active-branch disambiguation.
 
-**Remaining for full cutover (deliberately deferred — riskiest):**
-1. Apply the migration to Supabase.
-2. Switch the processor's main read path from `whatsapp_phone_links` to `resolveIdentityByPhone`, then retire the legacy table (dual-write keeps both working until then).
+**Read-path cutover DONE (commit `c29f86e`):** the processor now resolves identity via `resolveIdentityByPhone` first, falling back to legacy `whatsapp_phone_links` only when the new model has nothing — safe before/after the migration is applied.
+
+**Split-brain fix (commit `f11f45d`):** `getApproverPhone` now resolves the branch's most-senior member via the person model instead of the web-only `memberships` table (which the WhatsApp flow never wrote to — approval notifications had been silently returning null for WhatsApp-onboarded churches).
+
+**Remaining:**
+1. Apply the migration to Supabase (deploy step; new tables + backfill go live).
+2. Once the new model is authoritative in prod, retire the legacy `whatsapp_phone_links` table + the fallback path.
 3. Phase-2 behaviors: shared-phone "who's speaking", verified number-change, role-scoped invites.
 
 **Housekeeping flag:** `probs.txt` (untracked, contains a leaked WhatsApp token per earlier notes) still needs the token rotated + the file gitignored.
