@@ -2,7 +2,7 @@ import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { buildKnowledgeContextString, demoKnowledgeArticles, type KnowledgeArticle } from "@/lib/data/knowledge";
 import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
-import { foundingAdminRole, branchLeadRole } from "@/lib/services/identity/role-catalog";
+import { foundingAdminRole, branchLeadRole, roleRank } from "@/lib/services/identity/role-catalog";
 import type { AiCommandResult } from "@/lib/types";
 
 export type PhoneLink = {
@@ -719,28 +719,50 @@ export async function saveMinistryUnits(workspaceId: string, raw: string): Promi
   return names;
 }
 
-// Returns the owner/admin phone number for approval notifications
+// Returns the phone number of the branch's most senior member, for approval
+// notifications. Resolves through the person-centric model (highest-ranked
+// active branch member → their active phone), falling back to the legacy
+// phone_links table. The old implementation read the web-only `memberships`
+// table, which the WhatsApp onboarding flow never writes to — so approval
+// notifications silently returned null for WhatsApp-onboarded churches.
 export async function getApproverPhone(workspaceId: string): Promise<string | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
 
-  const { data: members } = await db
-    .from("memberships")
-    .select("user_id")
+  const { data: mems } = await db
+    .from("branch_memberships")
+    .select("role, person_id")
     .eq("workspace_id", workspaceId)
-    .in("role", ["owner", "admin"])
-    .limit(1);
+    .eq("status", "active");
 
-  if (!members?.length) return null;
-  const ownerId = members[0].user_id;
+  if (mems && mems.length) {
+    let best: { personId: string; rank: number } | null = null;
+    for (const m of mems as Array<{ role?: string; person_id?: string }>) {
+      if (!m.person_id) continue;
+      const rank = roleRank(m.role ?? "member");
+      if (!best || rank > best.rank) best = { personId: m.person_id, rank };
+    }
+    if (best) {
+      const { data: contact } = await db
+        .from("phone_contacts")
+        .select("phone_number")
+        .eq("person_id", best.personId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (contact?.phone_number) return contact.phone_number;
+    }
+  }
 
-  const { data: link } = await db
+  // Legacy fallback: a lead-role phone_links row for this workspace.
+  const { data: ownerLink } = await db
     .from("whatsapp_phone_links")
     .select("phone_number")
-    .eq("user_id", ownerId)
+    .eq("workspace_id", workspaceId)
+    .in("user_role", ["owner", "senior_pastor", "admin", "pastor"])
+    .limit(1)
     .maybeSingle();
 
-  return link?.phone_number ?? null;
+  return ownerLink?.phone_number ?? null;
 }
 
 export async function approveWorkspaceRequest(requestId: string): Promise<boolean> {
