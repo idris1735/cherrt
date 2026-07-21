@@ -119,6 +119,27 @@ export async function setMembershipRole(
   return true;
 }
 
+// Active phone numbers for every member of a branch (dedup'd), for broadcasts.
+export async function listWorkspaceMemberPhones(workspaceId: string): Promise<string[]> {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+
+  const { data: mems } = await db
+    .from("branch_memberships")
+    .select("person_id")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active");
+  const personIds = (mems ?? []).map((m) => (m as { person_id: string }).person_id);
+  if (!personIds.length) return [];
+
+  const { data: contacts } = await db
+    .from("phone_contacts")
+    .select("phone_number")
+    .in("person_id", personIds)
+    .eq("status", "active");
+  return Array.from(new Set((contacts ?? []).map((c) => (c as { phone_number: string }).phone_number)));
+}
+
 export type BranchMemberRow = { personId: string; fullName: string; role: string };
 
 // Active members of a branch, for the assign-role picker.

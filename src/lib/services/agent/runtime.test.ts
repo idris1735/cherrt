@@ -77,6 +77,12 @@ describe("looksLikeAgentAction", () => {
     expect(looksLikeAgentAction("I gave my life to Christ today")).toBe(true);
   });
 
+  it("routes announcements to the agent", () => {
+    expect(looksLikeAgentAction("announce the vigil this Friday")).toBe(true);
+    expect(looksLikeAgentAction("broadcast to all members")).toBe(true);
+    expect(looksLikeAgentAction("tell everyone service moved to 9am")).toBe(true);
+  });
+
   it("does not intercept creations the agent has no tool for yet", () => {
     expect(looksLikeAgentAction("create a payment link for 5000")).toBe(false);
   });

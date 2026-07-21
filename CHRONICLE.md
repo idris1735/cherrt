@@ -14,7 +14,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 1. **Identity & Tenancy Spine** ← *in progress* — who is speaking, which branch, what role/authority.
 2. **Roles & Authority** — folded into #1 (curated per-vertical role catalog → capability bundles).
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
-4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *← church operations covered end-to-end; agent is the primary church handler, creator is fallback.*
+4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *✓ church module CORE COMPLETE — agent is the primary church handler (creator is fallback). Remaining church items are gated on external setup: payments, WhatsApp templates, cron.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
@@ -75,8 +75,16 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
 
-### Church module — capability coverage snapshot (2026-07-21)
-Live via the agent: giving summary + record giving, prayer requests, first-timers, pastoral care, child check-in (check-in + pickup verify + gated release), event registration, department joining, **bereavement / marriage prep / baptism / discipleship intakes**, members (list + assign role), facility issues, documents (gated draft). Still not agent-native: **announcements** (outbound broadcast — needs WhatsApp template + opt-in + fan-out), **real giving payments** (virtual account / Paystack), and **scheduled delivery** (discipleship daily content, reminders — needs cron).
+### Announcements DONE (agent-native, admin-only, 2026-07-21)
+New table `announcements` (migration `20260727`, applied). `src/lib/services/agent/announcement-tools.ts`: `create_announcement` (**admin-only** via `roleRank >= 4`, **confirmation-gated**, fans out to all member phones via new `listWorkspaceMemberPhones` helper, records delivered count) + `list_announcements`. **Delivery caveat (in code):** WhatsApp only allows free-form business-initiated messages inside a 24h window; cold members need a pre-approved broadcast **template** — current impl sends free-form text (reaches recently-active members, counts successes). 238 tests pass.
+
+### Church module — CORE COMPLETE (agent-native, 2026-07-21)
+Live via the agent, end-to-end over WhatsApp: giving (summary + record), prayer requests, first-timers, pastoral care, child check-in (drop-off + pickup verify + gated release), event registration, department joining, bereavement/marriage/baptism/discipleship intakes, **announcements (gated broadcast)**, members (list + assign role), facility issues, documents (gated draft). The visitor→member→volunteer→leader journeys and the whole Sunday-service loop are conversational.
+
+**Remaining — all gated on EXTERNAL setup (not pure code):**
+- **Real giving payments** — virtual account / Paystack integration (needs a payment provider + keys). The current giving *records* received money; collecting money needs this.
+- **Broadcast/notification templates** — approved WhatsApp templates for reliable outbound to cold members (announcements, pastor-notify-on-new-request). Meta approval is the user's step.
+- **Scheduled delivery** — discipleship daily content, event/birthday reminders, missed-Sunday follow-up ("it remembers") — needs a cron/scheduler (Vercel Cron).
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.
