@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { pickActiveMembership, type BranchMembership } from "@/lib/services/identity/resolver";
 
 function mem(workspaceId: string, role = "member"): BranchMembership {
-  return { personId: "p1", workspaceId, workspaceName: workspaceId, role, unit: null };
+  return { personId: "p1", workspaceId, workspaceName: workspaceId, workspaceSlug: workspaceId, role, unit: null };
 }
 
 describe("pickActiveMembership", () => {

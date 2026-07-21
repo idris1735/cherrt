@@ -33,6 +33,7 @@ import {
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole } from "@/lib/services/identity/role-catalog";
 import {
@@ -630,13 +631,45 @@ async function handleReceiptImage(from: string, receipt: ReceiptInfo, session: W
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────────
 
+// Resolves the sender's branch links using the person-centric identity model
+// first, falling back to the legacy whatsapp_phone_links table when the new
+// model has nothing for this phone yet. Safe to run before or after the
+// migration is applied: pre-migration the resolver returns nothing and the
+// legacy path is used; post-migration (with backfill + dual-write) the new
+// model is authoritative. Output shape is identical to the old code so every
+// downstream call site is unaffected.
+async function resolveActiveLinks(
+  from: string,
+  activeWorkspaceId: string | undefined,
+): Promise<{ allLinks: PhoneLink[]; link: PhoneLink | null }> {
+  const identity = await resolveIdentityByPhone(from);
+  if (identity && identity.memberships.length) {
+    const allLinks: PhoneLink[] = identity.memberships.map((m) => ({
+      phoneNumber: from,
+      userId: null,
+      workspaceId: m.workspaceId,
+      workspaceSlug: m.workspaceSlug,
+      workspaceName: m.workspaceName,
+      userName: identity.person.fullName,
+      userRole: m.role,
+    }));
+    const active = pickActiveMembership(identity.memberships, activeWorkspaceId);
+    const link = active ? allLinks.find((l) => l.workspaceId === active.workspaceId) ?? null : null;
+    return { allLinks, link };
+  }
+
+  const allLinks = await lookupAllPhoneLinks(from);
+  return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId) };
+}
+
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
   const { from, type } = message;
   const claimed = await claimWhatsAppMessage(message.messageId, from, type);
   if (!claimed) return;
 
-  const [session, allLinks] = await Promise.all([getSession(from), lookupAllPhoneLinks(from)]);
-  let link = resolveActivePhoneLink(allLinks, session.activeWorkspaceId);
+  const session = await getSession(from);
+  const { allLinks, link: resolvedLink } = await resolveActiveLinks(from, session.activeWorkspaceId);
+  let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
 
   if (!session.welcomed) {

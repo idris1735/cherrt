@@ -13,6 +13,7 @@ export type BranchMembership = {
   personId: string;
   workspaceId: string;
   workspaceName: string;
+  workspaceSlug: string;
   role: string;
   unit: string | null;
 };
@@ -64,17 +65,18 @@ export async function resolveIdentityByPhone(rawPhone: string): Promise<Resolved
 
   const { data: memRows } = await db
     .from("branch_memberships")
-    .select("workspace_id, role, unit, workspaces(name)")
+    .select("workspace_id, role, unit, workspaces(name, slug)")
     .eq("person_id", personId)
     .eq("status", "active");
 
   const memberships: BranchMembership[] = (memRows ?? []).map((r) => {
-    const wsJoin = (r as { workspaces?: { name?: string } | { name?: string }[] }).workspaces;
+    const wsJoin = (r as { workspaces?: { name?: string; slug?: string } | { name?: string; slug?: string }[] }).workspaces;
     const ws = Array.isArray(wsJoin) ? wsJoin[0] : wsJoin;
     return {
       personId,
       workspaceId: (r as { workspace_id: string }).workspace_id,
       workspaceName: ws?.name ?? "",
+      workspaceSlug: ws?.slug ?? "",
       role: (r as { role?: string }).role ?? "member",
       unit: (r as { unit?: string | null }).unit ?? null,
     };
