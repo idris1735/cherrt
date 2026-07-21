@@ -19,19 +19,26 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 6. **Memory & Context** — the "it remembers" layer.
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
 
-### 2026-07-21 — Identity & Tenancy Spine (DESIGN, awaiting user review)
+### 2026-07-21 — Identity & Tenancy Spine (v1 BUILT, tests green)
 **Spec:** `docs/superpowers/specs/2026-07-21-identity-tenancy-spine-design.md`
 
-Decisions locked (via brainstorming):
-- **Person-centric identity** — a human is the entity; phones are contact methods pointing at them; role = `(person × branch)`. Makes number-change survivable and shared-phone / same-human-across-branches expressible.
-- **Curated role catalog per vertical → capability bundles**, enforced via existing `policy-guard`.
-- **Schema-ready, hard behaviors phased** — shared-phone "who's speaking" and OTP number-change are schema-supported but not built in v1 runtime.
-- **Additive migration** — backfill from live `whatsapp_phone_links`, compatibility view during cutover, retire after. Zero data loss.
-- **Basic deterministic assign-role in v1** — admin changes a member's role via guided list-based flow; no privilege escalation; NL version deferred to the agent.
+Decisions locked: person-centric identity (human is the entity; phones point at them; role = person × branch); curated per-vertical role catalog → capability bundles; schema-ready but behavior-phased for shared-phone/number-change; additive migration (zero data loss); deterministic assign-role in v1.
+
+**Built (commits `6edd089`→`ee390a4`):**
+- **Schema** `supabase/migrations/20260721_identity_spine.sql` — `people` / `phone_contacts` / `branch_memberships` + `organization_admins.person_id`, with idempotent backfill from `whatsapp_phone_links`. *(Written; NOT yet applied to Supabase — that's a deploy step.)*
+- **Role catalog** `src/lib/services/identity/role-catalog.ts` — per-vertical roles, ranks, `canAssignRole` escalation guard; `policy-guard` extended with capability bundles for the new roles.
+- **Resolver** `src/lib/services/identity/resolver.ts` — phone → person → memberships → role, pure disambiguation helper.
+- **Provisioning** `src/lib/services/identity/provisioning.ts` — `provisionPersonMembership` (dual-writes new tables + legacy `phone_links`), `setMembershipRole`, `listBranchMembers`. Onboarding now seats real roles: founder → `senior_pastor`, branch claim → `pastor`, member JOIN → real person.
+- **Assign-role** `src/lib/services/identity/assign-role-flow.ts` — guided pick-member→pick-role→confirm, wired into the processor. 173 tests pass, typecheck clean.
 
 Reused as-is (not rebuilt): org→branch hierarchy, one-phone-many-branches links, `organization_admins`, the full signup/approval/setup/join/claim choreography, active-branch disambiguation.
 
-**Status:** spec written & committed. **Next:** user reviews spec → `writing-plans` → implementation.
+**Remaining for full cutover (deliberately deferred — riskiest):**
+1. Apply the migration to Supabase.
+2. Switch the processor's main read path from `whatsapp_phone_links` to `resolveIdentityByPhone`, then retire the legacy table (dual-write keeps both working until then).
+3. Phase-2 behaviors: shared-phone "who's speaking", verified number-change, role-scoped invites.
+
+**Housekeeping flag:** `probs.txt` (untracked, contains a leaked WhatsApp token per earlier notes) still needs the token rotated + the file gitignored.
 
 ### Prior milestone — Cross-branch org reporting (SHIPPED 2026-07-21, on `origin/main`)
 4-task feature: org admins query combined overview/giving across all branches over WhatsApp (`matchOrgReportIntent` + `buildOrgOverviewReport`/`buildOrgGivingReport` + free-text & button dispatch). All tasks reviewed clean; final whole-branch review "ready to merge". 150/150 tests pass. Commits `0e519de..f015857`.
