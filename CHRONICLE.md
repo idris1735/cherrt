@@ -16,7 +16,7 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 3. **Onboarding & Provisioning** — folded into #1 (person/role-aware).
 4. **Agentic Engine** — single-shot classifier → real tool-calling agent ("the crazy work rate"). *✓ church module CORE COMPLETE — agent is the primary church handler (creator is fallback). Remaining church items are gated on external setup: payments, WhatsApp templates, cron.*
 5. **Workflow Engine** — approvals, routing, multi-step life-journeys as state machines.
-6. **Memory & Context** — the "it remembers" layer.
+6. **Memory & Context** — the "it remembers" layer. *← recall DONE (agent gets the member's history as context); proactive/scheduled half needs cron.*
 7. **Capabilities & infra** — Church/Store/Events real executors, scheduling/cron, payments, richer ingestion.
 
 ### 2026-07-21 — Identity & Tenancy Spine (v1 BUILT, tests green)
@@ -74,6 +74,9 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
+
+### Recall layer DONE — "it remembers" (2026-07-21)
+`src/lib/services/agent/member-context.ts` — `buildMemberContext(ctx)` gathers the member's recent prayer requests, open pastoral care, active life-journeys and recent giving (read-only, matched by name within the workspace) into a compact memory block, prepended to the agent's system prompt in `runAgentQuery` (best-effort, never blocks the answer). The prompt instructs the agent to follow up gently and never recite it. So the agent can say "how's your mum you asked prayer for?" naturally. 242 tests pass. **Proactive** recall (unprompted "we missed you last 3 Sundays") is the other half and needs a cron/scheduler.
 
 ### Announcements DONE (agent-native, admin-only, 2026-07-21)
 New table `announcements` (migration `20260727`, applied). `src/lib/services/agent/announcement-tools.ts`: `create_announcement` (**admin-only** via `roleRank >= 4`, **confirmation-gated**, fans out to all member phones via new `listWorkspaceMemberPhones` helper, records delivered count) + `list_announcements`. **Delivery caveat (in code):** WhatsApp only allows free-form business-initiated messages inside a 24h window; cold members need a pre-approved broadcast **template** — current impl sends free-form text (reaches recently-active members, counts successes). 238 tests pass.

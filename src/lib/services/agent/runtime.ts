@@ -12,6 +12,7 @@ import { CHILD_TOOLS } from "@/lib/services/agent/child-tools";
 import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
 import { JOURNEY_TOOLS } from "@/lib/services/agent/journey-tools";
 import { ANNOUNCEMENT_TOOLS } from "@/lib/services/agent/announcement-tools";
+import { buildMemberContext } from "@/lib/services/agent/member-context";
 
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
@@ -149,6 +150,8 @@ const AGENT_SYSTEM_PROMPT = [
   "pastors and finance check giving, members, and what has come in.",
   "Use the tools to look up real data and to record what the user asks for — never guess numbers or invent records.",
   "Be warm and concise. For anything sensitive (like a document that needs sign-off) use the tool that asks for confirmation.",
+  "If a memory block about the member is provided, you may gently follow up on it when it naturally fits",
+  "(e.g. ask how a prayer request has been) — but keep it light and never force it.",
   "If a tool returns nothing, say so plainly.",
 ].join(" ");
 
@@ -190,5 +193,10 @@ export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Prom
     };
   };
 
-  return runAgentLoop({ generate, tools: AGENT_TOOLS, ctx, systemPrompt: AGENT_SYSTEM_PROMPT, userPrompt });
+  // Recall layer: prepend what we remember about this member so the agent can
+  // follow up warmly. Read-only and best-effort — never blocks the answer.
+  const memory = await buildMemberContext(ctx).catch(() => "");
+  const systemPrompt = AGENT_SYSTEM_PROMPT + memory;
+
+  return runAgentLoop({ generate, tools: AGENT_TOOLS, ctx, systemPrompt, userPrompt });
 }
