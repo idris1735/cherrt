@@ -391,6 +391,21 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).toHaveBeenCalledOnce();
   });
 
+  it("routes ANY linked-member free text to the agent (not just matched phrasings)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
+    ]);
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "Amen! 🙏" });
+
+    await skipWelcome();
+    // Not a question and no action verb — previously this went to the creator.
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "praise God, what a service today" });
+
+    expect(runAgentQuery).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "Amen! 🙏");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
   it("routes a safe action (log expense) to the agent", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },

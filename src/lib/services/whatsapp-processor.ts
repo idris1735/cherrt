@@ -36,7 +36,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
-import { runAgentQuery, looksLikeQuestion, looksLikeAgentAction, getAgentTool } from "@/lib/services/agent/runtime";
+import { runAgentQuery, getAgentTool } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import type { Role } from "@/lib/types";
@@ -968,12 +968,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // ── Agentic query / safe action (linked users, free text) ──
-  // Answers questions the deterministic report matcher didn't catch, and
-  // handles the safe non-confirmation actions (expense/issue/inventory), using
-  // the tool-calling agent. Falls through to the creation path when the agent
-  // is unavailable (no Gemini key) or produces no answer.
-  if (trimmed && link && (looksLikeQuestion(trimmed) || looksLikeAgentAction(trimmed))) {
+  // ── Agent: primary handler for all linked-user free text ──
+  // The tool-calling agent (read + write + church tools, role-gated) handles
+  // any text a linked member sends — the LLM decides what to do, so we no
+  // longer rely on English-only regex to decide agent-eligibility. Falls
+  // through to the single-shot creator only when the agent is unavailable (no
+  // Gemini key) or produces no answer; media (image/voice/doc) still goes to
+  // the creator below until the agent gets multimodal tools.
+  if (trimmed && link) {
     const outcome = await runAgentQuery(trimmed, {
       workspaceId: link.workspaceId,
       role: link.userRole as Role,
