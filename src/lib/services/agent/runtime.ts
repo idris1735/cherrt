@@ -17,6 +17,7 @@ import { JOURNEY_TOOLS } from "@/lib/services/agent/journey-tools";
 import { ANNOUNCEMENT_TOOLS } from "@/lib/services/agent/announcement-tools";
 import { PAYMENT_TOOLS } from "@/lib/services/agent/payment-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
+import { AGENT_PERSONA } from "@/lib/services/agent/persona";
 
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
@@ -173,17 +174,6 @@ export async function runAgentLoop(opts: {
   return { kind: "text", text: "I couldn't finish looking that up — please try rephrasing your question." };
 }
 
-const AGENT_SYSTEM_PROMPT = [
-  "You are Chertt, a warm, capable assistant that helps run a church over WhatsApp.",
-  "Members give, ask for prayer, register as first-timers, and request pastoral care;",
-  "pastors and finance check giving, members, and what has come in.",
-  "Use the tools to look up real data and to record what the user asks for — never guess numbers or invent records.",
-  "Be warm and concise. For anything sensitive (like a document that needs sign-off) use the tool that asks for confirmation.",
-  "If a memory block about the member is provided, you may gently follow up on it when it naturally fits",
-  "(e.g. ask how a prayer request has been) — but keep it light and never force it.",
-  "If a tool returns nothing, say so plainly.",
-].join(" ");
-
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
@@ -248,7 +238,7 @@ export async function runAgentQuery(
   // Recall layer: prepend what we remember about this member so the agent can
   // follow up warmly. Read-only and best-effort — never blocks the answer.
   const memory = await buildMemberContext(ctx).catch(() => "");
-  const systemPrompt = AGENT_SYSTEM_PROMPT + memory;
+  const systemPrompt = AGENT_PERSONA + memory;
 
   return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt, media });
 }
