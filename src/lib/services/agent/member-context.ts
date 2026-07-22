@@ -28,14 +28,22 @@ const rows = (r: { data?: unknown[] | null } | undefined): Row[] => (r?.data as 
 export async function buildMemberContext(ctx: AgentContext): Promise<string> {
   const db = getSupabaseServerClient();
   const name = (ctx.userName ?? "").trim();
-  if (!db || !name) return "";
+  const pid = ctx.personId;
+  if (!db || (!pid && !name)) return "";
   const ws = ctx.workspaceId;
 
+  // Prefer the stable person_id so two members with the same display name never
+  // see each other's history; fall back to name only for legacy-resolved
+  // callers that have no person_id.
+  const by = (nameCol: string): { col: string; val: string } =>
+    pid ? { col: "person_id", val: pid } : { col: nameCol, val: name };
+  const [p, c, j, g] = [by("requester_name"), by("requester_name"), by("person_name"), by("donor_name")];
+
   const [prayers, care, journeys, giving] = await Promise.all([
-    db.from("prayer_requests").select("request, created_at").eq("workspace_id", ws).eq("requester_name", name).order("created_at", { ascending: false }).limit(2),
-    db.from("pastoral_care_requests").select("category, created_at").eq("workspace_id", ws).eq("requester_name", name).eq("status", "open").order("created_at", { ascending: false }).limit(1),
-    db.from("life_journeys").select("journey_type, created_at").eq("workspace_id", ws).eq("person_name", name).eq("status", "active").order("created_at", { ascending: false }).limit(2),
-    db.from("giving_records").select("amount, giving_type, created_at").eq("workspace_id", ws).eq("donor_name", name).order("created_at", { ascending: false }).limit(1),
+    db.from("prayer_requests").select("request, created_at").eq("workspace_id", ws).eq(p.col, p.val).order("created_at", { ascending: false }).limit(2),
+    db.from("pastoral_care_requests").select("category, created_at").eq("workspace_id", ws).eq(c.col, c.val).eq("status", "open").order("created_at", { ascending: false }).limit(1),
+    db.from("life_journeys").select("journey_type, created_at").eq("workspace_id", ws).eq(j.col, j.val).eq("status", "active").order("created_at", { ascending: false }).limit(2),
+    db.from("giving_records").select("amount, giving_type, created_at").eq("workspace_id", ws).eq(g.col, g.val).order("created_at", { ascending: false }).limit(1),
   ]);
 
   const lines: string[] = [];

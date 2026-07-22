@@ -40,6 +40,7 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
       },
       required: ["eventTitle"],
     },
+    mutates: true, // member self-service — no minRank
     handler: async (args, ctx) => {
       const title = String(args.eventTitle ?? "").trim();
       if (!title) return { error: "Which event? Tell me its name." };
@@ -92,6 +93,7 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
       properties: { department: { type: "string", description: "The department/ministry to join" } },
       required: ["department"],
     },
+    mutates: true, // member self-service — no minRank
     handler: async (args, ctx) => {
       const dept = String(args.department ?? "").trim();
       if (!dept) return { error: "Which department would you like to join?" };

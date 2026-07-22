@@ -24,6 +24,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     name: "list_prayer_requests",
     description: "Open prayer requests in this church. Anonymous ones hide the requester's name.",
     parameters: { type: "object", properties: {} },
+    minRank: 4, // pastoral — prayer requests are sensitive
     handler: async (_args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, requests: [] };
@@ -45,6 +46,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     name: "list_first_timers",
     description: "First-time visitors captured for this church, most recent first — for follow-up.",
     parameters: { type: "object", properties: {} },
+    minRank: 2, // follow-up team (secretary+) — visitor PII
     handler: async (_args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, firstTimers: [] };
@@ -74,6 +76,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
       },
       required: ["request"],
     },
+    mutates: true, // member self-service — no minRank
     handler: async (args, ctx) => {
       const request = String(args.request ?? "").trim();
       if (!request) return { error: "Need something to pray about." };
@@ -83,6 +86,9 @@ export const CHURCH_TOOLS: AgentTool[] = [
       const { error } = await db.from("prayer_requests").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
+        // person_id links the request to the human (for their own recall), even
+        // when anonymous — the display name is masked, the identity link isn't.
+        person_id: ctx.personId ?? null,
         requester_name: anonymous ? "" : ctx.userName ?? "",
         request,
         is_anonymous: anonymous,
@@ -104,6 +110,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
       },
       required: ["name"],
     },
+    mutates: true, // self or an usher capturing a visitor — no minRank
     handler: async (args, ctx) => {
       const name = String(args.name ?? "").trim();
       if (!name) return { error: "Need the visitor's name." };
@@ -133,12 +140,14 @@ export const CHURCH_TOOLS: AgentTool[] = [
       },
       required: [],
     },
+    mutates: true, // member self-service — no minRank
     handler: async (args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
       const { error } = await db.from("pastoral_care_requests").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
+        person_id: ctx.personId ?? null,
         requester_name: ctx.userName ?? "",
         category: String(args.category ?? "general") || "general",
         details: String(args.details ?? "") || null,
@@ -161,6 +170,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
       },
       required: ["amount"],
     },
+    minRank: 3, // finance and above — this writes the official giving ledger
+    mutates: true,
     handler: async (args, ctx) => {
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) return { error: "Need a positive amount." };
@@ -170,6 +181,9 @@ export const CHURCH_TOOLS: AgentTool[] = [
       const { error } = await db.from("giving_records").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
+        // person_id present only when finance records giving for themselves;
+        // when they record on a donor's behalf, keep it null (donor_name only).
+        person_id: String(args.donor ?? "") ? null : ctx.personId ?? null,
         donor_name: String(args.donor ?? "") || ctx.userName || "Anonymous",
         amount,
         channel: "manual-entry",

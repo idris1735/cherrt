@@ -35,8 +35,10 @@ import {
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
-import { canAssignRole } from "@/lib/services/identity/role-catalog";
+import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
 import { runAgentQuery, looksLikeQuestion, looksLikeAgentAction, getAgentTool } from "@/lib/services/agent/runtime";
+import { toolAccessError } from "@/lib/services/agent/access";
+import { recordToolAudit } from "@/lib/services/agent/audit";
 import type { Role } from "@/lib/types";
 import {
   isSignupTrigger,
@@ -643,7 +645,7 @@ async function handleReceiptImage(from: string, receipt: ReceiptInfo, session: W
 async function resolveActiveLinks(
   from: string,
   activeWorkspaceId: string | undefined,
-): Promise<{ allLinks: PhoneLink[]; link: PhoneLink | null }> {
+): Promise<{ allLinks: PhoneLink[]; link: PhoneLink | null; personId?: string }> {
   const identity = await resolveIdentityByPhone(from);
   if (identity && identity.memberships.length) {
     const allLinks: PhoneLink[] = identity.memberships.map((m) => ({
@@ -657,11 +659,11 @@ async function resolveActiveLinks(
     }));
     const active = pickActiveMembership(identity.memberships, activeWorkspaceId);
     const link = active ? allLinks.find((l) => l.workspaceId === active.workspaceId) ?? null : null;
-    return { allLinks, link };
+    return { allLinks, link, personId: identity.person.id };
   }
 
   const allLinks = await lookupAllPhoneLinks(from);
-  return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId) };
+  return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId), personId: undefined };
 }
 
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
@@ -670,7 +672,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (!claimed) return;
 
   const session = await getSession(from);
-  const { allLinks, link: resolvedLink } = await resolveActiveLinks(from, session.activeWorkspaceId);
+  const { allLinks, link: resolvedLink, personId } = await resolveActiveLinks(from, session.activeWorkspaceId);
   let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
 
@@ -847,12 +849,19 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       await updateSession(from, { pendingAgentAction: undefined });
       const tool = getAgentTool(pending.toolName);
       if (!tool || !link) { await sendTextMessage(from, "That action expired — please try again."); return; }
-      const res = (await tool.handler(pending.args, {
+      const actCtx = {
         workspaceId: link.workspaceId,
         role: link.userRole as Role,
         userName: link.userName,
         phone: from,
-      })) as { message?: string; error?: string };
+        personId,
+      };
+      // Re-check access at execution time (defense in depth — the proposal was
+      // already access-checked, but roles can change between messages).
+      const denied = toolAccessError(tool, actCtx);
+      if (denied) { await sendTextMessage(from, denied); return; }
+      const res = (await tool.handler(pending.args, actCtx)) as { message?: string; error?: string };
+      await recordToolAudit(actCtx, pending.toolName, pending.args, res.error ? "error" : "ok");
       await sendTextMessage(from, res.error ? `Couldn't complete that: ${res.error}` : (res.message ?? "Done."));
       return;
     }
@@ -935,6 +944,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed) {
     const reportKey = matchReportIntent(trimmed);
     if (reportKey) {
+      // Workspace reports expose giving/members/finances — leadership only.
+      // Guests (no link) keep their demo-data reports.
+      if (link && roleRank(link.userRole) < 2) {
+        await sendTextMessage(from, "Reports are for church admins and leaders — please ask your pastor or an admin.");
+        return;
+      }
       const [workspaceContext, liveData, givingSummary] = link
         ? await Promise.all([
             loadWorkspaceContext(link.workspaceId),
@@ -964,6 +979,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       role: link.userRole as Role,
       userName: link.userName,
       phone: from,
+      personId,
     });
     if (outcome?.kind === "pending") {
       await updateSession(from, { pendingAgentAction: { toolName: outcome.toolName, args: outcome.args } });

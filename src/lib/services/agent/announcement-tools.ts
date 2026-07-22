@@ -31,6 +31,8 @@ export const ANNOUNCEMENT_TOOLS: AgentTool[] = [
       required: ["title", "message"],
     },
     requiresConfirmation: true,
+    minRank: 4, // admins/pastors only (also enforced inline below, defense in depth)
+    mutates: true,
     preview: (args) => `📢 Send this announcement to all members: *${String(args.title ?? "")}*?`,
     handler: async (args, ctx) => {
       if (roleRank(ctx.role) < BROADCAST_MIN_RANK) {

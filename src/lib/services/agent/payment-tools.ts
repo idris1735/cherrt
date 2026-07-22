@@ -26,6 +26,7 @@ export const PAYMENT_TOOLS: AgentTool[] = [
       },
       required: ["amount"],
     },
+    mutates: true, // a member giving their own money — no minRank
     handler: async (args, ctx) => {
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) return { error: "How much would you like to give?" };
@@ -43,6 +44,7 @@ export const PAYMENT_TOOLS: AgentTool[] = [
           giving_type: givingType,
           donor_name: ctx.userName ?? "",
           donor_phone: ctx.phone ?? "",
+          donor_person_id: ctx.personId ?? "",
         },
       });
       if (!result) return { error: "Couldn't start the payment just now — please try again in a moment." };

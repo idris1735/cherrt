@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const { store } = vi.hoisted(() => ({ store: { selectData: {} as Record<string, unknown[]> } }));
+const { store } = vi.hoisted(() => ({
+  store: { selectData: {} as Record<string, unknown[]>, eqs: [] as Array<{ table: string; col: string; val: unknown }> },
+}));
 vi.mock("@/lib/services/supabase-server", () => ({
   getSupabaseServerClient: () => ({
     from(table: string) {
       const chain: Record<string, unknown> = {
         select: () => chain,
-        eq: () => chain,
+        eq: (col: string, val: unknown) => {
+          store.eqs.push({ table, col, val });
+          return chain;
+        },
         order: () => chain,
         limit: () => chain,
         then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: store.selectData[table] ?? [], error: null }),
@@ -24,6 +29,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
 
 beforeEach(() => {
   store.selectData = {};
+  store.eqs = [];
 });
 
 describe("buildMemberContext", () => {
@@ -56,5 +62,23 @@ describe("buildMemberContext", () => {
     store.selectData["prayer_requests"] = [{ request: "traveling mercies", created_at: daysAgo(1) }];
     const out = await buildMemberContext(ctx);
     expect(out).toContain("yesterday");
+  });
+
+  it("filters by person_id (not name) when a personId is present — no same-name leak", async () => {
+    store.selectData["prayer_requests"] = [{ request: "x", created_at: daysAgo(1) }];
+    await buildMemberContext({ workspaceId: "ws1", role: "member", userName: "Ruth", personId: "p1" });
+    const cols = store.eqs.map((e) => e.col);
+    expect(cols).toContain("person_id");
+    expect(store.eqs.some((e) => e.col === "person_id" && e.val === "p1")).toBe(true);
+    expect(cols).not.toContain("requester_name");
+    expect(cols).not.toContain("donor_name");
+  });
+
+  it("falls back to name filtering only when there is no personId (legacy)", async () => {
+    store.selectData["prayer_requests"] = [{ request: "x", created_at: daysAgo(1) }];
+    await buildMemberContext({ workspaceId: "ws1", role: "member", userName: "Ruth" });
+    const cols = store.eqs.map((e) => e.col);
+    expect(cols).toContain("requester_name");
+    expect(cols).not.toContain("person_id");
   });
 });

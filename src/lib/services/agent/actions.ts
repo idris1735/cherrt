@@ -28,6 +28,8 @@ export const ACTION_TOOLS: AgentTool[] = [
       },
       required: ["title", "amount"],
     },
+    minRank: 3, // finance and above — expenses hit the financial ledger
+    mutates: true,
     handler: async (args, ctx) => {
       const title = String(args.title ?? "").trim();
       const amount = Number(args.amount);
@@ -61,6 +63,7 @@ export const ACTION_TOOLS: AgentTool[] = [
       },
       required: ["title"],
     },
+    mutates: true, // any member may report a fault — no minRank
     handler: async (args, ctx) => {
       const title = String(args.title ?? "").trim();
       if (!title) return { error: "Need a description of the issue." };
@@ -94,6 +97,8 @@ export const ACTION_TOOLS: AgentTool[] = [
       },
       required: ["name", "inStock"],
     },
+    minRank: 2,
+    mutates: true,
     handler: async (args, ctx) => {
       const name = String(args.name ?? "").trim();
       const inStock = Number(args.inStock);
@@ -129,6 +134,8 @@ export const ACTION_TOOLS: AgentTool[] = [
       required: ["title", "body"],
     },
     requiresConfirmation: true,
+    minRank: 2, // secretary and above draft official documents
+    mutates: true,
     preview: (args) => `📄 Draft this ${String(args.type || "document")}: *${String(args.title || "Untitled")}*?`,
     handler: async (args, ctx) => {
       const title = String(args.title ?? "").trim();

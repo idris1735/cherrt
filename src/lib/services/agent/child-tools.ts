@@ -38,6 +38,7 @@ export const CHILD_TOOLS: AgentTool[] = [
       },
       required: ["childName"],
     },
+    mutates: true, // a parent checking in their own child — no minRank
     handler: async (args, ctx) => {
       const childName = String(args.childName ?? "").trim();
       if (!childName) return { error: "Need the child's name." };
@@ -70,9 +71,10 @@ export const CHILD_TOOLS: AgentTool[] = [
       "Look up a checked-in child by pickup code so a volunteer can verify the guardian before releasing the child.",
     parameters: {
       type: "object",
-      properties: { pickupCode: { type: "string", description: "The 4-digit pickup code" } },
+      properties: { pickupCode: { type: "string", description: "The pickup code" } },
       required: ["pickupCode"],
     },
+    minRank: 1, // children's-church volunteers / leaders only — guards child + guardian PII
     handler: async (args, ctx) => {
       const code = String(args.pickupCode ?? "").trim();
       if (!code) return { error: "Need the pickup code." };
@@ -111,6 +113,8 @@ export const CHILD_TOOLS: AgentTool[] = [
       required: ["pickupCode"],
     },
     requiresConfirmation: true,
+    minRank: 1, // children's-church volunteers / leaders only may release a child
+    mutates: true,
     preview: (args) =>
       `👶 Release the child with pickup code *${String(args.pickupCode ?? "")}*? Confirm the guardian's details match first.`,
     handler: async (args, ctx) => {

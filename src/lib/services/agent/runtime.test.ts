@@ -175,6 +175,65 @@ describe("runAgentLoop", () => {
     expect(JSON.stringify(calls[1])).toContain("db down");
   });
 
+  it("denies a caller who lacks the tool's minRank and never runs the handler", async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true });
+    const gated: AgentTool = { name: "record_giving", description: "d", parameters: { type: "object", properties: {} }, minRank: 3, mutates: true, handler };
+    const { fn, calls } = scriptedGenerate([
+      { functionCalls: [{ name: "record_giving", args: { amount: 5000 } }] },
+      { text: "Sorry, you can't do that." },
+    ]);
+    const out = await runAgentLoop({
+      generate: fn,
+      tools: [gated],
+      ctx: { workspaceId: "ws1", role: "member" },
+      systemPrompt: "s",
+      userPrompt: "record 5000 giving",
+    });
+    expect(handler).not.toHaveBeenCalled();
+    expect(out).toEqual({ kind: "text", text: "Sorry, you can't do that." });
+    expect(JSON.stringify(calls[1])).toMatch(/permission/i);
+  });
+
+  it("allows a caller with sufficient rank to run a gated tool", async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true });
+    const gated: AgentTool = { name: "record_giving", description: "d", parameters: { type: "object", properties: {} }, minRank: 3, mutates: true, handler };
+    const { fn } = scriptedGenerate([
+      { functionCalls: [{ name: "record_giving", args: { amount: 5000 } }] },
+      { text: "Recorded." },
+    ]);
+    await runAgentLoop({ generate: fn, tools: [gated], ctx: { workspaceId: "ws1", role: "finance" }, systemPrompt: "s", userPrompt: "u" });
+    expect(handler).toHaveBeenCalled();
+  });
+
+  it("never PROPOSES a gated confirmation tool the caller can't use", async () => {
+    const handler = vi.fn();
+    const gated: AgentTool = {
+      name: "release_child",
+      description: "d",
+      parameters: { type: "object", properties: {} },
+      requiresConfirmation: true,
+      minRank: 1,
+      mutates: true,
+      preview: () => "Release?",
+      handler,
+    };
+    const { fn, calls } = scriptedGenerate([
+      { functionCalls: [{ name: "release_child", args: { pickupCode: "1234" } }] },
+      { text: "You can't release a child." },
+    ]);
+    const out = await runAgentLoop({
+      generate: fn,
+      tools: [gated],
+      ctx: { workspaceId: "ws1", role: "member" },
+      systemPrompt: "s",
+      userPrompt: "release the child",
+    });
+    // member (rank 0) < minRank 1 → not proposed as pending, denied in the loop
+    expect(out).toEqual({ kind: "text", text: "You can't release a child." });
+    expect(handler).not.toHaveBeenCalled();
+    expect(JSON.stringify(calls[1])).toMatch(/permission/i);
+  });
+
   it("stops at the step cap instead of looping forever", async () => {
     // Always asks for a tool, never answers in text.
     const alwaysCalls: GenerateResult = { functionCalls: [{ name: "t", args: {} }] };

@@ -5,7 +5,10 @@
 // See docs/superpowers/specs/2026-07-21-agentic-engine-design.md
 
 import { GoogleGenAI } from "@google/genai";
+import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { READ_TOOLS, type AgentTool, type AgentContext } from "@/lib/services/agent/tools";
+import { toolAccessError } from "@/lib/services/agent/access";
+import { recordToolAudit, type ToolOutcome } from "@/lib/services/agent/audit";
 import { ACTION_TOOLS } from "@/lib/services/agent/actions";
 import { CHURCH_TOOLS } from "@/lib/services/agent/church-tools";
 import { CHILD_TOOLS } from "@/lib/services/agent/child-tools";
@@ -102,9 +105,13 @@ export async function runAgentLoop(opts: {
       return { kind: "text", text: result.text ?? "" };
     }
 
-    // A consequential tool is never executed during reasoning — surface it for
-    // confirmation instead, and execute nothing else this turn.
-    const confirmCall = result.functionCalls.find((c) => byName.get(c.name)?.requiresConfirmation);
+    // A consequential tool the caller is ALLOWED to run is never executed during
+    // reasoning — surface it for confirmation instead. (A confirmation tool the
+    // caller may NOT run falls through to the execution loop and is denied there.)
+    const confirmCall = result.functionCalls.find((c) => {
+      const t = byName.get(c.name);
+      return t?.requiresConfirmation && !toolAccessError(t, ctx);
+    });
     if (confirmCall) {
       const tool = byName.get(confirmCall.name)!;
       const args = confirmCall.args ?? {};
@@ -122,20 +129,35 @@ export async function runAgentLoop(opts: {
       parts: result.functionCalls.map((fc) => ({ functionCall: { name: fc.name, args: fc.args } })),
     });
 
-    // Execute each requested tool; a failure is fed back as a structured error
-    // rather than thrown out of the loop, so the model can recover or explain.
+    // Execute each requested tool. Role gating first (denied → structured error,
+    // never executed), then the handler; failures are fed back as a structured
+    // error rather than thrown. Every attempt is audited.
     const responseParts: unknown[] = [];
     for (const call of result.functionCalls) {
       const tool = byName.get(call.name);
+      const args = call.args ?? {};
       let response: unknown;
       if (!tool) {
         response = { error: `Unknown tool: ${call.name}` };
       } else {
-        try {
-          response = await tool.handler(call.args ?? {}, ctx);
-        } catch (e) {
-          response = { error: e instanceof Error ? e.message : "tool failed" };
+        let outcome: ToolOutcome;
+        const denied = toolAccessError(tool, ctx);
+        if (denied) {
+          response = { error: denied };
+          outcome = "denied";
+        } else if (tool.requiresConfirmation) {
+          response = { error: "This action needs confirmation and can't be auto-run." };
+          outcome = "error";
+        } else {
+          try {
+            response = await tool.handler(args, ctx);
+            outcome = "ok";
+          } catch (e) {
+            response = { error: e instanceof Error ? e.message : "tool failed" };
+            outcome = "error";
+          }
         }
+        await recordToolAudit(ctx, call.name, args, outcome);
       }
       responseParts.push({ functionResponse: { name: call.name, response: { result: response } } });
     }
@@ -163,13 +185,31 @@ function getGeminiClient(): GoogleGenAI | null {
   return new GoogleGenAI({ apiKey });
 }
 
+// Per-workspace agent mode — the kill switch. 'off' pauses the agent entirely,
+// 'readonly' hides mutating tools, 'full' is normal.
+async function getWorkspaceAgentMode(workspaceId: string): Promise<"full" | "readonly" | "off"> {
+  const db = getSupabaseServerClient();
+  if (!db) return "full";
+  const { data } = await db.from("workspaces").select("agent_mode").eq("id", workspaceId).maybeSingle();
+  const mode = (data as { agent_mode?: string } | null)?.agent_mode;
+  return mode === "readonly" || mode === "off" ? mode : "full";
+}
+
 // Production entry: builds the real Gemini `generate` and runs the tool loop.
 // Returns null when Gemini isn't configured (caller falls back to the creator).
 export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Promise<AgentOutcome | null> {
   const client = getGeminiClient();
   if (!client) return null;
 
-  const functionDeclarations = AGENT_TOOLS.map((t) => ({
+  const mode = await getWorkspaceAgentMode(ctx.workspaceId);
+  if (mode === "off") {
+    // A true kill switch: don't fall through to the creator either.
+    return { kind: "text", text: "Chertt is paused for your church right now — please reach out to a church admin." };
+  }
+  // In read-only mode the agent can look things up but not change anything.
+  const tools = mode === "readonly" ? AGENT_TOOLS.filter((t) => !t.mutates) : AGENT_TOOLS;
+
+  const functionDeclarations = tools.map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters,
@@ -200,5 +240,5 @@ export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Prom
   const memory = await buildMemberContext(ctx).catch(() => "");
   const systemPrompt = AGENT_SYSTEM_PROMPT + memory;
 
-  return runAgentLoop({ generate, tools: AGENT_TOOLS, ctx, systemPrompt, userPrompt });
+  return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt });
 }

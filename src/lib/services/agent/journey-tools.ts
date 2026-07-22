@@ -23,6 +23,7 @@ async function startJourney(
     id: randomUUID(),
     workspace_id: ctx.workspaceId,
     journey_type: journeyType,
+    person_id: ctx.personId ?? null,
     person_name: ctx.userName ?? "",
     details: cleaned,
     status: "active",
@@ -34,6 +35,7 @@ async function startJourney(
 export const JOURNEY_TOOLS: AgentTool[] = [
   {
     name: "start_bereavement_support",
+    mutates: true,
     description:
       "Log a bereavement so the pastor, prayer team and care committee can respond. Use when someone reports a death or loss.",
     parameters: {
@@ -55,6 +57,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
   },
   {
     name: "register_marriage_prep",
+    mutates: true,
     description: "Register a couple for marriage preparation / counselling so the pastor can schedule sessions.",
     parameters: {
       type: "object",
@@ -74,6 +77,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
   },
   {
     name: "register_baptism",
+    mutates: true,
     description: "Register someone for the next baptism class.",
     parameters: {
       type: "object",
@@ -90,6 +94,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
   },
   {
     name: "enroll_discipleship",
+    mutates: true,
     description:
       "Enrol a new convert into the discipleship / new-believer follow-up journey. Use when someone gives their life to Christ or asks to grow.",
     parameters: {
@@ -109,6 +114,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
   },
   {
     name: "list_life_journeys",
+    minRank: 4, // pastoral — bereavement/marriage details are highly sensitive
     description:
       "List active life-journey cases for follow-up (bereavement, marriage prep, baptism, discipleship). Optionally filter by type.",
     parameters: {

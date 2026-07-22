@@ -405,6 +405,16 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
+  it("refuses a workspace report to a plain member (role-gated)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
+    ]);
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "sales this month" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("admins and leaders"));
+    expect(mockButtons).not.toHaveBeenCalled();
+  });
+
   it("stores a pending agent action on a gated proposal, then runs it on YES", async () => {
     const link = { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" };
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([link]).mockResolvedValueOnce([link]);

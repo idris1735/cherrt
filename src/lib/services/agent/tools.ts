@@ -14,6 +14,10 @@ export type AgentContext = {
   // The sender's WhatsApp number, so tools can store a reachable contact for
   // later proactive/scheduled follow-up (e.g. daily discipleship content).
   phone?: string;
+  // Stable person id (from the identity spine). Records store this so recall /
+  // history is by id, not name-string. Undefined only when resolved via the
+  // legacy phone_links fallback.
+  personId?: string;
 };
 
 // JSON-schema-shaped parameter declaration, matching Gemini functionDeclarations.
@@ -33,6 +37,12 @@ export type AgentTool = {
   requiresConfirmation?: boolean;
   // Human-readable confirmation prompt built from the proposed args.
   preview?: (args: Record<string, unknown>) => string;
+  // Minimum role rank (see role-catalog) required to use this tool. Undefined =
+  // available to any linked member (self-service actions, public reads).
+  minRank?: number;
+  // True if the tool writes/changes data — used to filter tools out in a
+  // workspace's read-only agent mode.
+  mutates?: boolean;
   // Handlers are workspace-scoped via ctx and return JSON-serializable data.
   handler: (args: Record<string, unknown>, ctx: AgentContext) => Promise<unknown>;
 };
@@ -46,6 +56,7 @@ export const READ_TOOLS: AgentTool[] = [
     description:
       "Giving totals for this workspace: amount and count this month, last month, and a breakdown by giving type.",
     parameters: NO_PARAMS,
+    minRank: 3, // finance and above
     handler: async (_args, ctx) => {
       const g = await getGivingSummary(ctx.workspaceId);
       return {
@@ -60,6 +71,7 @@ export const READ_TOOLS: AgentTool[] = [
     name: "get_pending_requests",
     description: "Requests and approvals currently pending in this workspace.",
     parameters: NO_PARAMS,
+    minRank: 2, // secretary/operations and above
     handler: async (_args, ctx) => {
       const c = await loadWorkspaceContext(ctx.workspaceId);
       return { count: c.pendingRequests.length, requests: c.pendingRequests };
@@ -69,6 +81,7 @@ export const READ_TOOLS: AgentTool[] = [
     name: "get_low_stock",
     description: "Inventory items at or below their minimum stock level.",
     parameters: NO_PARAMS,
+    minRank: 2,
     handler: async (_args, ctx) => {
       const c = await loadWorkspaceContext(ctx.workspaceId);
       return { count: c.lowInventoryItems.length, items: c.lowInventoryItems };
@@ -78,6 +91,7 @@ export const READ_TOOLS: AgentTool[] = [
     name: "get_open_issues",
     description: "Open facility and issue reports in this workspace.",
     parameters: NO_PARAMS,
+    minRank: 2,
     handler: async (_args, ctx) => {
       const c = await loadWorkspaceContext(ctx.workspaceId);
       return { count: c.pendingIssues.length, issues: c.pendingIssues };
@@ -87,6 +101,7 @@ export const READ_TOOLS: AgentTool[] = [
     name: "list_members",
     description: "People who belong to this branch and their roles.",
     parameters: NO_PARAMS,
+    minRank: 2, // roster is leadership-only
     handler: async (_args, ctx) => {
       const members = await listBranchMembers(ctx.workspaceId);
       return { count: members.length, members };
