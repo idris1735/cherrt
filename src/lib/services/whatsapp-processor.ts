@@ -36,9 +36,10 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
-import { runAgentQuery, getAgentTool } from "@/lib/services/agent/runtime";
+import { runAgentQuery, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
+import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
   isSignupTrigger,
@@ -597,12 +598,19 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
 
 // ─── Voice & Receipt ──────────────────────────────────────────────────────────
 
-async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
+async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string): Promise<void> {
   let buffer: Buffer; let mimeType: string;
   try { ({ buffer, mimeType } = await downloadMedia(mediaId)); }
   catch { await sendTextMessage(from, "Could not download that voice note. Please type your request."); return; }
   const transcript = await transcribeVoiceNote(buffer, mimeType);
   if (!transcript) { await sendTextMessage(from, "Could not make out that voice note. Please try again or type your message."); return; }
+
+  // Linked users: hand the transcript to the agent (its history capture covers
+  // the message). Falls through to the creator when the agent is unavailable.
+  if (link) {
+    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId))) return;
+  }
+
   const display = transcript.length > 120 ? transcript.slice(0, 120) + "..." : transcript;
   await addToHistory(from, "user", "[Voice] " + display);
   const freshSession = await getSession(from);
@@ -664,6 +672,30 @@ async function resolveActiveLinks(
 
   const allLinks = await lookupAllPhoneLinks(from);
   return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId), personId: undefined };
+}
+
+function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContext {
+  return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
+}
+
+// Runs the agent and handles its outcome (text answer or a pending confirmation
+// proposal). Returns true if it handled the message, false to fall through to
+// the single-shot creator. Optional media makes it multimodal.
+async function dispatchToAgent(from: string, prompt: string, ctx: AgentContext, media?: MediaPart[]): Promise<boolean> {
+  const outcome = await runAgentQuery(prompt, ctx, media);
+  if (!outcome) return false;
+  if (outcome.kind === "pending") {
+    await updateSession(from, { pendingAgentAction: { toolName: outcome.toolName, args: outcome.args } });
+    await sendTextMessage(from, `${outcome.preview}\n\nReply *YES* to confirm or *NO* to cancel.`);
+    return true;
+  }
+  if (outcome.text.trim()) {
+    await addToHistory(from, "user", prompt);
+    await addToHistory(from, "assistant", outcome.text);
+    await sendTextMessage(from, outcome.text);
+    return true;
+  }
+  return false;
 }
 
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
@@ -976,28 +1008,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Gemini key) or produces no answer; media (image/voice/doc) still goes to
   // the creator below until the agent gets multimodal tools.
   if (trimmed && link) {
-    const outcome = await runAgentQuery(trimmed, {
-      workspaceId: link.workspaceId,
-      role: link.userRole as Role,
-      userName: link.userName,
-      phone: from,
-      personId,
-    });
-    if (outcome?.kind === "pending") {
-      await updateSession(from, { pendingAgentAction: { toolName: outcome.toolName, args: outcome.args } });
-      await sendTextMessage(from, `${outcome.preview}\n\nReply *YES* to confirm or *NO* to cancel.`);
-      return;
-    }
-    if (outcome?.kind === "text" && outcome.text.trim()) {
-      await addToHistory(from, "user", trimmed);
-      await addToHistory(from, "assistant", outcome.text);
-      await sendTextMessage(from, outcome.text);
-      return;
-    }
+    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
   }
 
   if (type === "audio") {
-    if (message.mediaId) { await handleVoiceNote(from, message.mediaId, session, link); }
+    if (message.mediaId) { await handleVoiceNote(from, message.mediaId, session, link, personId); }
     else { await sendTextMessage(from, "Could not download that voice note. Please type your request."); }
     return;
   }
@@ -1009,6 +1024,16 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let buffer: Buffer; let mimeType: string;
     try { ({ buffer, mimeType } = await downloadMedia(message.mediaId)); }
     catch { await sendTextMessage(from, "Could not download that image. Please try again."); return; }
+
+    // Linked users: the multimodal agent sees the photo and acts (e.g. a
+    // receipt → log_expense, if they have permission).
+    if (link) {
+      const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
+      const agentPrompt = trimmed || "I've sent a photo — please help with it. If it's a receipt or bill, read the merchant and amount.";
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
+    }
+
+    // Guest / no-Gemini fallback: receipt OCR auto-log, then the creator.
     const receipt = await extractReceiptInfo(buffer, mimeType);
     if (receipt) { await handleReceiptImage(from, receipt, session, link); return; }
     const mediaAttachment = { mimeType, data: buffer.toString("base64") };
@@ -1027,6 +1052,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let buffer: Buffer; let mimeType: string;
     try { ({ buffer, mimeType } = await downloadMedia(message.mediaId)); }
     catch { await sendTextMessage(from, "Could not download that file. Please try again."); return; }
+
+    if (link) {
+      const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
+      const agentPrompt = trimmed || "I've sent a document — please help me with it.";
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
+    }
+
     const mediaAttachment = { mimeType, data: buffer.toString("base64") };
     const prompt = trimmed || "[document attachment]";
     await addToHistory(from, "user", prompt);

@@ -234,6 +234,22 @@ describe("runAgentLoop", () => {
     expect(JSON.stringify(calls[1])).toMatch(/permission/i);
   });
 
+  it("attaches media to the first turn so the model can see/hear it", async () => {
+    const { fn, calls } = scriptedGenerate([{ text: "I can see the receipt." }]);
+    await runAgentLoop({
+      generate: fn,
+      tools: [],
+      ctx,
+      systemPrompt: "s",
+      userPrompt: "what's this?",
+      media: [{ mimeType: "image/jpeg", data: "BASE64IMG" }],
+    });
+    const firstTurn = JSON.stringify(calls[0]);
+    expect(firstTurn).toContain("inlineData");
+    expect(firstTurn).toContain("image/jpeg");
+    expect(firstTurn).toContain("BASE64IMG");
+  });
+
   it("stops at the step cap instead of looping forever", async () => {
     // Always asks for a tool, never answers in text.
     const alwaysCalls: GenerateResult = { functionCalls: [{ name: "t", args: {} }] };

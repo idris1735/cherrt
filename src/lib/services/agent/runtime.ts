@@ -82,21 +82,26 @@ export function looksLikeAgentAction(text: string): boolean {
   return SAFE_ACTION_RE.test(t) || CHURCH_ACTION_RE.test(t);
 }
 
+export type MediaPart = { mimeType: string; data: string };
+
 export async function runAgentLoop(opts: {
   generate: GenerateFn;
   tools: AgentTool[];
   ctx: AgentContext;
   systemPrompt: string;
   userPrompt: string;
+  media?: MediaPart[];
   maxSteps?: number;
 }): Promise<AgentOutcome> {
-  const { generate, tools, ctx, systemPrompt, userPrompt } = opts;
+  const { generate, tools, ctx, systemPrompt, userPrompt, media } = opts;
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
   const byName = new Map(tools.map((t) => [t.name, t]));
 
-  const contents: unknown[] = [
-    { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
-  ];
+  // First turn carries the prompt plus any attached media (image/voice/doc), so
+  // the model can see/hear it and call tools accordingly.
+  const firstParts: unknown[] = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
+  for (const m of media ?? []) firstParts.push({ inlineData: { mimeType: m.mimeType, data: m.data } });
+  const contents: unknown[] = [{ role: "user", parts: firstParts }];
 
   for (let step = 0; step < maxSteps; step++) {
     const result = await generate(contents);
@@ -196,8 +201,13 @@ async function getWorkspaceAgentMode(workspaceId: string): Promise<"full" | "rea
 }
 
 // Production entry: builds the real Gemini `generate` and runs the tool loop.
-// Returns null when Gemini isn't configured (caller falls back to the creator).
-export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Promise<AgentOutcome | null> {
+// Optional media (image/voice/doc) is attached to the first turn so the agent
+// is multimodal. Returns null when Gemini isn't configured (caller falls back).
+export async function runAgentQuery(
+  userPrompt: string,
+  ctx: AgentContext,
+  media?: MediaPart[],
+): Promise<AgentOutcome | null> {
   const client = getGeminiClient();
   if (!client) return null;
 
@@ -240,5 +250,5 @@ export async function runAgentQuery(userPrompt: string, ctx: AgentContext): Prom
   const memory = await buildMemberContext(ctx).catch(() => "");
   const systemPrompt = AGENT_SYSTEM_PROMPT + memory;
 
-  return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt });
+  return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt, media });
 }

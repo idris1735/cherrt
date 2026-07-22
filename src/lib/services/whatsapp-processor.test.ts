@@ -391,6 +391,23 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).toHaveBeenCalledOnce();
   });
 
+  it("routes a linked member's image to the multimodal agent (with media)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "finance" },
+    ]);
+    mockDownload.mockResolvedValueOnce({ buffer: Buffer.from("imgbytes"), mimeType: "image/jpeg" });
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "🧾 Logged ₦15,000 for diesel." });
+
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "image", mediaId: "m1" });
+
+    expect(runAgentQuery).toHaveBeenCalledOnce();
+    const media = vi.mocked(runAgentQuery).mock.calls[0][2];
+    expect(media?.[0]).toMatchObject({ mimeType: "image/jpeg" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "🧾 Logged ₦15,000 for diesel.");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
   it("routes ANY linked-member free text to the agent (not just matched phrasings)", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
