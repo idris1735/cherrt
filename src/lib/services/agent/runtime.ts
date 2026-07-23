@@ -16,6 +16,7 @@ import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
 import { JOURNEY_TOOLS } from "@/lib/services/agent/journey-tools";
 import { ANNOUNCEMENT_TOOLS } from "@/lib/services/agent/announcement-tools";
 import { PAYMENT_TOOLS } from "@/lib/services/agent/payment-tools";
+import { SUNDAY_TOOLS } from "@/lib/services/agent/sunday-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
 import { composeSystemPrompt, GUEST_PERSONA } from "@/lib/services/agent/persona";
@@ -32,6 +33,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...JOURNEY_TOOLS,
   ...ANNOUNCEMENT_TOOLS,
   ...PAYMENT_TOOLS,
+  ...SUNDAY_TOOLS,
   ...SETTINGS_TOOLS,
 ];
 

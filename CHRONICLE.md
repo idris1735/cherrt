@@ -75,6 +75,15 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
 
+### Sunday Operations pack — attendance, service summary, department roll-up (2026-07-23)
+Closes the ChurchBase gaps in the "Sunday Operations" + "Church Intelligence" pillars (scenarios 1, 2, 24) that a client overview flagged. New tables `services` / `service_reports` / `service_attendance` (migration `20260730`, applied). Tools in `src/lib/services/agent/sunday-tools.ts`:
+- `record_service_summary` (secretary/pastor, minRank 2) — attendance (adults+children), first-timers, salvations, preacher, topic, start/end times, offering, notes; find-or-creates the day's service and fills whatever's mentioned (call again to add more).
+- `mark_attendance` (member self-service) — "I'm here" → per-member attendance for today's service (dedup'd).
+- `submit_service_report` (dept_leader+, minRank 1) — department heads file their counts, rolling up to the pastor.
+- `get_service_summary` (leaders, minRank 2) — the full roll-up: summary + department reports (totalled) + real children-checked-in count (pulled live from `child_checkins`) + self-check-ins.
+- `list_recent_services` (leaders) — recent headline numbers for trends.
+All role-gated + audited like the rest. 303 tests pass (10 new). **Decision noted:** kept the one-shared-number model (not per-church WhatsApp numbers) — switching would mean per-church Meta setup + webhook routing, a big lift for little gain; revisit as a premium option later.
+
 ### FIX: guests were meeting the OLD SME bot (2026-07-23)
 A real WhatsApp transcript exposed that anyone messaging the number as a **guest** (not linked to a church) got the *old single-shot creator* with its stale SME voice — "I help organizations with administrative/financial/operational tasks", listing "modules" (Documents, Finance, Operations, Store…), suggesting "log an expense / draft a letter", pushing the web sign-in. The new church Chertt (persona + tools) only ever ran for *linked members*, so the first thing every stranger saw was the wrong bot. Fixed:
 - **Guest agent** (`runGuestAgent` + `GUEST_PERSONA`, tool-less): the church-focused Chertt voice that warmly explains what she is and guides onboarding — "reply *set up my church*" or "send your church's code". Explicitly forbids the SME framing/modules/web-signup. Guest free-text now routes here (creator only as a no-Gemini fallback).
