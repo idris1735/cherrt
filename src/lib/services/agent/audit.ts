@@ -16,7 +16,7 @@ export async function recordToolAudit(
   outcome: ToolOutcome,
 ): Promise<void> {
   const db = getSupabaseServerClient();
-  if (!db) return;
+  if (!db || !ctx.workspaceId) return; // guest / workspace-less calls aren't audited
   try {
     await db.from("agent_tool_audit").insert({
       id: randomUUID(),

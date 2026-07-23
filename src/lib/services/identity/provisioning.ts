@@ -140,6 +140,55 @@ export async function listWorkspaceMemberPhones(workspaceId: string): Promise<st
   return Array.from(new Set((contacts ?? []).map((c) => (c as { phone_number: string }).phone_number)));
 }
 
+// Number migration: move a person's identity to a new phone. Retires their
+// current active contact(s), attaches the new number as active, and resyncs the
+// legacy phone_links. Refuses if the new number is already active for someone
+// else (no hijack). Everything keyed to person_id (memberships, roles, giving,
+// history) is untouched — it just becomes reachable from the new number.
+export async function migratePersonPhone(personId: string, newPhoneRaw: string): Promise<boolean> {
+  const db = getSupabaseServerClient();
+  if (!db) return false;
+  const newPhone = normalizePhoneNumber(newPhoneRaw) ?? newPhoneRaw;
+
+  const { data: existing } = await db
+    .from("phone_contacts")
+    .select("person_id")
+    .eq("phone_number", newPhone)
+    .eq("status", "active")
+    .maybeSingle();
+  if (existing && (existing as { person_id?: string }).person_id !== personId) return false;
+
+  const { data: oldContacts } = await db
+    .from("phone_contacts")
+    .select("phone_number")
+    .eq("person_id", personId)
+    .eq("status", "active");
+  const oldPhones = ((oldContacts ?? []) as Array<{ phone_number: string }>)
+    .map((c) => c.phone_number)
+    .filter((p) => p && p !== newPhone);
+
+  await db.from("phone_contacts").update({ status: "retired" }).eq("person_id", personId).eq("status", "active");
+  await db.from("phone_contacts").insert({ phone_number: newPhone, person_id: personId, status: "active", verified_at: new Date().toISOString() });
+
+  // Resync legacy phone_links: drop the old-number links, add new-number links.
+  for (const op of oldPhones) await db.from("whatsapp_phone_links").delete().eq("phone_number", op);
+  const { data: person } = await db.from("people").select("full_name").eq("id", personId).maybeSingle();
+  const name = (person as { full_name?: string } | null)?.full_name ?? "";
+  const { data: mems } = await db
+    .from("branch_memberships")
+    .select("workspace_id, role, workspaces(slug, name)")
+    .eq("person_id", personId)
+    .eq("status", "active");
+  for (const m of (mems ?? []) as Array<{ workspace_id: string; role: string; workspaces?: { slug?: string; name?: string } | { slug?: string; name?: string }[] }>) {
+    const ws = Array.isArray(m.workspaces) ? m.workspaces[0] : m.workspaces;
+    await db.from("whatsapp_phone_links").upsert(
+      { phone_number: newPhone, workspace_id: m.workspace_id, workspace_slug: ws?.slug ?? "", workspace_name: ws?.name ?? "", user_name: name, user_role: m.role },
+      { onConflict: "phone_number,workspace_id" },
+    );
+  }
+  return true;
+}
+
 export type BranchMemberRow = { personId: string; fullName: string; role: string };
 
 // Active members of a branch, for the assign-role picker.

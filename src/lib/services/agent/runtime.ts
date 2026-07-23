@@ -21,6 +21,7 @@ import { BIRTHDAY_TOOLS } from "@/lib/services/agent/birthday-tools";
 import { VOLUNTEER_TOOLS } from "@/lib/services/agent/volunteer-tools";
 import { HELPDESK_TOOLS } from "@/lib/services/agent/helpdesk-tools";
 import { FAQ_TOOLS } from "@/lib/services/agent/faq-tools";
+import { ADMIN_MIGRATION_TOOLS, GUEST_MIGRATION_TOOLS } from "@/lib/services/agent/migration-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
 import { composeSystemPrompt, GUEST_PERSONA } from "@/lib/services/agent/persona";
@@ -42,6 +43,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...VOLUNTEER_TOOLS,
   ...HELPDESK_TOOLS,
   ...FAQ_TOOLS,
+  ...ADMIN_MIGRATION_TOOLS,
   ...SETTINGS_TOOLS,
 ];
 
@@ -262,23 +264,29 @@ export async function runAgentQuery(
 // tools — a warm intro that guides the person into onboarding. Returns null
 // when Gemini isn't configured (caller falls back). This replaces the old
 // SME/demo bot as the first thing a stranger meets on the number.
-export async function runGuestAgent(userPrompt: string, media?: MediaPart[]): Promise<string | null> {
+export async function runGuestAgent(userPrompt: string, media?: MediaPart[], phone?: string): Promise<string | null> {
   const client = getGeminiClient();
   if (!client) return null;
+
+  // The guest agent has exactly one tool: filing a number-migration request, so
+  // a member who changed numbers can start reconnecting.
+  const tools = GUEST_MIGRATION_TOOLS;
+  const functionDeclarations = tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
 
   const generate: GenerateFn = async (contents) => {
     const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: contents as never,
-      config: { temperature: 0.6, maxOutputTokens: 400 },
+      config: { tools: [{ functionDeclarations: functionDeclarations as never }], temperature: 0.6, maxOutputTokens: 400 },
     });
-    return { text: response.text ?? undefined };
+    const calls = (response.functionCalls ?? []).map((fc) => ({ name: fc.name ?? "", args: (fc.args ?? {}) as Record<string, unknown> }));
+    return { functionCalls: calls.length ? calls : undefined, text: response.text ?? undefined };
   };
 
   const outcome = await runAgentLoop({
     generate,
-    tools: [],
-    ctx: { workspaceId: "", role: "member" },
+    tools,
+    ctx: { workspaceId: "", role: "member", phone },
     systemPrompt: GUEST_PERSONA,
     userPrompt,
     media,

@@ -1055,7 +1055,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     // Unlinked / guest: meet the real Chertt — a warm church-focused intro that
     // guides them into onboarding, not the old SME/demo bot.
     if (!link) {
-      const guestReply = await runGuestAgent(trimmed);
+      const guestReply = await runGuestAgent(trimmed, undefined, from);
       if (guestReply) {
         await addToHistory(from, "user", trimmed);
         await addToHistory(from, "assistant", guestReply);
