@@ -17,6 +17,10 @@ import { JOURNEY_TOOLS } from "@/lib/services/agent/journey-tools";
 import { ANNOUNCEMENT_TOOLS } from "@/lib/services/agent/announcement-tools";
 import { PAYMENT_TOOLS } from "@/lib/services/agent/payment-tools";
 import { SUNDAY_TOOLS } from "@/lib/services/agent/sunday-tools";
+import { BIRTHDAY_TOOLS } from "@/lib/services/agent/birthday-tools";
+import { VOLUNTEER_TOOLS } from "@/lib/services/agent/volunteer-tools";
+import { HELPDESK_TOOLS } from "@/lib/services/agent/helpdesk-tools";
+import { FAQ_TOOLS } from "@/lib/services/agent/faq-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
 import { composeSystemPrompt, GUEST_PERSONA } from "@/lib/services/agent/persona";
@@ -34,6 +38,10 @@ const AGENT_TOOLS: AgentTool[] = [
   ...ANNOUNCEMENT_TOOLS,
   ...PAYMENT_TOOLS,
   ...SUNDAY_TOOLS,
+  ...BIRTHDAY_TOOLS,
+  ...VOLUNTEER_TOOLS,
+  ...HELPDESK_TOOLS,
+  ...FAQ_TOOLS,
   ...SETTINGS_TOOLS,
 ];
 

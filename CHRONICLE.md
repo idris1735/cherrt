@@ -75,6 +75,14 @@ New tables `event_registrations` + `department_memberships` (migration `20260725
 ### Life-journey intakes DONE (agent-native, 2026-07-21)
 New table `life_journeys` (flexible jsonb `details`, migration `20260726`, applied). Tools in `src/lib/services/agent/journey-tools.ts`: `start_bereavement_support`, `register_marriage_prep`, `register_baptism`, `enroll_discipleship`, `list_life_journeys` (pastor follow-up view). Routed via bereavement/marriage/baptism/convert additions to `CHURCH_ACTION_RE`. The daily discipleship *content delivery* still needs a scheduler/cron — enrolment/intake works now. 233 tests pass.
 
+### Remaining ChurchBase scenarios pack (2026-07-23)
+Closes the last scenario gaps from the client overview. Migration `20260731` (applied) adds `people.birth_day/birth_month`, `volunteer_needs`, `volunteer_signups`, `lost_found_items`, `office_guests`. Tools:
+- **Birthdays** (`birthday-tools.ts`): `set_birthday` (member), `list_birthdays` (leaders, today/week/month) + cron `sendBirthdayGreetings` (daily greeting to today's celebrants via their person→phone_contacts).
+- **Volunteer scheduling** (`volunteer-tools.ts`): `request_volunteers` (dept lead), `list_volunteer_needs` + `volunteer_signup` (members), `get_volunteer_roster` (leaders). Broadcast reuses announcements.
+- **Front desk** (`helpdesk-tools.ts`): `report_lost_or_found` + `list_lost_found` (members); office guest sign-in — `register_office_guest` (returns a 6-digit code), `sign_out_office_guest`, `list_office_guests` (secretary/reception).
+- **FAQ** (`faq-tools.ts`, reuses `toolkit_knowledge_articles`): `add_faq` (admins teach church facts), `get_faq` (agent looks up before guessing a church-specific fact; topic sanitized before the PostgREST or-filter).
+All role-gated + audited. 321 tests pass (18 new). **ChurchBase scenario coverage is now complete** — every one of the 24 in the client overview is built (crisis escalation & pastoral visits handled via existing pastoral-care/crisis paths).
+
 ### Sunday Operations pack — attendance, service summary, department roll-up (2026-07-23)
 Closes the ChurchBase gaps in the "Sunday Operations" + "Church Intelligence" pillars (scenarios 1, 2, 24) that a client overview flagged. New tables `services` / `service_reports` / `service_attendance` (migration `20260730`, applied). Tools in `src/lib/services/agent/sunday-tools.ts`:
 - `record_service_summary` (secretary/pastor, minRank 2) — attendance (adults+children), first-timers, salvations, preacher, topic, start/end times, offering, notes; find-or-creates the day's service and fills whatever's mentioned (call again to add more).

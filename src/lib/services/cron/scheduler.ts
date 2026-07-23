@@ -65,10 +65,41 @@ export async function deliverDiscipleshipDay(): Promise<JobResult> {
   return { job: "discipleship-daily", processed, sent };
 }
 
-// Add further daily jobs here (event reminders, birthday greetings, missed-
-// Sunday follow-ups) as their data/consent prerequisites are met.
+// Greets everyone whose birthday is today. Resolves each celebrant's active
+// phone via their person → phone_contacts, then sends a warm message.
+export async function sendBirthdayGreetings(): Promise<JobResult> {
+  const db = getSupabaseServerClient();
+  if (!db) return { job: "birthday-greetings", processed: 0, sent: 0 };
+  const now = new Date();
+  const { data: people } = await db
+    .from("people")
+    .select("id, full_name")
+    .eq("birth_day", now.getDate())
+    .eq("birth_month", now.getMonth() + 1)
+    .limit(500);
+
+  let processed = 0;
+  let sent = 0;
+  for (const p of (people ?? []) as Array<{ id: string; full_name?: string }>) {
+    processed++;
+    const { data: contact } = await db
+      .from("phone_contacts")
+      .select("phone_number")
+      .eq("person_id", p.id)
+      .eq("status", "active")
+      .maybeSingle();
+    const phone = (contact as { phone_number?: string } | null)?.phone_number;
+    if (!phone) continue;
+    const first = (p.full_name ?? "").split(" ")[0] || "friend";
+    if (await notifyMember(phone, `🎉 Happy Birthday, ${first}! 🎂 The whole church family is celebrating you today. May this new year overflow with God's goodness. 🙏`)) sent++;
+  }
+  return { job: "birthday-greetings", processed, sent };
+}
+
+// Add further daily jobs here (event reminders, missed-Sunday follow-ups) as
+// their data/consent prerequisites are met.
 export async function runScheduledJobs(): Promise<JobResult[]> {
-  const jobs = [deliverDiscipleshipDay];
+  const jobs = [deliverDiscipleshipDay, sendBirthdayGreetings];
   const results: JobResult[] = [];
   for (const job of jobs) {
     try {
