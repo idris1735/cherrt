@@ -36,7 +36,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
-import { runAgentQuery, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
+import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import type { AgentContext } from "@/lib/services/agent/tools";
@@ -210,47 +210,27 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 // ─── Welcome Messages ────────────────────────────────────────────────────────
 
-function buildGuestWelcome(demoBalance: number): string {
+function buildGuestWelcome(): string {
   return [
-    "*Welcome to Chertt!*",
+    "👋 Hi, I'm *Chertt* — I help churches run everything right here on WhatsApp: giving, prayer, first-timers, kids' check-in, events, pastoral care and more.",
     "",
-    "You are connected as a *Guest* — try all features with a demo account.",
+    "You're not connected to a church yet. To get going:",
     "",
-    "*Your demo includes:*",
-    "• Demo balance: *" + fmt(demoBalance) + "*",
-    "• AI that thinks like an ops lead, finance desk, and executive assistant",
-    "• Full access to all Chertt features",
+    "⛪ *Lead or help run a church?* Reply *set up my church*.",
+    "🙌 *Been given a code by your church?* Just send it here.",
     "",
-    "*Try saying:*",
-    '_"Draft a payment request for ₦50,000 for office supplies"_',
-    '_"Log an expense of ₦15,000 for transportation"_',
-    '_"Report a broken AC in the conference room"_',
-    '_"What can Chertt do?"_',
-    "",
-    "Ready for your own workspace? Sign up: " + APP_URL + "/auth/sign-in",
-    "",
-    "Go ahead — send your first request! 🚀",
+    "Or ask me anything — happy to explain. 🙂",
   ].join("\n");
 }
 
 function buildWorkspaceWelcome(link: PhoneLink): string {
-  const roleLabel = link.userRole === "owner" || link.userRole === "admin" ? "Admin" : "Team member";
+  const name = link.userName ? link.userName : "there";
   return [
-    "*Welcome back, " + link.userName + "!*",
+    "Welcome back, " + name + "! 🙏",
     "",
-    "You are connected to *" + link.workspaceName + "* as " + roleLabel + ".",
+    "You're connected to *" + link.workspaceName + "*.",
     "",
-    "Everything you do here is real — expenses, requests, and documents go straight into your workspace.",
-    "",
-    "*What you can do:*",
-    "• Raise and approve requests",
-    "• Log expenses (send a receipt photo to auto-log)",
-    "• Draft letters, memos, and invoices",
-    "• Report facility issues",
-    "• Check inventory and the staff directory",
-    "• Send a voice note — Chertt will understand it",
-    "",
-    "Type *status* anytime to see what is pending.",
+    "Just tell me what you need — give, ask for prayer, register for something, check a child in, or ask a question. You can type or send a voice note. I've got you.",
   ].join("\n");
 }
 
@@ -710,7 +690,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
-    await sendTextMessage(from, link ? buildWorkspaceWelcome(link) : buildGuestWelcome(session.demoBalance));
+    await sendTextMessage(from, link ? buildWorkspaceWelcome(link) : buildGuestWelcome());
     if (shouldStopAfterWelcome(message, trimmed)) return;
   }
 
@@ -1072,6 +1052,18 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   if (trimmed) {
+    // Unlinked / guest: meet the real Chertt — a warm church-focused intro that
+    // guides them into onboarding, not the old SME/demo bot.
+    if (!link) {
+      const guestReply = await runGuestAgent(trimmed);
+      if (guestReply) {
+        await addToHistory(from, "user", trimmed);
+        await addToHistory(from, "assistant", guestReply);
+        await sendTextMessage(from, guestReply);
+        return;
+      }
+    }
+    // Fallback (no Gemini, or a linked user the agent couldn't serve).
     await addToHistory(from, "user", trimmed);
     const freshSession = await getSession(from);
     let context: CommandExecutionContext;

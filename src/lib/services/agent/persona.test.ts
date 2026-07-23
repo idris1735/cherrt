@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AGENT_PERSONA, composeSystemPrompt } from "@/lib/services/agent/persona";
+import { AGENT_PERSONA, GUEST_PERSONA, composeSystemPrompt } from "@/lib/services/agent/persona";
 
 // The persona carries safety-critical behaviour, not just tone. These lock in
 // the non-negotiables so a future voice tweak can't silently drop them.
@@ -29,6 +29,17 @@ describe("AGENT_PERSONA", () => {
   it("keeps the confirmation rule and stays non-preachy", () => {
     expect(AGENT_PERSONA).toMatch(/confirm before/i);
     expect(AGENT_PERSONA).toMatch(/never preachy|holier-than-thou/i);
+  });
+});
+
+describe("GUEST_PERSONA", () => {
+  it("is church-focused and guides onboarding — never the old SME framing", () => {
+    expect(GUEST_PERSONA).toMatch(/Chertt/);
+    expect(GUEST_PERSONA).toMatch(/church/i);
+    expect(GUEST_PERSONA).toMatch(/set up my church/i);
+    // it explicitly forbids the old SME framing (so the words appear in a
+    // "never mention" instruction — that's intended, not a leak)
+    expect(GUEST_PERSONA).toMatch(/never mention[^.]*module/i);
   });
 });
 

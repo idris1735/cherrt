@@ -18,7 +18,7 @@ import { ANNOUNCEMENT_TOOLS } from "@/lib/services/agent/announcement-tools";
 import { PAYMENT_TOOLS } from "@/lib/services/agent/payment-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
-import { composeSystemPrompt } from "@/lib/services/agent/persona";
+import { composeSystemPrompt, GUEST_PERSONA } from "@/lib/services/agent/persona";
 
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
@@ -246,4 +246,32 @@ export async function runAgentQuery(
   const systemPrompt = composeSystemPrompt(churchPersona, memory);
 
   return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt, media });
+}
+
+// The unlinked / guest experience: the church-focused Chertt voice with NO
+// tools — a warm intro that guides the person into onboarding. Returns null
+// when Gemini isn't configured (caller falls back). This replaces the old
+// SME/demo bot as the first thing a stranger meets on the number.
+export async function runGuestAgent(userPrompt: string, media?: MediaPart[]): Promise<string | null> {
+  const client = getGeminiClient();
+  if (!client) return null;
+
+  const generate: GenerateFn = async (contents) => {
+    const response = await client.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: contents as never,
+      config: { temperature: 0.6, maxOutputTokens: 400 },
+    });
+    return { text: response.text ?? undefined };
+  };
+
+  const outcome = await runAgentLoop({
+    generate,
+    tools: [],
+    ctx: { workspaceId: "", role: "member" },
+    systemPrompt: GUEST_PERSONA,
+    userPrompt,
+    media,
+  });
+  return outcome.kind === "text" ? outcome.text || null : null;
 }

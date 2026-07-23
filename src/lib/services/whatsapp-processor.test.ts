@@ -16,7 +16,7 @@ vi.mock("@/lib/services/ai-service", () => ({
 // matching how it behaves in tests without a Gemini key.
 vi.mock("@/lib/services/agent/runtime", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/agent/runtime")>();
-  return { ...actual, runAgentQuery: vi.fn().mockResolvedValue(null) };
+  return { ...actual, runAgentQuery: vi.fn().mockResolvedValue(null), runGuestAgent: vi.fn().mockResolvedValue(null) };
 });
 
 vi.mock("@/lib/services/whatsapp-templates", () => ({
@@ -50,7 +50,7 @@ import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
 import { downloadMedia, sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
-import { runAgentQuery } from "@/lib/services/agent/runtime";
+import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -77,9 +77,8 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockSend).toHaveBeenCalledOnce();
     const [, welcomeText] = mockSend.mock.calls[0] as [string, string];
-    expect(welcomeText).toContain("Welcome to Chertt");
-    expect(welcomeText).toContain("500,000");
-    expect(welcomeText).toContain("auth/sign-in");
+    expect(welcomeText).toContain("Chertt");
+    expect(welcomeText).toContain("set up my church");
   });
 
   it("does not discard a real command sent as the first message", async () => {
@@ -87,7 +86,7 @@ describe("processWhatsAppMessage", () => {
 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request ₦85,000 for diesel" });
 
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Welcome to Chertt"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("set up my church"));
     expect(mockRun).toHaveBeenCalledWith(
       "Request ₦85,000 for diesel",
       expect.objectContaining({ role: "owner" }),
@@ -389,6 +388,16 @@ describe("processWhatsAppMessage", () => {
 
     expect(runAgentQuery).toHaveBeenCalledOnce();
     expect(mockRun).toHaveBeenCalledOnce();
+  });
+
+  it("greets an unlinked guest as the church-focused Chertt, not the old bot", async () => {
+    // no phone link → guest
+    vi.mocked(runGuestAgent).mockResolvedValueOnce("Hi! I'm Chertt — I help churches run things on WhatsApp. Reply 'set up my church' to begin.");
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "what is this about" });
+    expect(runGuestAgent).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("set up my church"));
+    expect(mockRun).not.toHaveBeenCalled(); // old creator not used for guests anymore
   });
 
   it("routes a linked member's image to the multimodal agent (with media)", async () => {
