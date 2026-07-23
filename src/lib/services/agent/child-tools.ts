@@ -107,7 +107,7 @@ export const CHILD_TOOLS: AgentTool[] = [
     parameters: {
       type: "object",
       properties: {
-        pickupCode: { type: "string", description: "The 4-digit pickup code" },
+        pickupCode: { type: "string", description: "The 6-digit pickup code" },
         pickedUpBy: { type: "string", description: "Who is collecting the child (optional)" },
       },
       required: ["pickupCode"],

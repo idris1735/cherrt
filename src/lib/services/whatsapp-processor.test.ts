@@ -131,23 +131,23 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockButtons).toHaveBeenCalledWith(
       PHONE,
-      expect.stringContaining("simple menu"),
+      expect.stringContaining("help with"),
       expect.arrayContaining([
-        expect.objectContaining({ id: "help_request" }),
-        expect.objectContaining({ id: "help_expense" }),
-        expect.objectContaining({ id: "help_issue" }),
+        expect.objectContaining({ id: "help_give" }),
+        expect.objectContaining({ id: "help_prayer" }),
+        expect.objectContaining({ id: "help_checkin" }),
       ]),
-      "Chertt menu",
+      "How can I help?",
     );
   });
 
   it("handles help starter buttons without calling AI", async () => {
     await skipWelcome();
 
-    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_request" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_give" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Request format"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Giving"));
   });
 
   it("demo context is included in AI call", async () => {

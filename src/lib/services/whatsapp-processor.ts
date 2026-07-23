@@ -96,18 +96,18 @@ function shouldStopAfterWelcome(message: IncomingMessage, text: string) {
 function buildHelpText(link: PhoneLink | null, session: WhatsAppSession): string {
   const name = link?.userName || session.userName;
   return [
-    name ? "*" + name + ", here is the simple menu.*" : "*Here is the simple menu.*",
+    name ? "*Hi " + name + "! Here's what I can help with.*" : "*Here's what I can help with.*",
     "",
-    "Just send a normal message. Chertt will turn it into the right workflow.",
+    "Just talk to me normally — type or send a voice note:",
     "",
-    "*Try any of these:*",
-    "1. *Request* - \"Request ₦85,000 for diesel\"",
-    "2. *Expense* - \"Log ₦15,000 transport expense\" or send a receipt photo",
-    "3. *Issue* - \"Report broken AC in reception\"",
-    "4. *Document* - \"Draft a letter to the landlord about rent\"",
-    "5. *Find info* - \"What is the process for office supplies?\"",
+    "🙏 *Give* — \"I want to give ₦5,000 tithe\"",
+    "🕊️ *Prayer* — \"Please pray for my mum, she's unwell\"",
+    "👋 *First time?* — \"I'm new here, my name is Ada\"",
+    "👶 *Kids* — \"Check in my daughter Amara, age 6\"",
+    "📅 *Belong* — \"What's on this week?\" · \"I'd like to join the choir\"",
+    "📋 *Leaders* — \"Record today's service\" · \"How much giving this month?\"",
     "",
-    "You can also send a voice note or photo. Type *status* to see pending work.",
+    "Ask me anything — I've got you. 🙂",
   ].join("\n");
 }
 
@@ -115,42 +115,41 @@ async function sendHelpMenu(from: string, session: WhatsAppSession, link: PhoneL
   const text = buildHelpText(link, session);
   try {
     await sendInteractiveButtons(from, text, [
-      { id: "help_request", title: "Request" },
-      { id: "help_expense", title: "Expense" },
-      { id: "help_issue", title: "Issue" },
-    ], "Chertt menu");
+      { id: "help_give", title: "Give" },
+      { id: "help_prayer", title: "Prayer" },
+      { id: "help_checkin", title: "Check in a child" },
+    ], "How can I help?");
   } catch {
     await sendTextMessage(from, text);
   }
-  await addToHistory(from, "assistant", "Sent simple WhatsApp help menu");
+  await addToHistory(from, "assistant", "Sent church help menu");
 }
 
 async function handleHelpButton(from: string, buttonId: string): Promise<boolean> {
   const guides: Record<string, string> = {
-    help_request: [
-      "*Request format*",
+    help_give: [
+      "*Giving* 🙏",
       "",
-      "Reply like this:",
-      "\"Request ₦85,000 for diesel because the generator is low\"",
+      "Just tell me the amount and type, e.g.:",
+      "\"I want to give ₦5,000 tithe\"",
       "",
-      "If you do not know the amount, say:",
-      "\"Request diesel for the generator\"",
+      "I'll send you a secure link to complete it, and record it once it's done.",
     ].join("\n"),
-    help_expense: [
-      "*Expense format*",
+    help_prayer: [
+      "*Prayer requests* 🕊️",
       "",
-      "Reply like this:",
-      "\"Log ₦15,000 transport expense for Admin\"",
+      "Tell me what to pray about, e.g.:",
+      "\"Please pray for my mother's health\"",
       "",
-      "Or just send a receipt photo and Chertt will read it.",
+      "Say it's anonymous if you'd rather not share your name.",
     ].join("\n"),
-    help_issue: [
-      "*Issue format*",
+    help_checkin: [
+      "*Children's check-in* 👶",
       "",
-      "Reply like this:",
-      "\"Report broken AC in reception, urgent\"",
+      "Tell me the child's details, e.g.:",
+      "\"Check in my son Timmy, age 5, allergic to peanuts\"",
       "",
-      "You can attach a photo or short video if it helps explain the problem.",
+      "You'll get a pickup code to show at collection.",
     ].join("\n"),
   };
   const guide = guides[buttonId];
@@ -309,22 +308,10 @@ function buildWorkspaceCtx(
 async function handleStatusCommand(from: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
   if (link) {
     const ctx = await loadWorkspaceContext(link.workspaceId);
-    const lines = ["*" + link.workspaceName + " — Your Status*", ""];
+    const lines = ["*" + link.workspaceName + " — at a glance*", ""];
     if (ctx.pendingRequests.length) {
-      lines.push("*Pending requests (" + ctx.pendingRequests.length + ")*");
-      for (const r of ctx.pendingRequests) {
-        lines.push("• " + r.title + (r.amount ? " — " + fmt(r.amount) : "") + " _(" + r.requester + ")_");
-      }
-      lines.push("");
-    } else { lines.push("No pending requests"); lines.push(""); }
-    if (ctx.recentExpenses.length) {
-      lines.push("*Recent expenses*");
-      for (const e of ctx.recentExpenses) lines.push("• " + e.title + " — " + fmt(e.amount));
-      lines.push("");
-    }
-    if (ctx.lowInventoryItems.length) {
-      lines.push("*Low inventory*");
-      for (const i of ctx.lowInventoryItems) lines.push("• " + i.name + " — " + i.inStock + " remaining");
+      lines.push("*Pending approvals (" + ctx.pendingRequests.length + ")*");
+      for (const r of ctx.pendingRequests) lines.push("• " + r.title + (r.amount ? " — " + fmt(r.amount) : ""));
       lines.push("");
     }
     if (ctx.pendingIssues.length) {
@@ -332,13 +319,14 @@ async function handleStatusCommand(from: string, session: WhatsAppSession, link:
       for (const i of ctx.pendingIssues) lines.push("• " + i.title + " [" + i.severity + "]");
       lines.push("");
     }
-    if (!ctx.pendingRequests.length && !ctx.recentExpenses.length && !ctx.pendingIssues.length) {
-      lines.push("Everything is clear — no pending items.");
+    if (!ctx.pendingRequests.length && !ctx.pendingIssues.length) {
+      lines.push("All clear — nothing pending right now. 🙌");
+      lines.push("");
     }
-    lines.push("_Type a command or ask anything_");
+    lines.push("Ask me anything — giving, prayer, first-timers, today's service, and more.");
     await sendTextMessage(from, lines.join("\n"));
   } else {
-    await sendTextMessage(from, ["*Your Demo Status*", "", "Demo balance: *" + fmt(session.demoBalance) + "*", "", "You are in guest mode. Sign up to connect a real workspace:", APP_URL + "/auth/sign-in"].join("\n"));
+    await sendTextMessage(from, "You're not connected to a church yet. Reply *set up my church* to begin, or send your church's code.");
   }
 }
 
