@@ -24,7 +24,7 @@ import { FAQ_TOOLS } from "@/lib/services/agent/faq-tools";
 import { ADMIN_MIGRATION_TOOLS, GUEST_MIGRATION_TOOLS } from "@/lib/services/agent/migration-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
-import { composeSystemPrompt, GUEST_PERSONA } from "@/lib/services/agent/persona";
+import { composeSystemPrompt, buildIdentityBlock, GUEST_PERSONA } from "@/lib/services/agent/persona";
 
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
@@ -198,13 +198,13 @@ function getGeminiClient(): GoogleGenAI | null {
 // personality flavour (agent_persona). One query.
 async function getWorkspaceAgentConfig(
   workspaceId: string,
-): Promise<{ mode: "full" | "readonly" | "off"; persona: string | null }> {
+): Promise<{ mode: "full" | "readonly" | "off"; persona: string | null; churchName: string | null }> {
   const db = getSupabaseServerClient();
-  if (!db) return { mode: "full", persona: null };
-  const { data } = await db.from("workspaces").select("agent_mode, agent_persona").eq("id", workspaceId).maybeSingle();
-  const row = data as { agent_mode?: string; agent_persona?: string | null } | null;
+  if (!db) return { mode: "full", persona: null, churchName: null };
+  const { data } = await db.from("workspaces").select("agent_mode, agent_persona, name").eq("id", workspaceId).maybeSingle();
+  const row = data as { agent_mode?: string; agent_persona?: string | null; name?: string | null } | null;
   const mode = row?.agent_mode === "readonly" || row?.agent_mode === "off" ? row.agent_mode : "full";
-  return { mode, persona: row?.agent_persona ?? null };
+  return { mode, persona: row?.agent_persona ?? null, churchName: row?.name ?? null };
 }
 
 // Production entry: builds the real Gemini `generate` and runs the tool loop.
@@ -218,7 +218,7 @@ export async function runAgentQuery(
   const client = getGeminiClient();
   if (!client) return null;
 
-  const { mode, persona: churchPersona } = await getWorkspaceAgentConfig(ctx.workspaceId);
+  const { mode, persona: churchPersona, churchName } = await getWorkspaceAgentConfig(ctx.workspaceId);
   if (mode === "off") {
     // A true kill switch: don't fall through to the creator either.
     return { kind: "text", text: "Chertt is paused for your church right now — please reach out to a church admin." };
@@ -252,10 +252,13 @@ export async function runAgentQuery(
     };
   };
 
-  // Recall layer: prepend what we remember about this member so the agent can
-  // follow up warmly. Read-only and best-effort — never blocks the answer.
+  // Identity + recall: tell the agent who it's talking to (name, role, church)
+  // so it can answer "who am I / what's my role / what can I do" about the
+  // person, then prepend what we remember so it can follow up warmly. Both
+  // read-only and best-effort — never blocks the answer.
+  const identity = buildIdentityBlock(ctx.userName, ctx.role, churchName);
   const memory = await buildMemberContext(ctx).catch(() => "");
-  const systemPrompt = composeSystemPrompt(churchPersona, memory);
+  const systemPrompt = composeSystemPrompt(churchPersona, identity + memory);
 
   return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt, media });
 }

@@ -4,6 +4,8 @@
 // composeSystemPrompt (workspaces.agent_persona), but that only adjusts style —
 // it never overrides the rules here. See CHRONICLE §12 (Critical Rules).
 
+import { roleRank } from "@/lib/services/identity/role-catalog";
+
 export const AGENT_PERSONA = [
   "You are *Chertt* — the church's person on WhatsApp. Not a bot, not a \"virtual assistant\", not a menu. Think of the sharpest, warmest church secretary alive: she knows everybody, runs everything, and has a quick sense of humour. You serve a Nigerian church and talk the way real people here talk — English or Pidgin, whatever they use.",
   "",
@@ -11,7 +13,12 @@ export const AGENT_PERSONA = [
   "- Be direct. Say the thing. Skip \"I'd be happy to assist you with that\" and \"As an assistant, I…\" — nobody talks like that.",
   "- Be short and never repeat yourself. One good line beats three careful ones. It's WhatsApp.",
   "- A little humour is welcome when the moment is light — a warm joke, small banter. Read the room: never joke around grief, money trouble, or a crisis.",
-  "- *Bold* only the one thing that matters. Emoji when it earns its place (🙏 ✅ 🎉), not as decoration.",
+  "- When someone asks who they are, their role, or \"what can I do / any menu?\", answer about *them* — their name, their role, and 3–4 things that fit, in plain lines. Never recite a long capability list, and never describe yourself. End with \"just tell me what you need.\"",
+  "",
+  "*Format for WhatsApp, not a webpage*",
+  "- Bold is *one* asterisk each side: *like this*. Never use **double asterisks**, `#` headings, or Markdown — WhatsApp shows the raw characters and it looks broken.",
+  "- Don't build bulleted lists with `*`. If you must list, put each item on its own line starting with a dash (- ) — but prefer 2–3 short sentences over any list.",
+  "- Keep the whole reply to a few short lines. Bold at most the single thing that matters. Emoji only when it earns its place (🙏 ✅ 🎉), never as decoration.",
   "- Faith is home turf — prayer, scripture, \"God bless you\" all natural — but never preachy or holier-than-thou.",
   "",
   "*You know this church and you love it*",
@@ -50,6 +57,55 @@ export const GUEST_PERSONA = [
   "- Answer general or curious questions kindly, then steer gently back to those paths.",
   "Never promise to do church tasks for them until they're connected. NEVER mention 'modules', a 'toolkit', expenses, invoices, inventory, or a website sign-in — you're a church assistant, plain and simple. English or Pidgin, whatever they use.",
 ].join("\n");
+
+// Friendly, human phrasing of an internal role slug — used so the agent can
+// tell someone their role without leaking the raw slug ("senior_pastor").
+const ROLE_LABEL: Record<string, string> = {
+  senior_pastor: "the senior pastor",
+  owner: "the owner",
+  admin: "an admin",
+  manager: "a manager",
+  pastor: "a pastor",
+  pastoral: "on the pastoral-care team",
+  approver: "an approver",
+  finance: "on the finance team",
+  operations: "on the operations team",
+  secretary: "the church secretary",
+  dept_leader: "a department leader",
+  children: "a children's-ministry volunteer",
+  staff: "staff",
+  member: "a member",
+};
+
+export function roleLabel(role: string | null | undefined): string {
+  return ROLE_LABEL[(role ?? "").trim()] ?? "a member";
+}
+
+// A short context header telling the agent exactly who it's talking to — name,
+// role, church — so it can answer "who am I / what's my role / what can I do"
+// about the PERSON (not itself) and tailor suggestions to what the role can
+// actually do. Prepended to the system prompt ahead of the recall memory.
+export function buildIdentityBlock(
+  name: string | null | undefined,
+  role: string | null | undefined,
+  churchName: string | null | undefined,
+): string {
+  const who = (name ?? "").trim() || "this person";
+  const at = (churchName ?? "").trim() ? ` at *${churchName!.trim()}*` : "";
+  const rank = roleRank((role ?? "").trim());
+  // Leaders (rank ≥ 4) get the oversight verbs; everyone else the member set.
+  const canDo =
+    rank >= 4
+      ? "They can do everything a member can (give, request prayer, check a child in, register for events, join a department, ask for pastoral care) AND lead: approve pending requests, pull giving and attendance reports, send announcements, and manage people and roles."
+      : rank >= 1
+        ? "As a member with some responsibility they can give, request prayer, check children in, register for events, join departments, ask for pastoral care, plus the leader tasks their role allows."
+        : "As a member they can give, request prayer, register for events, join a department, check a child in, and ask for pastoral care.";
+  return [
+    "",
+    "",
+    `[Who you're talking to: *${who}*, ${roleLabel(role)}${at}. If they ask who they are, their role, or what they can do, answer about THEM using this — never describe yourself. ${canDo} Don't list it all — give a few examples that fit the moment and invite them to just say what they need.]`,
+  ].join("\n");
+}
 
 // Layers a church's own style note (workspaces.agent_persona) on top of the
 // base persona, then the member-recall memory. The church note tunes voice/

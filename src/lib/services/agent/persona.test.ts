@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AGENT_PERSONA, GUEST_PERSONA, composeSystemPrompt } from "@/lib/services/agent/persona";
+import { AGENT_PERSONA, GUEST_PERSONA, composeSystemPrompt, buildIdentityBlock, roleLabel } from "@/lib/services/agent/persona";
 
 // The persona carries safety-critical behaviour, not just tone. These lock in
 // the non-negotiables so a future voice tweak can't silently drop them.
@@ -29,6 +29,51 @@ describe("AGENT_PERSONA", () => {
   it("keeps the confirmation rule and stays non-preachy", () => {
     expect(AGENT_PERSONA).toMatch(/confirm before/i);
     expect(AGENT_PERSONA).toMatch(/never preachy|holier-than-thou/i);
+  });
+});
+
+describe("WhatsApp formatting + role guidance", () => {
+  it("tells the agent to answer role/menu questions about the person, not itself", () => {
+    expect(AGENT_PERSONA).toMatch(/answer about \*them\*/i);
+    expect(AGENT_PERSONA).toMatch(/never recite a long capability list/i);
+  });
+
+  it("bans Markdown that breaks in WhatsApp", () => {
+    expect(AGENT_PERSONA).toMatch(/one\* asterisk|single asterisk|one asterisk/i);
+    expect(AGENT_PERSONA).toMatch(/double asterisks|Markdown/i);
+  });
+});
+
+describe("roleLabel", () => {
+  it("humanises known slugs and defaults unknown ones to member", () => {
+    expect(roleLabel("senior_pastor")).toBe("the senior pastor");
+    expect(roleLabel("finance")).toBe("on the finance team");
+    expect(roleLabel("who_knows")).toBe("a member");
+    expect(roleLabel(null)).toBe("a member");
+  });
+});
+
+describe("buildIdentityBlock", () => {
+  it("names the person, their role and church, and tells the agent to answer about THEM", () => {
+    const out = buildIdentityBlock("Idris", "senior_pastor", "Grace Chapel (Demo)");
+    expect(out).toContain("*Idris*");
+    expect(out).toContain("the senior pastor");
+    expect(out).toContain("Grace Chapel (Demo)");
+    expect(out).toMatch(/answer about THEM/);
+    expect(out).toMatch(/never describe yourself/i);
+  });
+
+  it("gives leaders the oversight capabilities and members the member set", () => {
+    expect(buildIdentityBlock("Sam", "senior_pastor", "X")).toMatch(/approve pending requests|announcements|reports/i);
+    const member = buildIdentityBlock("Ada", "member", "X");
+    expect(member).toMatch(/As a member they can give/);
+    expect(member).not.toMatch(/manage people and roles/);
+  });
+
+  it("handles a missing name and church gracefully", () => {
+    const out = buildIdentityBlock("", "member", "");
+    expect(out).toContain("this person");
+    expect(out).not.toContain(" at *");
   });
 });
 
