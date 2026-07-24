@@ -4,6 +4,7 @@ import { resetSessions, updateSession } from "@/lib/services/whatsapp-session";
 vi.mock("@/lib/services/whatsapp", () => ({
   sendTextMessage: vi.fn().mockResolvedValue(undefined),
   sendInteractiveButtons: vi.fn().mockResolvedValue(undefined),
+  sendInteractiveList: vi.fn().mockResolvedValue(undefined),
   downloadMedia: vi.fn().mockResolvedValue({ buffer: Buffer.from(""), mimeType: "image/jpeg" }),
 }));
 
@@ -47,13 +48,14 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
 });
 
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
-import { downloadMedia, sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
+import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
+const mockList = sendInteractiveList as ReturnType<typeof vi.fn>;
 const mockDownload = downloadMedia as ReturnType<typeof vi.fn>;
 const mockRun = runCherttCommand as ReturnType<typeof vi.fn>;
 const mockClaim = claimWhatsAppMessage as ReturnType<typeof vi.fn>;
@@ -68,6 +70,10 @@ async function skipWelcome(phone = PHONE) {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSessions();
+  // Instant Demo Mode is on by default in production, but it changes
+  // first-contact behavior. Keep it OFF for the existing guest/agent tests;
+  // the demo-specific tests below opt in explicitly.
+  process.env.CHERTT_DEMO_MODE = "off";
 });
 
 describe("processWhatsAppMessage", () => {
@@ -476,5 +482,41 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "yes" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Couldn't complete"));
     expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  // ── Instant Demo Mode ──
+  it("demo mode: first contact asks for the tester's name", async () => {
+    process.env.CHERTT_DEMO_MODE = "on";
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+    expect(mockRun).not.toHaveBeenCalled();
+    const [, text] = mockSend.mock.calls[0] as [string, string];
+    expect(text).toMatch(/what's your name/i);
+  });
+
+  it("demo mode: captures name then church, then provisions and tours", async () => {
+    process.env.CHERTT_DEMO_MODE = "on";
+    const provision = await import("@/lib/services/demo/provision-demo");
+    const spy = vi.spyOn(provision, "provisionDemoChurch").mockResolvedValue({
+      workspaceId: "ws-demo",
+      link: { phoneNumber: PHONE, userId: null, workspaceId: "ws-demo", workspaceSlug: "st-marys", workspaceName: "St Mary's", userName: "Idris", userRole: "senior_pastor" },
+    });
+
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });       // → ask name
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Idris" });     // → ask church
+    const [, churchPrompt] = mockSend.mock.calls[1] as [string, string];
+    expect(churchPrompt).toMatch(/church/i);
+
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "St Mary's" }); // → provision + tour
+    expect(spy).toHaveBeenCalledWith(PHONE, "Idris", "St Mary's");
+    expect(mockButtons).toHaveBeenCalled();
+    const [, tourText] = mockButtons.mock.calls[mockButtons.mock.calls.length - 1] as [string, string];
+    expect(tourText).toContain("St Mary's");
+  });
+
+  it("demo mode OFF: unlinked phone still hits the guest welcome", async () => {
+    process.env.CHERTT_DEMO_MODE = "off";
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+    const [, text] = mockSend.mock.calls[0] as [string, string];
+    expect(text).toContain("set up my church");
   });
 });

@@ -37,6 +37,8 @@ import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/ide
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
+import { demoModeEnabled } from "@/lib/services/demo/demo-mode";
+import { provisionDemoChurch } from "@/lib/services/demo/provision-demo";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
@@ -221,6 +223,73 @@ function buildGuestWelcome(): string {
     "",
     "Or ask me anything — happy to explain. 🙂",
   ].join("\n");
+}
+
+// Instant Demo Mode: for an unlinked phone, run a 2-step name→church capture,
+// then provision a fully-seeded demo church and send a guided tour. Returns
+// true when it consumed the turn. Reuses the session's onboarding union so no
+// new state field is needed. See
+// docs/superpowers/specs/2026-07-24-instant-demo-mode-design.md
+async function handleDemoOnboarding(
+  from: string,
+  session: WhatsAppSession,
+  trimmed: string,
+): Promise<boolean> {
+  const ob = session.onboarding;
+
+  // Not yet started → ask for the name.
+  if (!ob || ob.flow !== "demo-onboarding") {
+    await updateSession(from, { welcomed: true, onboarding: { flow: "demo-onboarding", step: "name", collected: {} } });
+    await sendTextMessage(from, "👋 I'm *Chertt* — I'll set you up in 10 seconds. First, what's your name?");
+    return true;
+  }
+
+  if (ob.step === "name") {
+    if (!trimmed) { await sendTextMessage(from, "What's your name? 🙂"); return true; }
+    await updateSession(from, { onboarding: { flow: "demo-onboarding", step: "church", collected: { name: trimmed } } });
+    await sendTextMessage(from, `Lovely to meet you, *${trimmed}*! And what's your church called?`);
+    return true;
+  }
+
+  // step === "church"
+  if (!trimmed) { await sendTextMessage(from, "What's your church called?"); return true; }
+  const personName = ob.collected.name ?? "Pastor";
+  await sendTextMessage(from, `🎉 Setting up *${trimmed}* for you — one sec…`);
+  const result = await provisionDemoChurch(from, personName, trimmed).catch(() => null);
+  await updateSession(from, { onboarding: undefined });
+  if (!result) {
+    await sendTextMessage(from, "Hmm, something hiccuped setting up. Say *hi* to try again.");
+    return true;
+  }
+  await updateSession(from, { activeWorkspaceId: result.workspaceId, userName: personName });
+  await sendDemoTour(from, result.link);
+  return true;
+}
+
+// The guided-tour welcome after a demo church is provisioned: warm framing +
+// the tappable starter buttons the tester loves. Falls back to text.
+async function sendDemoTour(from: string, link: PhoneLink): Promise<void> {
+  const text = [
+    `You're all set, *${link.userName}* — welcome to *${link.workspaceName}*! 🙏`,
+    "",
+    "You're the *senior pastor* here, so you can run the whole church from this chat. Try things like:",
+    "💰 “give ₦5,000 tithe”",
+    "📊 “how much giving this month?”",
+    "🙏 “please pray for my mum”",
+    "👶 “check in my daughter, age 6”",
+    "➕ “add Sister Grace as an usher”",
+    "",
+    "Tap a button below, type *menu* anytime to see everything, or say *try another role* to explore as a member. 👇",
+  ].join("\n");
+  try {
+    await sendInteractiveButtons(from, text, [
+      { id: "help_give", title: "Give" },
+      { id: "help_prayer", title: "Prayer" },
+      { id: "demo_menu", title: "Show me around" },
+    ], "Welcome 🙏");
+  } catch {
+    await sendTextMessage(from, text);
+  }
 }
 
 // Proactive, role-aware welcome. A first-time member shouldn't have to ask
@@ -713,6 +782,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const { allLinks, link: resolvedLink, personId } = await resolveActiveLinks(from, session.activeWorkspaceId);
   let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
+
+  // Instant Demo Mode: an unlinked phone gets the guided demo instead of the
+  // guest nudge. Runs the capture→provision→tour flow; consumes the turn while
+  // in progress. A text message drives it; non-text first contact still welcomes.
+  if (!link && demoModeEnabled() && (message.type === "text" || session.onboarding?.flow === "demo-onboarding")) {
+    if (await handleDemoOnboarding(from, session, trimmed)) return;
+  }
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
