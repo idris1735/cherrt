@@ -36,6 +36,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
+import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
@@ -222,15 +223,52 @@ function buildGuestWelcome(): string {
   ].join("\n");
 }
 
+// Proactive, role-aware welcome. A first-time member shouldn't have to ask
+// "what's my role" or "any menu" — we open by telling them who they are here
+// and offering a few concrete things to do, tailored to a leader vs a member.
+// Sent alongside the tappable buttons (see sendWorkspaceWelcome) so the menu is
+// proposed, never demanded.
 function buildWorkspaceWelcome(link: PhoneLink): string {
   const name = link.userName ? link.userName : "there";
+  const leader = roleRank(link.userRole) >= 4;
+  const ideas = leader
+    ? [
+        "💰 *Give* — “give ₦5,000 tithe”",
+        "📊 *See how giving's going* — “how much giving this month?”",
+        "📝 *Record a service* — “120 adults, 30 kids, ₦45k offering”",
+        "✅ *Handle approvals* — “what needs my approval?”",
+      ]
+    : [
+        "💰 *Give* — “give ₦5,000 tithe”",
+        "🙏 *Ask for prayer* — “please pray for my mum”",
+        "👶 *Check a child in* — “check in my son, age 5”",
+        "🤝 *Join something* — “I'd like to join the choir”",
+      ];
   return [
-    "Welcome back, " + name + "! 🙏",
+    "Welcome, " + name + "! 🙏 You're " + roleLabel(link.userRole) + " at *" + link.workspaceName + "*" +
+      (leader ? " — you can run the whole church from right here." : "."),
     "",
-    "You're connected to *" + link.workspaceName + "*.",
+    "Here are a few things I can do for you:",
+    ...ideas,
     "",
-    "Just tell me what you need — give, ask for prayer, register for something, check a child in, or ask a question. You can type or send a voice note. I've got you.",
+    "Tap a button below to start, or just tell me what you need — you can type or send a voice note. 👇",
   ].join("\n");
+}
+
+// Sends the welcome text together with the one-tap starter buttons, so a brand-
+// new member sees the menu proposed on first contact. Falls back to plain text
+// if interactive messaging fails.
+async function sendWorkspaceWelcome(from: string, link: PhoneLink): Promise<void> {
+  const text = buildWorkspaceWelcome(link);
+  try {
+    await sendInteractiveButtons(from, text, [
+      { id: "help_give", title: "Give" },
+      { id: "help_prayer", title: "Prayer" },
+      { id: "help_checkin", title: "Check in a child" },
+    ], "Welcome 🙏");
+  } catch {
+    await sendTextMessage(from, text);
+  }
 }
 
 // ─── Context Builders ─────────────────────────────────────────────────────────
@@ -678,7 +716,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
-    await sendTextMessage(from, link ? buildWorkspaceWelcome(link) : buildGuestWelcome());
+    if (link) await sendWorkspaceWelcome(from, link);
+    else await sendTextMessage(from, buildGuestWelcome());
     if (shouldStopAfterWelcome(message, trimmed)) return;
   }
 
