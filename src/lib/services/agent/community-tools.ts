@@ -117,4 +117,48 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
       return { ok: true, message: `🙌 Your application to join ${unitName} is in — the leader will follow up with you.` };
     },
   },
+  {
+    name: "create_event",
+    description:
+      "Create a new church event or programme. Use when a leader says 'add a Youth Night this Friday' or 'schedule a workers' retreat'. After creating, members can register for it.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "The event's name" },
+        venue: { type: "string", description: "Where it's held (optional; defaults to Main Auditorium)" },
+        date: { type: "string", description: "Date as YYYY-MM-DD if known (optional; defaults to next Sunday)" },
+        expected: { type: "number", description: "How many people are expected (optional)" },
+      },
+      required: ["title"],
+    },
+    minRank: 4, // leaders create events
+    mutates: true,
+    handler: async (args, ctx) => {
+      const title = String(args.title ?? "").trim();
+      if (!title) return { error: "What's the event called?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      // Use the given date if it's a valid YYYY-MM-DD, else default to next Sunday.
+      const raw = String(args.date ?? "").trim();
+      let eventDate: string;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && !Number.isNaN(Date.parse(raw))) {
+        eventDate = raw;
+      } else {
+        const d = new Date();
+        d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7)); // next Sunday
+        eventDate = d.toISOString().slice(0, 10);
+      }
+      const expected = Number(args.expected);
+      const { error } = await db.from("event_records").insert({
+        id: randomUUID(),
+        workspace_id: ctx.workspaceId,
+        title,
+        venue: String(args.venue ?? "").trim() || "Main Auditorium",
+        event_date: eventDate,
+        guests_expected: Number.isFinite(expected) && expected > 0 ? Math.floor(expected) : 0,
+      });
+      if (error) return { error: error.message };
+      return { ok: true, message: `✅ *${title}* is on the calendar for ${eventDate}. Members can now register for it.` };
+    },
+  },
 ];
