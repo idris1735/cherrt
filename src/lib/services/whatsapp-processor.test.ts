@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resetSessions, updateSession } from "@/lib/services/whatsapp-session";
+import { getSession, resetSessions, updateSession } from "@/lib/services/whatsapp-session";
 
 vi.mock("@/lib/services/whatsapp", () => ({
   sendTextMessage: vi.fn().mockResolvedValue(undefined),
@@ -518,5 +518,30 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
     const [, text] = mockSend.mock.calls[0] as [string, string];
     expect(text).toContain("set up my church");
+  });
+
+  it("demo menu: 'menu' opens the interactive list", async () => {
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    expect(mockList).toHaveBeenCalled();
+    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
+    expect(rows.some((r) => r.id === "role:menu")).toBe(true);
+    expect(rows.some((r) => r.id === "rpt:giving")).toBe(true);
+  });
+
+  it("role switch: 'switch to member' sets demoRole and confirms", async () => {
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "switch to member" });
+    const session = await getSession(PHONE);
+    expect(session.demoRole).toBe("member");
+    const [, text] = mockSend.mock.calls[mockSend.mock.calls.length - 1] as [string, string];
+    expect(text).toMatch(/now a \*?member/i);
+  });
+
+  it("role switch: 'back to pastor' clears the override", async () => {
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo", demoRole: "member" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "back to pastor" });
+    const session = await getSession(PHONE);
+    expect(session.demoRole).toBeUndefined();
   });
 });

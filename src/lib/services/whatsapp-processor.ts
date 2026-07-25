@@ -7,7 +7,7 @@ import {
   deductDemoBalance,
   type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
-import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia } from "@/lib/services/whatsapp";
+import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia, type InteractiveListRow } from "@/lib/services/whatsapp";
 import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
@@ -290,6 +290,56 @@ async function sendDemoTour(from: string, link: PhoneLink): Promise<void> {
   } catch {
     await sendTextMessage(from, text);
   }
+}
+
+// The five roles a tester can wear, in menu order. First is the reset.
+const DEMO_ROLES: Array<{ id: string; label: string; note: string }> = [
+  { id: "pastor", label: "Senior pastor (full access)", note: "You're back to *senior pastor* — full access to everything." },
+  { id: "finance", label: "Finance officer", note: "You're now on *finance* — you can see giving and approvals, but not admin-only settings." },
+  { id: "member", label: "Church member", note: "You're now a *member* — you can give, ask for prayer, register for events and check a child in. Approvals and reports are hidden." },
+  { id: "dept_leader", label: "Usher / department leader", note: "You're now a *department leader* — you can manage your unit and check children in." },
+  { id: "children", label: "Children's team", note: "You're now on the *children's team* — you can check kids in and release them to guardians." },
+];
+
+// The full demo menu as a WhatsApp interactive list (richer than 3 buttons).
+async function sendDemoMenu(from: string): Promise<void> {
+  const rows: InteractiveListRow[] = [
+    { id: "help_give", title: "Give", description: "Give a tithe or offering" },
+    { id: "help_prayer", title: "Ask for prayer", description: "Submit a prayer request" },
+    { id: "help_checkin", title: "Check in a child", description: "Get a pickup code" },
+    { id: "demo_event", title: "Register for an event", description: "See what's coming up" },
+    { id: "rpt:giving", title: "Giving this month", description: "Totals and recent gifts" },
+    { id: "rpt:overview", title: "Church at a glance", description: "Attendance, approvals, issues" },
+    { id: "role:menu", title: "Try another role", description: "Experience Chertt as any role" },
+  ];
+  try {
+    await sendInteractiveList(from, "Here's everything I can do for you. Pick one, or just tell me what you need. 🙏", "Open menu", rows, "Chertt menu");
+  } catch {
+    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · how much giving this month · try another role");
+  }
+}
+
+// The role picker, so a tester can feel other roles' permission walls.
+async function sendRoleMenu(from: string): Promise<void> {
+  const rows: InteractiveListRow[] = DEMO_ROLES.map((r) => ({ id: `role:${r.id}`, title: r.label }));
+  try {
+    await sendInteractiveList(from, "Which role do you want to feel? I'll switch you instantly — you'll hit the same permission walls a real person in that role would.", "Pick a role", rows, "Try another role");
+  } catch {
+    await sendTextMessage(from, "Say: switch to member · switch to finance · switch to usher · switch to children · back to pastor");
+  }
+}
+
+// Applies a role switch (from a button id "role:<x>" or a text command) and
+// confirms what changed. Returns true if it handled the message.
+async function handleRoleSwitch(from: string, target: string): Promise<boolean> {
+  const t = target.trim().toLowerCase();
+  const back = /^(pastor|senior|back)/.test(t);
+  const match = DEMO_ROLES.find((r) => t.includes(r.id) || (r.id === "dept_leader" && t.includes("usher")));
+  const chosen = back ? DEMO_ROLES[0] : match;
+  if (!chosen) return false;
+  await updateSession(from, { demoRole: chosen.id === "pastor" ? undefined : chosen.id });
+  await sendTextMessage(from, chosen.note + "\n\nSay *back to pastor* anytime, or *menu* to see options.");
+  return true;
 }
 
 // Proactive, role-aware welcome. A first-time member shouldn't have to ask
@@ -601,6 +651,15 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
+  // ── Instant Demo Mode buttons: full menu + role switching ──
+  if (buttonId === "demo_menu") { await sendDemoMenu(from); return; }
+  if (buttonId === "role:menu") { await sendRoleMenu(from); return; }
+  if (buttonId.startsWith("role:")) { await handleRoleSwitch(from, buttonId.slice(5)); return; }
+  if (buttonId === "demo_event") {
+    await sendTextMessage(from, "What would you like to register for? Say the event name, or ask *what events are coming up?* 🎟️");
+    return;
+  }
+
   // ── Org-wide report navigation buttons ──
   if (buttonId === "rpt:org-overview" || buttonId === "rpt:org-giving") {
     const orgReportKey = buttonId.slice(4) as OrgReportKey;
@@ -683,7 +742,7 @@ async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppS
   // Linked users: hand the transcript to the agent (its history capture covers
   // the message). Falls through to the creator when the agent is unavailable.
   if (link) {
-    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId))) return;
+    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId, session.demoRole))) return;
   }
 
   const display = transcript.length > 120 ? transcript.slice(0, 120) + "..." : transcript;
@@ -749,8 +808,10 @@ async function resolveActiveLinks(
   return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId), personId: undefined };
 }
 
-function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContext {
-  return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
+function agentCtx(link: PhoneLink, from: string, personId?: string, demoRole?: string): AgentContext {
+  // In Instant Demo Mode a tester can wear another role; that override wins so
+  // they hit the same permission walls a real person in that role would.
+  return { workspaceId: link.workspaceId, role: (demoRole ?? link.userRole) as Role, userName: link.userName, phone: from, personId };
 }
 
 // Runs the agent and handles its outcome (text answer or a pending confirmation
@@ -949,6 +1010,15 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
+  // ── Instant Demo Mode text shortcuts (before HELP_RE so the richer list wins) ──
+  if (/^(menu|show me around|options)$/i.test(trimmed)) { await sendDemoMenu(from); return; }
+  if (/^try another role$/i.test(trimmed)) { await sendRoleMenu(from); return; }
+  {
+    const sw = trimmed.match(/^(?:switch to|become(?: a)?|be(?: a)?|act as)\s+(.+)$/i)
+      || (/^back to pastor$/i.test(trimmed) ? ([null, "pastor"] as unknown as RegExpMatchArray) : null);
+    if (sw && (await handleRoleSwitch(from, sw[1]))) return;
+  }
+
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^privacy$/i.test(trimmed)) {
     await sendTextMessage(from, "Your messages are stored only to power this conversation and are never shared with third parties. Workspace actions are visible to your workspace admins. To request data deletion, contact support@chertt.app.");
@@ -1091,7 +1161,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Gemini key) or produces no answer; media (image/voice/doc) still goes to
   // the creator below until the agent gets multimodal tools.
   if (trimmed && link) {
-    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
+    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId, session.demoRole))) return;
   }
 
   if (type === "audio") {
@@ -1113,7 +1183,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a photo — please help with it. If it's a receipt or bill, read the merchant and amount.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session.demoRole), media)) return;
     }
 
     // Guest / no-Gemini fallback: receipt OCR auto-log, then the creator.
@@ -1139,7 +1209,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a document — please help me with it.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session.demoRole), media)) return;
     }
 
     const mediaAttachment = { mimeType, data: buffer.toString("base64") };
