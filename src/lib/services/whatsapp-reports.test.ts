@@ -240,12 +240,32 @@ describe("matchOrgReportIntent", () => {
 });
 
 describe("buildReport", () => {
-  it('overview contains "Business Overview" and a ₦ figure', async () => {
-    const { text, buttons } = await buildReport("overview", guestCtx());
-    expect(text).toContain("Business Overview");
-    expect(text).toMatch(/₦[\d,]+/);
-    expect(buttons).toBeDefined();
-    expect(buttons!.length).toBeGreaterThan(0);
+  it("overview is a CHURCH snapshot — attendance, giving, approvals — not a business dashboard", async () => {
+    const link = { phoneNumber: "2348000000000", userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace Chapel", userName: "Idris", userRole: "senior_pastor" };
+    const { text, buttons } = await buildReport("overview", {
+      link,
+      session: guestSession(),
+      workspaceContext: { pendingRequests: [{ id: "r1", title: "Diesel", amount: 45000, requester: "Sam" }], recentExpenses: [], lowInventoryItems: [], pendingIssues: [{ title: "AC", severity: "medium" }], givingCategories: [], ministryUnits: [] },
+      givingSummary: fixtureGiving({ totalThisMonth: 198_000, countThisMonth: 14 }),
+      serviceSnapshot: { dateLabel: "2026-07-19", adults: 142, children: 34, firstTimers: 5 },
+    });
+    expect(text).toContain("Grace Chapel — at a glance");
+    expect(text).toContain("176 in attendance"); // 142 + 34
+    expect(text).toContain("5 first-timer");
+    expect(text).toContain(naira(198_000));
+    expect(text).toContain("Pending approvals: 1");
+    expect(text).toContain("Open issues: 1");
+    // the toolkit voice must be gone
+    expect(text).not.toContain("Business Overview");
+    expect(text).not.toMatch(/Sales|Wallet|Cashback|Customers|Low stock/);
+    expect(buttons).toEqual([{ id: "rpt:giving", title: "Giving this month" }]);
+  });
+
+  it("overview degrades gracefully with no service or giving yet", async () => {
+    const { text } = await buildReport("overview", guestCtx());
+    expect(text).toContain("at a glance");
+    expect(text).not.toContain("Business Overview");
+    expect(text).toContain("Pending approvals: 0");
   });
 
   it("customers contains customer overview and recent list", async () => {

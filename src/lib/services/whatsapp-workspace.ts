@@ -314,6 +314,36 @@ function startOfMonth(d: Date): Date {
   return s;
 }
 
+export type ServiceSnapshot = {
+  dateLabel: string;
+  adults: number | null;
+  children: number | null;
+  firstTimers: number | null;
+};
+
+// Latest recorded service for the church "at a glance" overview — the most
+// recent by date, so the snapshot reflects last Sunday. Null when nothing's
+// been recorded yet.
+export async function getServiceSnapshot(workspaceId: string): Promise<ServiceSnapshot | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const { data } = await db
+    .from("services")
+    .select("service_date, attendance_adults, attendance_children, first_timers_count")
+    .eq("workspace_id", workspaceId)
+    .order("service_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  const r = data as { service_date?: string; attendance_adults?: number; attendance_children?: number; first_timers_count?: number };
+  return {
+    dateLabel: r.service_date ?? "",
+    adults: r.attendance_adults ?? null,
+    children: r.attendance_children ?? null,
+    firstTimers: r.first_timers_count ?? null,
+  };
+}
+
 export async function getGivingSummary(workspaceId: string): Promise<GivingSummary> {
   const empty: GivingSummary = { totalThisMonth: 0, totalLastMonth: 0, countThisMonth: 0, byType: {}, recent: [] };
 

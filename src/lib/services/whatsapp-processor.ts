@@ -23,6 +23,7 @@ import {
   loadKnowledgeContext,
   claimWhatsAppMessage,
   getGivingSummary,
+  getServiceSnapshot,
   getOrganizationWorkspaces,
   isPlatformAdmin,
   approveOrganization,
@@ -682,14 +683,16 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // ── Report navigation buttons ──
   if (buttonId.startsWith("rpt:")) {
     const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues" | "giving";
-    const [workspaceContext, liveData, givingSummary] = link
+    const wantsGiving = key === "giving" || key === "overview";
+    const [workspaceContext, liveData, givingSummary, serviceSnapshot] = link
       ? await Promise.all([
           loadWorkspaceContext(link.workspaceId),
           loadWorkspaceData(link.workspaceId).catch(() => undefined),
-          key === "giving" ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+          wantsGiving ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+          key === "overview" ? getServiceSnapshot(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
         ])
-      : [undefined, undefined, undefined];
-    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData, givingSummary });
+      : [undefined, undefined, undefined, undefined];
+    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot });
     if (buttons?.length) {
       try { await sendInteractiveButtons(from, text, buttons); }
       catch { await sendTextMessage(from, text); }
@@ -1146,14 +1149,16 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         await sendTextMessage(from, "Reports are for church admins and leaders — please ask your pastor or an admin.");
         return;
       }
-      const [workspaceContext, liveData, givingSummary] = link
+      const wantsGiving = reportKey === "giving" || reportKey === "overview";
+      const [workspaceContext, liveData, givingSummary, serviceSnapshot] = link
         ? await Promise.all([
             loadWorkspaceContext(link.workspaceId),
             loadWorkspaceData(link.workspaceId).catch(() => undefined),
-            reportKey === "giving" ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+            wantsGiving ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+            reportKey === "overview" ? getServiceSnapshot(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
           ])
-        : [undefined, undefined, undefined];
-      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData, givingSummary });
+        : [undefined, undefined, undefined, undefined];
+      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot });
       if (buttons?.length) {
         try { await sendInteractiveButtons(from, text, buttons); }
         catch { await sendTextMessage(from, text); }

@@ -1,8 +1,8 @@
 import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
 import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
-import { computeMetrics, type WorkspaceData, type ComputedMetrics } from "@/lib/services/business-metrics";
+import type { WorkspaceData, ComputedMetrics } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
-import type { GivingSummary, PhoneLink, WorkspaceContext } from "@/lib/services/whatsapp-workspace";
+import type { GivingSummary, PhoneLink, WorkspaceContext, ServiceSnapshot } from "@/lib/services/whatsapp-workspace";
 
 export type ReportKey =
   | "overview"
@@ -106,6 +106,7 @@ type ReportContext = {
   workspaceContext?: WorkspaceContext;
   liveData?: WorkspaceData;
   givingSummary?: GivingSummary;
+  serviceSnapshot?: ServiceSnapshot | null;
 };
 
 function fmt(n: number): string {
@@ -130,44 +131,40 @@ export async function buildReport(
 
   switch (key) {
     case "overview": {
-      // Use shared metrics when live data is available (workspace mode)
-      const liveMetrics = ctx.liveData ? computeMetrics(ctx.liveData, "month") : null;
-      const bizName = isGuest ? d.businessName : ctx.link?.workspaceName ?? "Your workspace";
+      // A church snapshot — attendance, giving, and what needs attention — not
+      // the old toolkit "sales / wallet / customers" dashboard.
+      const churchName = ctx.link?.workspaceName ?? "Your church";
+      const g = ctx.givingSummary;
+      const svc = ctx.serviceSnapshot;
+      const pending = w?.pendingRequests?.length ?? 0;
+      const openIss = w?.pendingIssues?.length ?? 0;
 
-      const salesMonth = liveMetrics?.totalSales ?? d.sales.thisMonth;
-      const salesDelta = liveMetrics?.salesDeltaPct ?? d.sales.deltaPct;
-      const salesToday = liveMetrics ? 0 : d.sales.today; // live data doesn't track "today" as a stat
-      const wallet = isGuest ? ctx.session.demoBalance : (liveMetrics?.walletBalance ?? d.walletBalance);
-      const custCount = liveMetrics?.customers ?? d.customers.total;
-      const pending = liveMetrics?.pendingApprovals ?? (isGuest ? d.requests.filter((r) => r.status === "pending").length : (w?.pendingRequests?.length ?? 0));
-      const openIss = liveMetrics?.openIssues ?? (isGuest ? d.issues.filter((i) => i.status !== "completed").length : (w?.pendingIssues?.length ?? 0));
-      const lowStk = liveMetrics?.lowStock ?? (isGuest ? d.inventory.filter((i) => i.inStock <= i.minLevel).length : (w?.lowInventoryItems?.length ?? 0));
+      const lines: Array<string | null> = [`⛪ *${churchName} — at a glance*`, ""];
+
+      if (svc && (svc.adults != null || svc.children != null)) {
+        const total = (svc.adults ?? 0) + (svc.children ?? 0);
+        lines.push("🧎 *Last service*");
+        lines.push(`• ${total} in attendance — ${svc.adults ?? 0} adults, ${svc.children ?? 0} children`);
+        if (svc.firstTimers) lines.push(`• ${svc.firstTimers} first-timer${svc.firstTimers !== 1 ? "s" : ""} 🎉`);
+        lines.push("");
+      }
+
+      if (g && g.countThisMonth > 0) {
+        const delta = deltaPct(g.totalThisMonth, g.totalLastMonth);
+        lines.push("🙏 *Giving this month*");
+        lines.push(`• ${fmt(g.totalThisMonth)} from ${g.countThisMonth} gift${g.countThisMonth !== 1 ? "s" : ""} (${deltaEmoji(delta)} ${Math.abs(delta)}% vs last month)`);
+        lines.push("");
+      }
+
+      lines.push("🧾 *Needs attention*");
+      lines.push(`• Pending approvals: ${pending}`);
+      lines.push(`• Open issues: ${openIss}`);
+      lines.push("");
+      lines.push(pending || openIss ? "_Tap for the giving breakdown._" : "_All clear. Tap for the giving breakdown._");
 
       return {
-        text: [
-          `📊 *${bizName} — Business Overview*`,
-          "",
-          "💰 *Sales*",
-          liveMetrics
-            ? `• This month: *${fmt(salesMonth)}* (${deltaEmoji(salesDelta)} ${Math.abs(salesDelta)}%)`
-            : `• This month: *${fmt(salesMonth)}* (${deltaEmoji(salesDelta)} ${Math.abs(salesDelta)}%)`,
-          salesToday > 0 ? `• Today: ${fmt(salesToday)}` : null,
-          "",
-          `👛 *Wallet*: ${fmt(wallet)}  (Cashback ${fmt(liveMetrics?.cashback ?? d.cashback)})`,
-          `👥 *Customers*: ${custCount}`,
-          "",
-          "🧾 *Operations*",
-          `• Pending approvals: ${pending}`,
-          `• Open issues: ${openIss}`,
-          `• Low stock items: ${lowStk}`,
-          "",
-          "_Tap below for details._",
-        ].filter(Boolean).join("\n"),
-        buttons: [
-          { id: "rpt:expenses", title: "Expenses" },
-          { id: "rpt:requests", title: "Requests" },
-          { id: "rpt:customers", title: "Customers" },
-        ],
+        text: lines.filter((l): l is string => l !== null).join("\n"),
+        buttons: [{ id: "rpt:giving", title: "Giving this month" }],
       };
     }
 
