@@ -520,8 +520,15 @@ describe("processWhatsAppMessage", () => {
     expect(text).toContain("set up my church");
   });
 
+  // The menu + role-switch features belong to a genuine demo session, which is
+  // LINKED (post-provisioning) and flagged session.isDemo. Simulate that: link
+  // the phone and set isDemo, with demo mode on.
+  const demoLink = { phoneNumber: PHONE, userId: null, workspaceId: "ws-demo", workspaceSlug: "st-marys", workspaceName: "St Mary's", userName: "Idris", userRole: "senior_pastor" };
+
   it("demo menu: 'menu' opens the interactive list", async () => {
-    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo" });
+    process.env.CHERTT_DEMO_MODE = "on";
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([demoLink]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo", isDemo: true });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
     expect(mockList).toHaveBeenCalled();
     const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
@@ -530,7 +537,9 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("role switch: 'switch to member' sets demoRole and confirms", async () => {
-    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo" });
+    process.env.CHERTT_DEMO_MODE = "on";
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([demoLink]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo", isDemo: true });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "switch to member" });
     const session = await getSession(PHONE);
     expect(session.demoRole).toBe("member");
@@ -539,9 +548,21 @@ describe("processWhatsAppMessage", () => {
   });
 
   it("role switch: 'back to pastor' clears the override", async () => {
-    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo", demoRole: "member" });
+    process.env.CHERTT_DEMO_MODE = "on";
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([demoLink]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo", isDemo: true, demoRole: "member" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "back to pastor" });
     const session = await getSession(PHONE);
     expect(session.demoRole).toBeUndefined();
+  });
+
+  it("role switch is refused for a real (non-demo) linked account", async () => {
+    process.env.CHERTT_DEMO_MODE = "on";
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ ...demoLink, userRole: "member" }]);
+    // A real member: welcomed, linked, but NOT a demo session (isDemo unset).
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws-demo" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "switch to finance" });
+    const session = await getSession(PHONE);
+    expect(session.demoRole).toBeUndefined(); // no escalation
   });
 });

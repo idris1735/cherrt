@@ -261,7 +261,9 @@ async function handleDemoOnboarding(
     await sendTextMessage(from, "Hmm, something hiccuped setting up. Say *hi* to try again.");
     return true;
   }
-  await updateSession(from, { activeWorkspaceId: result.workspaceId, userName: personName });
+  // isDemo=true is the authorization gate for role-switching: it is set ONLY
+  // here, on a genuinely demo-provisioned session, never on a real account.
+  await updateSession(from, { activeWorkspaceId: result.workspaceId, userName: personName, isDemo: true });
   await sendDemoTour(from, result.link);
   return true;
 }
@@ -652,12 +654,16 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
   // ── Instant Demo Mode buttons: full menu + role switching ──
-  if (buttonId === "demo_menu") { await sendDemoMenu(from); return; }
-  if (buttonId === "role:menu") { await sendRoleMenu(from); return; }
-  if (buttonId.startsWith("role:")) { await handleRoleSwitch(from, buttonId.slice(5)); return; }
-  if (buttonId === "demo_event") {
-    await sendTextMessage(from, "What would you like to register for? Say the event name, or ask *what events are coming up?* 🎟️");
-    return;
+  // Gated on a genuine demo session so a real account can't role-switch by
+  // sending a spoofed button id (WhatsApp button ids are client-controllable).
+  if (demoModeEnabled() && session.isDemo) {
+    if (buttonId === "demo_menu") { await sendDemoMenu(from); return; }
+    if (buttonId === "role:menu") { await sendRoleMenu(from); return; }
+    if (buttonId.startsWith("role:")) { await handleRoleSwitch(from, buttonId.slice(5)); return; }
+    if (buttonId === "demo_event") {
+      await sendTextMessage(from, "What would you like to register for? Say the event name, or ask *what events are coming up?* 🎟️");
+      return;
+    }
   }
 
   // ── Org-wide report navigation buttons ──
@@ -742,7 +748,7 @@ async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppS
   // Linked users: hand the transcript to the agent (its history capture covers
   // the message). Falls through to the creator when the agent is unavailable.
   if (link) {
-    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId, session.demoRole))) return;
+    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId, session))) return;
   }
 
   const display = transcript.length > 120 ? transcript.slice(0, 120) + "..." : transcript;
@@ -808,9 +814,12 @@ async function resolveActiveLinks(
   return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId), personId: undefined };
 }
 
-function agentCtx(link: PhoneLink, from: string, personId?: string, demoRole?: string): AgentContext {
-  // In Instant Demo Mode a tester can wear another role; that override wins so
-  // they hit the same permission walls a real person in that role would.
+function agentCtx(link: PhoneLink, from: string, personId?: string, session?: WhatsAppSession): AgentContext {
+  // Security: the demoRole override applies ONLY to a genuinely demo-provisioned
+  // session (session.isDemo, set only by provisionDemoChurch) and only while demo
+  // mode is enabled. This ensures a real, production-linked account can never
+  // escalate its role via the demo path, even if a stale demo_role value exists.
+  const demoRole = session?.isDemo && demoModeEnabled() ? session.demoRole : undefined;
   return { workspaceId: link.workspaceId, role: (demoRole ?? link.userRole) as Role, userName: link.userName, phone: from, personId };
 }
 
@@ -1011,9 +1020,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
   // ── Instant Demo Mode text shortcuts (before HELP_RE so the richer list wins) ──
-  if (/^(menu|show me around|options)$/i.test(trimmed)) { await sendDemoMenu(from); return; }
-  if (/^try another role$/i.test(trimmed)) { await sendRoleMenu(from); return; }
-  {
+  // Gated on a genuine demo session: role-switching must never change the
+  // effective role of a real, production-linked account (privilege escalation).
+  if (demoModeEnabled() && session.isDemo) {
+    if (/^(menu|show me around|options)$/i.test(trimmed)) { await sendDemoMenu(from); return; }
+    if (/^try another role$/i.test(trimmed)) { await sendRoleMenu(from); return; }
     const sw = trimmed.match(/^(?:switch to|become(?: a)?|be(?: a)?|act as)\s+(.+)$/i)
       || (/^back to pastor$/i.test(trimmed) ? ([null, "pastor"] as unknown as RegExpMatchArray) : null);
     if (sw && (await handleRoleSwitch(from, sw[1]))) return;
@@ -1161,7 +1172,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Gemini key) or produces no answer; media (image/voice/doc) still goes to
   // the creator below until the agent gets multimodal tools.
   if (trimmed && link) {
-    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId, session.demoRole))) return;
+    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId, session))) return;
   }
 
   if (type === "audio") {
@@ -1183,7 +1194,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a photo — please help with it. If it's a receipt or bill, read the merchant and amount.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session.demoRole), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session), media)) return;
     }
 
     // Guest / no-Gemini fallback: receipt OCR auto-log, then the creator.
@@ -1209,7 +1220,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a document — please help me with it.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session.demoRole), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session), media)) return;
     }
 
     const mediaAttachment = { mimeType, data: buffer.toString("base64") };

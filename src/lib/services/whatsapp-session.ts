@@ -12,6 +12,11 @@ export type WhatsAppSession = {
   // Instant Demo Mode: effective-role override so a tester can feel other
   // roles' permission walls. Undefined = use the real membership role.
   demoRole?: string;
+  // Security gate: true ONLY for sessions created via provisionDemoChurch.
+  // Role-switching and the demoRole authz override apply only when this is set,
+  // so a genuinely-provisioned production account can never escalate via the
+  // demo path. See docs/superpowers/specs/2026-07-24-instant-demo-mode-design.md
+  isDemo?: boolean;
   // In-progress guided flow (e.g. new church signup, post-approval setup) —
   // deterministic step-by-step state, separate from the free-form Gemini
   // artifact path. Discriminated union so the two flows can have
@@ -104,6 +109,7 @@ type DbRow = {
   user_name: string | null;
   active_workspace_id: string | null;
   demo_role: string | null;
+  is_demo: boolean | null;
   onboarding: WhatsAppSession["onboarding"] | null;
   pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
   pending_approval: WhatsAppSession["pendingApproval"] | null;
@@ -129,6 +135,7 @@ function toSession(row: DbRow): WhatsAppSession {
     userName: row.user_name ?? undefined,
     activeWorkspaceId: row.active_workspace_id ?? undefined,
     demoRole: row.demo_role ?? undefined,
+    isDemo: row.is_demo ?? undefined,
     onboarding: row.onboarding ?? undefined,
     pendingConfirmation: row.pending_confirmation ?? undefined,
     pendingApproval: row.pending_approval ?? undefined,
@@ -145,6 +152,7 @@ function toDbRow(session: WhatsAppSession): DbRow {
     user_name: session.userName ?? null,
     active_workspace_id: session.activeWorkspaceId ?? null,
     demo_role: session.demoRole ?? null,
+    is_demo: session.isDemo ?? false,
     onboarding: session.onboarding ?? null,
     pending_confirmation: session.pendingConfirmation ?? null,
     pending_approval: session.pendingApproval ?? null,
