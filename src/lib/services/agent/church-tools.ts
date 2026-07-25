@@ -194,4 +194,42 @@ export const CHURCH_TOOLS: AgentTool[] = [
       return { ok: true, message: `Recorded ₦${amount.toLocaleString("en-NG")} ${givingType}.` };
     },
   },
+  {
+    name: "add_member",
+    description:
+      "Add a new person to the church and give them a role. Use when a leader says things like 'add Sister Grace as an usher' or 'register John as a member'.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "The person's full name" },
+        role: { type: "string", description: "Their role: member, usher, finance, secretary, children, or pastor (optional; defaults to member)" },
+        phone: { type: "string", description: "Their WhatsApp number (optional)" },
+      },
+      required: ["name"],
+    },
+    minRank: 4, // leaders add people
+    mutates: true,
+    handler: async (args, ctx) => {
+      const name = String(args.name ?? "").trim();
+      if (!name) return { error: "Who should I add? Tell me their name." };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      // Friendly words → internal role slugs; anything unknown becomes a member.
+      const roleMap: Record<string, string> = {
+        member: "member", usher: "dept_leader", ushering: "dept_leader", leader: "dept_leader",
+        finance: "finance", treasurer: "finance", secretary: "secretary",
+        children: "children", "children's": "children", pastor: "pastor",
+      };
+      const asked = String(args.role ?? "").trim().toLowerCase();
+      const role = roleMap[asked] ?? "member";
+      const personId = newId();
+      const p = await db.from("people").insert({ id: personId, full_name: name });
+      if (p.error) return { error: p.error.message };
+      const m = await db.from("branch_memberships").insert({
+        id: newId(), person_id: personId, workspace_id: ctx.workspaceId, role, status: "active",
+      });
+      if (m.error) return { error: m.error.message };
+      return { ok: true, message: `✅ Added *${name}* to the church${role !== "member" ? ` as ${role.replace("dept_leader", "an usher/leader")}` : ""}.` };
+    },
+  },
 ];
