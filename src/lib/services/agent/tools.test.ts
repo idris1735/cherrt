@@ -39,6 +39,13 @@ describe("read tool handlers are workspace-scoped and shape their output", () =>
       totalLastMonth: 200000,
       countThisMonth: 8,
       byType: { tithe: 300000 },
+      byTypeCount: { tithe: 8 },
+      uniqueGivers: 6,
+      avgGift: 37500,
+      biggest: { donor: "Blessing", amount: 50000 },
+      thisWeekTotal: 40000,
+      thisWeekCount: 2,
+      topGivers: [{ donor: "Blessing", amount: 50000 }],
       recent: [],
     });
     const out = (await getReadTool("get_giving_summary")!.handler({}, ctx)) as { totalThisMonth: number };

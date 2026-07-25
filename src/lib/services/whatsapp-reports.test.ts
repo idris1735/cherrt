@@ -26,6 +26,13 @@ function fixtureGiving(overrides: Partial<GivingSummary> = {}): GivingSummary {
     totalLastMonth: 40_000,
     countThisMonth: 5,
     byType: {},
+    byTypeCount: {},
+    uniqueGivers: 4,
+    avgGift: 10_000,
+    biggest: null,
+    thisWeekTotal: 0,
+    thisWeekCount: 0,
+    topGivers: [],
     recent: [],
     ...overrides,
   };
@@ -171,26 +178,62 @@ describe("buildReport", () => {
       link,
       session: guestSession(),
       workspaceContext: { pendingRequests: [{ id: "r1", title: "Diesel", amount: 45000, requester: "Sam" }], recentExpenses: [], lowInventoryItems: [], pendingIssues: [{ title: "AC", severity: "medium" }], givingCategories: [], ministryUnits: [] },
-      givingSummary: fixtureGiving({ totalThisMonth: 198_000, countThisMonth: 14 }),
+      givingSummary: fixtureGiving({ totalThisMonth: 198_000, countThisMonth: 14, thisWeekTotal: 45_000 }),
       serviceSnapshot: { dateLabel: "2026-07-19", adults: 142, children: 34, firstTimers: 5 },
+      overviewExtras: { members: 13, newMembersThisMonth: 2, nextEvent: { title: "Youth Night", dateLabel: "2026-07-25" }, firstTimersToFollowUp: 3, attendanceTrend: [156, 128, 142, 176] },
     });
     expect(text).toContain("Grace Chapel — at a glance");
-    expect(text).toContain("176 in attendance"); // 142 + 34
+    expect(text).toContain("176 — 142 adults, 34 children");
     expect(text).toContain("5 first-timer");
+    expect(text).toContain("156 → 128 → 142 → 176"); // attendance trend
     expect(text).toContain(naira(198_000));
-    expect(text).toContain("Pending approvals: 1");
-    expect(text).toContain("Open issues: 1");
+    expect(text).toContain("45,000 this week");
+    expect(text).toContain("Members:* 13 (2 new this month)");
+    expect(text).toContain("Coming up:* Youth Night");
+    expect(text).toContain("1 approval to review");
+    expect(text).toContain("1 open issue");
+    expect(text).toContain("3 first-timers to follow up");
     // the toolkit voice must be gone
     expect(text).not.toContain("Business Overview");
     expect(text).not.toMatch(/Sales|Wallet|Cashback|Customers|Low stock/);
-    expect(buttons).toEqual([{ id: "rpt:giving", title: "Giving this month" }]);
+    expect(buttons).toEqual([{ id: "rpt:giving", title: "Giving this month" }, { id: "main_menu", title: "☰ Menu" }]);
   });
 
   it("overview degrades gracefully with no service or giving yet", async () => {
     const { text } = await buildReport("overview", guestCtx());
     expect(text).toContain("at a glance");
     expect(text).not.toContain("Business Overview");
-    expect(text).toContain("Pending approvals: 0");
+    expect(text).toContain("All clear");
+  });
+
+  it("giving report shows givers, average, biggest, this-week, by-type counts and top givers", async () => {
+    const link = { phoneNumber: "2348000000000", userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace Chapel", userName: "Idris", userRole: "senior_pastor" };
+    const { text, buttons } = await buildReport("giving", {
+      link,
+      session: guestSession(),
+      givingSummary: fixtureGiving({
+        totalThisMonth: 223_000,
+        totalLastMonth: 63_000,
+        countThisMonth: 15,
+        uniqueGivers: 11,
+        avgGift: 14_900,
+        biggest: { donor: "Blessing", amount: 50_000 },
+        thisWeekTotal: 45_000,
+        thisWeekCount: 3,
+        byType: { tithe: 115_000, offering: 26_500 },
+        byTypeCount: { tithe: 5, offering: 3 },
+        topGivers: [{ donor: "Blessing", amount: 50_000 }, { donor: "Pamilerin", amount: 25_000 }],
+      }),
+    });
+    expect(text).toContain("Giving — Grace Chapel");
+    expect(text).toContain("11 givers");
+    expect(text).toContain(naira(14_900)); // avg
+    expect(text).toContain("Biggest ₦50,000 (Blessing)");
+    expect(text).toContain("This week ₦45,000");
+    expect(text).toContain("Tithe: ₦115,000 (5)");
+    expect(text).toContain("*Top givers*");
+    expect(text).toContain("1. Blessing — ₦50,000");
+    expect(buttons).toEqual([{ id: "rpt:overview", title: "Overview" }, { id: "main_menu", title: "☰ Menu" }]);
   });
 
   it("customers contains customer overview and recent list", async () => {

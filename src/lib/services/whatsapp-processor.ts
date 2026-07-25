@@ -24,6 +24,7 @@ import {
   claimWhatsAppMessage,
   getGivingSummary,
   getServiceSnapshot,
+  getOverviewExtras,
   getOrganizationWorkspaces,
   isPlatformAdmin,
   approveOrganization,
@@ -77,7 +78,10 @@ export type IncomingMessage = {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
 const NAME_INTRO_RE = /^(?:i(?:'m| am)|my name is|call me)\s+([a-z][a-z\s'-]{1,30})/i;
 const GREETING_ONLY_RE = /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|start|menu)$/i;
-const HELP_RE = /^(?:help|help me|i need help|need help|pls help|please help|can (?:you|u) help(?: me)?|abeg(?: help(?: me)?)?|wetin i go do|i no (?:understand|sabi|know)|i dey (?:confused|lost)|menu|commands?|options?|start over|guide me|what can (?:you|u|chertt) do|how (?:do|can) i use (?:this|chertt)|i(?:'m| am)? (?:lost|confused|stuck)(?: .*)?|i don'?t (?:know|understand)(?: .*)?|not sure(?: .*)?)$/i;
+const HELP_RE = /^(?:help|help me|i need help|need help|pls help|please help|can (?:you|u) help(?: me)?|abeg(?: help(?: me)?)?|wetin i go do|i no (?:understand|sabi|know)|i dey (?:confused|lost)|commands?|guide me|how (?:do|can) i use (?:this|chertt)|i(?:'m| am)? (?:lost|confused|stuck)(?: .*)?|i don'?t (?:know|understand)(?: .*)?|not sure(?: .*)?)$/i;
+// Anything that means "just show me the buttons" — routed to the tappable menu
+// so a member never has to type a command out.
+const MENU_RE = /^(?:menu|the menu|menu\s*(?:please|abeg|biko)?|show(?:\s*me)?\s*(?:the\s*)?menu|where(?:'?s| is)\s*(?:the\s*)?menu|show me around|options?|start over|come again\??|what can (?:you|u|chertt|i) do)$/i;
 
 function extractName(text: string): string | null {
   const m = text.trim().match(NAME_INTRO_RE);
@@ -303,8 +307,10 @@ const DEMO_ROLES: Array<{ id: string; label: string; note: string }> = [
   { id: "children", label: "Children's team", note: "You're now on the *children's team* — you can check kids in and release them to guardians." },
 ];
 
-// The full demo menu as a WhatsApp interactive list (richer than 3 buttons).
-async function sendDemoMenu(from: string): Promise<void> {
+// The main menu as a WhatsApp interactive list (richer than 3 buttons).
+// Available to any linked member — no typing required. The "Try another role"
+// row only appears for a demo session (real accounts can't role-switch).
+async function sendMainMenu(from: string, isDemo: boolean): Promise<void> {
   const rows: InteractiveListRow[] = [
     { id: "help_give", title: "Give", description: "Give a tithe or offering" },
     { id: "help_prayer", title: "Ask for prayer", description: "Submit a prayer request" },
@@ -312,12 +318,12 @@ async function sendDemoMenu(from: string): Promise<void> {
     { id: "demo_event", title: "Register for an event", description: "See what's coming up" },
     { id: "rpt:giving", title: "Giving this month", description: "Totals and recent gifts" },
     { id: "rpt:overview", title: "Church at a glance", description: "Attendance, approvals, issues" },
-    { id: "role:menu", title: "Try another role", description: "Experience Chertt as any role" },
   ];
+  if (isDemo) rows.push({ id: "role:menu", title: "Try another role", description: "Experience Chertt as any role" });
   try {
-    await sendInteractiveList(from, "Here's everything I can do for you. Pick one, or just tell me what you need. 🙏", "Open menu", rows, "Chertt menu");
+    await sendInteractiveList(from, "What do you need? 👇", "Open menu", rows, "Menu");
   } catch {
-    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · how much giving this month · try another role");
+    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month");
   }
 }
 
@@ -664,17 +670,18 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
-  // ── Instant Demo Mode buttons: full menu + role switching ──
-  // Gated on a genuine demo session so a real account can't role-switch by
-  // sending a spoofed button id (WhatsApp button ids are client-controllable).
+  // ── Menu buttons — available to any linked member (no security concern) ──
+  if (buttonId === "main_menu" || buttonId === "demo_menu") { await sendMainMenu(from, !!session.isDemo); return; }
+  if (buttonId === "demo_event") {
+    await sendTextMessage(from, "Which event? Say its name, or ask *what's coming up?* 🎟️");
+    return;
+  }
+
+  // ── Role switching — demo sessions only (a real account must never
+  // role-switch by sending a spoofed button id). ──
   if (demoModeEnabled() && session.isDemo) {
-    if (buttonId === "demo_menu") { await sendDemoMenu(from); return; }
     if (buttonId === "role:menu") { await sendRoleMenu(from); return; }
     if (buttonId.startsWith("role:")) { await handleRoleSwitch(from, buttonId.slice(5)); return; }
-    if (buttonId === "demo_event") {
-      await sendTextMessage(from, "What would you like to register for? Say the event name, or ask *what events are coming up?* 🎟️");
-      return;
-    }
   }
 
   // ── Org-wide report navigation buttons ──
@@ -694,15 +701,16 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId.startsWith("rpt:")) {
     const key = buttonId.slice(4) as "overview" | "customers" | "sales" | "expenses" | "requests" | "inventory" | "wallet" | "issues" | "giving";
     const wantsGiving = key === "giving" || key === "overview";
-    const [workspaceContext, liveData, givingSummary, serviceSnapshot] = link
+    const [workspaceContext, liveData, givingSummary, serviceSnapshot, overviewExtras] = link
       ? await Promise.all([
           loadWorkspaceContext(link.workspaceId),
           loadWorkspaceData(link.workspaceId).catch(() => undefined),
           wantsGiving ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
           key === "overview" ? getServiceSnapshot(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+          key === "overview" ? getOverviewExtras(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
         ])
-      : [undefined, undefined, undefined, undefined];
-    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot });
+      : [undefined, undefined, undefined, undefined, undefined];
+    const { text, buttons } = await buildReport(key, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot, overviewExtras });
     if (buttons?.length) {
       try { await sendInteractiveButtons(from, text, buttons); }
       catch { await sendTextMessage(from, text); }
@@ -1032,11 +1040,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
-  // ── Instant Demo Mode text shortcuts (before HELP_RE so the richer list wins) ──
-  // Gated on a genuine demo session: role-switching must never change the
-  // effective role of a real, production-linked account (privilege escalation).
+  // ── Menu / lost — any linked member gets the tappable menu, no typing a
+  // command out. Placed before HELP_RE so the richer list wins. ──
+  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, !!session.isDemo); return; }
+
+  // ── Role switching — demo sessions only (role-switching must never change
+  // the effective role of a real, production-linked account). ──
   if (demoModeEnabled() && session.isDemo) {
-    if (/^(menu|show me around|options)$/i.test(trimmed)) { await sendDemoMenu(from); return; }
     if (/^try another role$/i.test(trimmed)) { await sendRoleMenu(from); return; }
     const sw = trimmed.match(/^(?:switch to|become(?: a)?|be(?: a)?|act as)\s+(.+)$/i)
       || (/^back to pastor$/i.test(trimmed) ? ([null, "pastor"] as unknown as RegExpMatchArray) : null);
@@ -1160,15 +1170,16 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         return;
       }
       const wantsGiving = reportKey === "giving" || reportKey === "overview";
-      const [workspaceContext, liveData, givingSummary, serviceSnapshot] = link
+      const [workspaceContext, liveData, givingSummary, serviceSnapshot, overviewExtras] = link
         ? await Promise.all([
             loadWorkspaceContext(link.workspaceId),
             loadWorkspaceData(link.workspaceId).catch(() => undefined),
             wantsGiving ? getGivingSummary(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
             reportKey === "overview" ? getServiceSnapshot(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
+            reportKey === "overview" ? getOverviewExtras(link.workspaceId).catch(() => undefined) : Promise.resolve(undefined),
           ])
-        : [undefined, undefined, undefined, undefined];
-      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot });
+        : [undefined, undefined, undefined, undefined, undefined];
+      const { text, buttons } = await buildReport(reportKey, { link, session, workspaceContext, liveData, givingSummary, serviceSnapshot, overviewExtras });
       if (buttons?.length) {
         try { await sendInteractiveButtons(from, text, buttons); }
         catch { await sendTextMessage(from, text); }

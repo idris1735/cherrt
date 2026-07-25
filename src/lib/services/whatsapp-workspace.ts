@@ -304,6 +304,13 @@ export type GivingSummary = {
   totalLastMonth: number;
   countThisMonth: number;
   byType: Record<string, number>;
+  byTypeCount: Record<string, number>;
+  uniqueGivers: number;
+  avgGift: number;
+  biggest: { donor: string; amount: number } | null;
+  thisWeekTotal: number;
+  thisWeekCount: number;
+  topGivers: Array<{ donor: string; amount: number }>;
   recent: Array<{ donor: string; amount: number; givingType: string; createdAtLabel: string }>;
 };
 
@@ -344,8 +351,48 @@ export async function getServiceSnapshot(workspaceId: string): Promise<ServiceSn
   };
 }
 
+export type OverviewExtras = {
+  members: number;
+  newMembersThisMonth: number;
+  nextEvent: { title: string; dateLabel: string } | null;
+  firstTimersToFollowUp: number;
+  attendanceTrend: number[]; // oldest→newest totals, up to the last 4 services
+};
+
+// The signals that turn the overview into a real command centre: how many
+// members (and new this month), the next event, first-timers still to follow up,
+// and the recent attendance trend. Best-effort — each piece degrades to a zero.
+export async function getOverviewExtras(workspaceId: string): Promise<OverviewExtras> {
+  const empty: OverviewExtras = { members: 0, newMembersThisMonth: 0, nextEvent: null, firstTimersToFollowUp: 0, attendanceTrend: [] };
+  const db = getSupabaseServerClient();
+  if (!db) return empty;
+  const monthStart = startOfMonth(new Date());
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [mem, ev, ft, svc] = await Promise.all([
+    db.from("branch_memberships").select("created_at").eq("workspace_id", workspaceId).eq("status", "active"),
+    db.from("event_records").select("title, event_date").eq("workspace_id", workspaceId).gte("event_date", today).order("event_date", { ascending: true }).limit(1).maybeSingle(),
+    db.from("first_timers").select("id").eq("workspace_id", workspaceId).in("follow_up_status", ["new", "contacted"]),
+    db.from("services").select("attendance_adults, attendance_children").eq("workspace_id", workspaceId).order("service_date", { ascending: false }).limit(4),
+  ]);
+
+  const memRows = (mem.data ?? []) as Array<{ created_at?: string }>;
+  const members = memRows.length;
+  const newMembersThisMonth = memRows.filter((r) => r.created_at && new Date(r.created_at) >= monthStart).length;
+  const evRow = ev.data as { title?: string; event_date?: string } | null;
+  const nextEvent = evRow ? { title: evRow.title ?? "", dateLabel: evRow.event_date ?? "" } : null;
+  const firstTimersToFollowUp = ((ft.data ?? []) as unknown[]).length;
+  const svcRows = (svc.data ?? []) as Array<{ attendance_adults?: number; attendance_children?: number }>;
+  const attendanceTrend = svcRows.map((s) => (s.attendance_adults ?? 0) + (s.attendance_children ?? 0)).reverse();
+
+  return { members, newMembersThisMonth, nextEvent, firstTimersToFollowUp, attendanceTrend };
+}
+
 export async function getGivingSummary(workspaceId: string): Promise<GivingSummary> {
-  const empty: GivingSummary = { totalThisMonth: 0, totalLastMonth: 0, countThisMonth: 0, byType: {}, recent: [] };
+  const empty: GivingSummary = {
+    totalThisMonth: 0, totalLastMonth: 0, countThisMonth: 0, byType: {}, byTypeCount: {},
+    uniqueGivers: 0, avgGift: 0, biggest: null, thisWeekTotal: 0, thisWeekCount: 0, topGivers: [], recent: [],
+  };
 
   const db = getSupabaseServerClient();
   if (!db) return empty;
@@ -354,6 +401,8 @@ export async function getGivingSummary(workspaceId: string): Promise<GivingSumma
   const thisMonthStart = startOfMonth(now);
   const lastMonthStart = new Date(thisMonthStart);
   lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+  const weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - 7);
 
   const { data, error } = await db
     .from("giving_records")
@@ -367,29 +416,47 @@ export async function getGivingSummary(workspaceId: string): Promise<GivingSumma
   let totalThisMonth = 0;
   let totalLastMonth = 0;
   let countThisMonth = 0;
+  let thisWeekTotal = 0;
+  let thisWeekCount = 0;
   const byType: Record<string, number> = {};
+  const byTypeCount: Record<string, number> = {};
+  const perGiver: Record<string, number> = {};
 
-  for (const row of data as Array<{ donor_name: string; amount: number; giving_type: string; created_at: string }>) {
+  const rows = data as Array<{ donor_name: string; amount: number; giving_type: string; created_at: string }>;
+  for (const row of rows) {
     const createdAt = new Date(row.created_at);
     if (createdAt >= thisMonthStart) {
       totalThisMonth += row.amount;
       countThisMonth += 1;
       byType[row.giving_type] = (byType[row.giving_type] ?? 0) + row.amount;
+      byTypeCount[row.giving_type] = (byTypeCount[row.giving_type] ?? 0) + 1;
+      const giver = (row.donor_name ?? "").trim() || "Anonymous";
+      perGiver[giver] = (perGiver[giver] ?? 0) + row.amount;
+      if (createdAt >= weekStart) { thisWeekTotal += row.amount; thisWeekCount += 1; }
     } else {
       totalLastMonth += row.amount;
     }
   }
 
-  const recent = (data as Array<{ donor_name: string; amount: number; giving_type: string; created_at: string }>)
-    .slice(0, 5)
-    .map((row) => ({
-      donor: row.donor_name,
-      amount: row.amount,
-      givingType: row.giving_type,
-      createdAtLabel: new Date(row.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" }),
-    }));
+  const topGivers = Object.entries(perGiver)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([donor, amount]) => ({ donor, amount }));
+  const biggest = topGivers.length ? { donor: topGivers[0].donor, amount: topGivers[0].amount } : null;
+  const uniqueGivers = Object.keys(perGiver).length;
+  const avgGift = countThisMonth ? Math.round(totalThisMonth / countThisMonth) : 0;
 
-  return { totalThisMonth, totalLastMonth, countThisMonth, byType, recent };
+  const recent = rows.slice(0, 5).map((row) => ({
+    donor: row.donor_name,
+    amount: row.amount,
+    givingType: row.giving_type,
+    createdAtLabel: new Date(row.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" }),
+  }));
+
+  return {
+    totalThisMonth, totalLastMonth, countThisMonth, byType, byTypeCount,
+    uniqueGivers, avgGift, biggest, thisWeekTotal, thisWeekCount, topGivers, recent,
+  };
 }
 
 // ─── Organizations (churches) & branches ──────────────────────────────────

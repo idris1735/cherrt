@@ -2,7 +2,7 @@ import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
 import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
 import type { WorkspaceData } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
-import type { GivingSummary, PhoneLink, WorkspaceContext, ServiceSnapshot } from "@/lib/services/whatsapp-workspace";
+import type { GivingSummary, PhoneLink, WorkspaceContext, ServiceSnapshot, OverviewExtras } from "@/lib/services/whatsapp-workspace";
 
 export type ReportKey =
   | "overview"
@@ -83,6 +83,7 @@ type ReportContext = {
   liveData?: WorkspaceData;
   givingSummary?: GivingSummary;
   serviceSnapshot?: ServiceSnapshot | null;
+  overviewExtras?: OverviewExtras;
 };
 
 function fmt(n: number): string {
@@ -112,6 +113,7 @@ export async function buildReport(
       const churchName = ctx.link?.workspaceName ?? "Your church";
       const g = ctx.givingSummary;
       const svc = ctx.serviceSnapshot;
+      const ex = ctx.overviewExtras;
       const pending = w?.pendingRequests?.length ?? 0;
       const openIss = w?.pendingIssues?.length ?? 0;
 
@@ -119,28 +121,36 @@ export async function buildReport(
 
       if (svc && (svc.adults != null || svc.children != null)) {
         const total = (svc.adults ?? 0) + (svc.children ?? 0);
-        lines.push("🧎 *Last service*");
-        lines.push(`• ${total} in attendance — ${svc.adults ?? 0} adults, ${svc.children ?? 0} children`);
-        if (svc.firstTimers) lines.push(`• ${svc.firstTimers} first-timer${svc.firstTimers !== 1 ? "s" : ""} 🎉`);
-        lines.push("");
+        const trend = ex && ex.attendanceTrend.length > 1 ? `  _(recent: ${ex.attendanceTrend.join(" → ")})_` : "";
+        const ft = svc.firstTimers ? ` · ${svc.firstTimers} first-timer${svc.firstTimers !== 1 ? "s" : ""} 🎉` : "";
+        lines.push(`🧎 *Last service:* ${total} — ${svc.adults ?? 0} adults, ${svc.children ?? 0} children${ft}${trend}`);
       }
 
       if (g && g.countThisMonth > 0) {
         const delta = deltaPct(g.totalThisMonth, g.totalLastMonth);
-        lines.push("🙏 *Giving this month*");
-        lines.push(`• ${fmt(g.totalThisMonth)} from ${g.countThisMonth} gift${g.countThisMonth !== 1 ? "s" : ""} (${deltaEmoji(delta)} ${Math.abs(delta)}% vs last month)`);
-        lines.push("");
+        const week = g.thisWeekTotal > 0 ? ` · ${fmt(g.thisWeekTotal)} this week` : "";
+        lines.push(`🙏 *Giving:* ${fmt(g.totalThisMonth)} this month (${deltaEmoji(delta)} ${Math.abs(delta)}%)${week}`);
       }
 
-      lines.push("🧾 *Needs attention*");
-      lines.push(`• Pending approvals: ${pending}`);
-      lines.push(`• Open issues: ${openIss}`);
+      if (ex && ex.members > 0) {
+        const nu = ex.newMembersThisMonth > 0 ? ` (${ex.newMembersThisMonth} new this month)` : "";
+        lines.push(`👥 *Members:* ${ex.members}${nu}`);
+      }
+
+      if (ex?.nextEvent) {
+        lines.push(`📅 *Coming up:* ${ex.nextEvent.title}${ex.nextEvent.dateLabel ? ` (${ex.nextEvent.dateLabel})` : ""}`);
+      }
+
+      const needs: string[] = [];
+      if (pending) needs.push(`${pending} approval${pending !== 1 ? "s" : ""} to review`);
+      if (openIss) needs.push(`${openIss} open issue${openIss !== 1 ? "s" : ""}`);
+      if (ex && ex.firstTimersToFollowUp > 0) needs.push(`${ex.firstTimersToFollowUp} first-timer${ex.firstTimersToFollowUp !== 1 ? "s" : ""} to follow up`);
       lines.push("");
-      lines.push(pending || openIss ? "_Tap for the giving breakdown._" : "_All clear. Tap for the giving breakdown._");
+      lines.push(needs.length ? `🧾 *Needs you:* ${needs.join(" · ")}` : "🙌 *All clear* — nothing needs you right now.");
 
       return {
         text: lines.filter((l): l is string => l !== null).join("\n"),
-        buttons: [{ id: "rpt:giving", title: "Giving this month" }],
+        buttons: [{ id: "rpt:giving", title: "Giving this month" }, { id: "main_menu", title: "☰ Menu" }],
       };
     }
 
@@ -303,6 +313,7 @@ export async function buildReport(
         };
       }
 
+      const churchName = ctx.link?.workspaceName ?? "your church";
       const summary = ctx.givingSummary;
       if (!summary || summary.countThisMonth === 0) {
         return {
@@ -313,30 +324,37 @@ export async function buildReport(
             "",
             "_Members can give by saying \"I want to give\" — it takes seconds._",
           ].join("\n"),
-          buttons: [{ id: "rpt:overview", title: "Overview" }],
+          buttons: [{ id: "rpt:overview", title: "Overview" }, { id: "main_menu", title: "☰ Menu" }],
         };
       }
 
       const delta = deltaPct(summary.totalThisMonth, summary.totalLastMonth);
+      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
       const typeLines = Object.entries(summary.byType)
         .sort(([, a], [, b]) => b - a)
-        .map(([type, total]) => `• ${type.charAt(0).toUpperCase() + type.slice(1)}: ${fmt(total)}`);
+        .map(([type, total]) => `• ${cap(type)}: ${fmt(total)} (${summary.byTypeCount[type] ?? 0})`);
+      const topLines = summary.topGivers.map((g, i) => `${i + 1}. ${g.donor} — ${fmt(g.amount)}`);
+
+      const headline = `This month: *${fmt(summary.totalThisMonth)}* · ${summary.countThisMonth} gift${summary.countThisMonth !== 1 ? "s" : ""} · ${summary.uniqueGivers} giver${summary.uniqueGivers !== 1 ? "s" : ""} (${deltaEmoji(delta)} ${Math.abs(delta)}% vs last month)`;
+      const stats = `Avg ${fmt(summary.avgGift)}${summary.biggest ? ` · Biggest ${fmt(summary.biggest.amount)} (${summary.biggest.donor})` : ""} · This week ${fmt(summary.thisWeekTotal)}`;
 
       return {
         text: [
-          "🙏 *Giving Report*",
+          `🙏 *Giving — ${churchName}*`,
           "",
-          `• This month: *${fmt(summary.totalThisMonth)}* from ${summary.countThisMonth} gift${summary.countThisMonth !== 1 ? "s" : ""} (${deltaEmoji(delta)} ${Math.abs(delta)}% vs last month)`,
+          headline,
+          stats,
           "",
           "*By type*",
           ...typeLines,
           "",
-          "*Recent*",
-          ...summary.recent.slice(0, 3).map((g) => `• ${g.donor} — ${fmt(g.amount)} (${g.givingType}) · ${g.createdAtLabel}`),
+          "*Top givers*",
+          ...topLines,
           "",
-          "_Tap for overview._",
+          "*Recent*",
+          ...summary.recent.slice(0, 5).map((g) => `• ${g.donor} — ${fmt(g.amount)} (${g.givingType}) · ${g.createdAtLabel}`),
         ].join("\n"),
-        buttons: [{ id: "rpt:overview", title: "Overview" }],
+        buttons: [{ id: "rpt:overview", title: "Overview" }, { id: "main_menu", title: "☰ Menu" }],
       };
     }
   }
