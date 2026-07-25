@@ -157,4 +157,27 @@ export const CHILD_TOOLS: AgentTool[] = [
       return { ok: true, message: `✅ ${row.child_name ?? "The child"} has been released. Pickup recorded.` };
     },
   },
+  {
+    name: "list_checked_in_children",
+    description:
+      "How many and which children are currently checked in to children's church right now. Use for 'how many kids/children do we have checked in', 'how many kids are here', 'who's in children's church', 'list the children checked in'. This is the live check-in count, not Sunday-service attendance.",
+    parameters: { type: "object", properties: {} },
+    minRank: 1, // children's-team / leaders — reveals child + guardian names
+    handler: async (_args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { count: 0, children: [] };
+      const { data } = await db
+        .from("child_checkins")
+        .select("child_name, age, guardian_name, allergies")
+        .eq("workspace_id", ctx.workspaceId)
+        .eq("status", "checked_in")
+        .order("checked_in_at", { ascending: true })
+        .limit(200);
+      const children = (data ?? []).map((r) => {
+        const row = r as { child_name?: string; age?: number; guardian_name?: string; allergies?: string };
+        return { name: row.child_name ?? "", age: row.age ?? null, guardian: row.guardian_name ?? "", allergies: row.allergies ?? "" };
+      });
+      return { count: children.length, children };
+    },
+  },
 ];

@@ -6,6 +6,7 @@ const { store } = vi.hoisted(() => ({
     inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
     updates: [] as Array<{ table: string; row: Record<string, unknown> }>,
     single: {} as Record<string, unknown | null>,
+    list: {} as Record<string, unknown[]>,
   },
 }));
 vi.mock("@/lib/services/supabase-server", () => ({
@@ -22,8 +23,10 @@ vi.mock("@/lib/services/supabase-server", () => ({
         },
         select: () => chain,
         eq: () => chain,
+        order: () => chain,
+        limit: () => chain,
         maybeSingle: () => Promise.resolve({ data: store.single[table] ?? null, error: null }),
-        then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: [], error: null }),
+        then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: store.list[table] ?? [], error: null }),
       };
       return chain;
     },
@@ -46,6 +49,7 @@ beforeEach(() => {
   store.inserts.length = 0;
   store.updates.length = 0;
   store.single = {};
+  store.list = {};
   mockImage.mockClear();
 });
 
@@ -130,5 +134,30 @@ describe("release_child", () => {
     const out = (await tool("release_child").handler({ pickupCode: "0000" }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
     expect(store.updates).toHaveLength(0);
+  });
+});
+
+describe("list_checked_in_children", () => {
+  it("counts and lists the currently checked-in children", async () => {
+    store.list["child_checkins"] = [
+      { child_name: "Zoe", age: 5, guardian_name: "Faith", allergies: "peanuts" },
+      { child_name: "Caleb", age: 8, guardian_name: "Blessing", allergies: null },
+    ];
+    const out = (await tool("list_checked_in_children").handler({}, ctx)) as {
+      count: number;
+      children: Array<{ name: string; guardian: string }>;
+    };
+    expect(out.count).toBe(2);
+    expect(out.children[0]).toMatchObject({ name: "Zoe", guardian: "Faith" });
+  });
+
+  it("returns zero when none are checked in", async () => {
+    store.list["child_checkins"] = [];
+    const out = (await tool("list_checked_in_children").handler({}, ctx)) as { count: number };
+    expect(out.count).toBe(0);
+  });
+
+  it("is gated to the children's team / leaders", () => {
+    expect(tool("list_checked_in_children").minRank).toBe(1);
   });
 });

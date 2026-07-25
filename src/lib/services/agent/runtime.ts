@@ -23,6 +23,7 @@ import { HELPDESK_TOOLS } from "@/lib/services/agent/helpdesk-tools";
 import { FAQ_TOOLS } from "@/lib/services/agent/faq-tools";
 import { ADMIN_MIGRATION_TOOLS, GUEST_MIGRATION_TOOLS } from "@/lib/services/agent/migration-tools";
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
+import { QR_TOOLS } from "@/lib/services/agent/qr-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
 import { composeSystemPrompt, buildIdentityBlock, GUEST_PERSONA } from "@/lib/services/agent/persona";
 
@@ -45,6 +46,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...FAQ_TOOLS,
   ...ADMIN_MIGRATION_TOOLS,
   ...SETTINGS_TOOLS,
+  ...QR_TOOLS,
 ];
 
 export type ToolCall = { name: string; args: Record<string, unknown> };
