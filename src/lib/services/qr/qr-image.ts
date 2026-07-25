@@ -11,3 +11,14 @@ export async function qrDataUrl(text: string): Promise<string> {
     color: { dark: "#0b3d2e", light: "#ffffff" },
   });
 }
+
+// Raw PNG bytes for the QR — served by the /qr/img route so WhatsApp (or any
+// client) can fetch it as an image.
+export async function qrPngBuffer(text: string): Promise<Buffer> {
+  return QRCode.toBuffer(text, {
+    width: 800,
+    margin: 2,
+    errorCorrectionLevel: "M",
+    color: { dark: "#0b3d2e", light: "#ffffff" },
+  });
+}

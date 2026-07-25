@@ -5,7 +5,13 @@
 
 import { randomInt, randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
+import { sendImageMessage } from "@/lib/services/whatsapp";
 import type { AgentTool } from "@/lib/services/agent/tools";
+
+// Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || "https://cherrt.vercel.app").replace(/\/$/, "");
+}
 
 function newId(): string {
   return randomUUID();
@@ -58,6 +64,18 @@ export const CHILD_TOOLS: AgentTool[] = [
         status: "checked_in",
       });
       if (error) return { error: error.message };
+      // Deliver the pickup pass as a scannable QR image in the chat. At
+      // collection a volunteer scans it → WhatsApp opens "Pickup code <code>" →
+      // Chertt verifies the guardian. Best-effort: never blocks the check-in,
+      // and the printed code above always works as a fallback.
+      if (ctx.phone) {
+        const imgUrl = `${appUrl()}/qr/img?preset=pickup&code=${code}`;
+        try {
+          await sendImageMessage(ctx.phone, imgUrl, `👶 ${childName}'s pickup pass — show this at collection. Code: *${code}*`);
+        } catch {
+          /* image is a bonus; the code in the reply still works */
+        }
+      }
       return {
         ok: true,
         pickupCode: code,

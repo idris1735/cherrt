@@ -38,6 +38,18 @@ export async function sendTextMessage(to: string, text: string): Promise<void> {
   });
 }
 
+// Sends an image message by public URL (Meta fetches the link), with an
+// optional caption. Used to deliver a scannable QR — e.g. a child's pickup pass
+// — straight into the chat, no web page needed.
+export async function sendImageMessage(to: string, imageUrl: string, caption?: string): Promise<void> {
+  await postToGraph({
+    messaging_product: "whatsapp",
+    to,
+    type: "image",
+    image: { link: imageUrl, ...(caption ? { caption: caption.slice(0, 1024) } : {}) },
+  });
+}
+
 export async function sendTemplateMessage(
   to: string,
   templateName: string,

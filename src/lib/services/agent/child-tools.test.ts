@@ -30,9 +30,15 @@ vi.mock("@/lib/services/supabase-server", () => ({
   }),
 }));
 
+vi.mock("@/lib/services/whatsapp", () => ({
+  sendImageMessage: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { CHILD_TOOLS } from "@/lib/services/agent/child-tools";
+import { sendImageMessage } from "@/lib/services/whatsapp";
 import type { AgentContext } from "@/lib/services/agent/tools";
 
+const mockImage = sendImageMessage as ReturnType<typeof vi.fn>;
 const ctx: AgentContext = { workspaceId: "ws1", role: "member", userName: "Ruth" };
 const tool = (name: string) => CHILD_TOOLS.find((t) => t.name === name)!;
 
@@ -40,6 +46,7 @@ beforeEach(() => {
   store.inserts.length = 0;
   store.updates.length = 0;
   store.single = {};
+  mockImage.mockClear();
 });
 
 describe("check_in_child", () => {
@@ -62,6 +69,27 @@ describe("check_in_child", () => {
     const out = (await tool("check_in_child").handler({ childName: "" }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
     expect(store.inserts).toHaveLength(0);
+  });
+
+  it("sends the pickup pass as a QR image when the sender's phone is known", async () => {
+    const out = (await tool("check_in_child").handler({ childName: "Amara" }, { ...ctx, phone: "2348012345678" })) as { pickupCode: string };
+    expect(mockImage).toHaveBeenCalledTimes(1);
+    const [to, url, caption] = mockImage.mock.calls[0] as [string, string, string];
+    expect(to).toBe("2348012345678");
+    expect(url).toContain(`/qr/img?preset=pickup&code=${out.pickupCode}`);
+    expect(caption).toContain("Amara");
+  });
+
+  it("still checks in even if the QR image fails to send", async () => {
+    mockImage.mockRejectedValueOnce(new Error("whatsapp down"));
+    const out = (await tool("check_in_child").handler({ childName: "Zoe" }, { ...ctx, phone: "2348012345678" })) as { ok: boolean };
+    expect(out.ok).toBe(true);
+    expect(store.inserts[0]).toMatchObject({ table: "child_checkins", row: { child_name: "Zoe" } });
+  });
+
+  it("does not attempt an image send without a known phone", async () => {
+    await tool("check_in_child").handler({ childName: "Timmy" }, ctx);
+    expect(mockImage).not.toHaveBeenCalled();
   });
 });
 
