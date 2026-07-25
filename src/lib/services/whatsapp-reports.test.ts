@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { matchReportIntent, buildReport, matchOrgReportIntent, buildOrgOverviewReport, buildOrgGivingReport } from "@/lib/services/whatsapp-reports";
-import type { ComputedMetrics } from "@/lib/services/business-metrics";
 import type { GivingSummary } from "@/lib/services/whatsapp-workspace";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
@@ -21,27 +20,6 @@ function guestCtx() {
   };
 }
 
-function fixtureMetrics(overrides: Partial<ComputedMetrics> = {}): ComputedMetrics {
-  return {
-    totalSales: 100_000,
-    salesDeltaPct: 5,
-    walletBalance: 50_000,
-    cashback: 1_000,
-    customers: 10,
-    customersDeltaPct: 2,
-    spend: 20_000,
-    spendDeltaPct: 1,
-    pendingApprovals: 2,
-    approvedCount: 3,
-    openIssues: 1,
-    lowStock: 1,
-    awaitingSig: 0,
-    series: [],
-    recentActivity: [],
-    ...overrides,
-  };
-}
-
 function fixtureGiving(overrides: Partial<GivingSummary> = {}): GivingSummary {
   return {
     totalThisMonth: 50_000,
@@ -58,63 +36,21 @@ function naira(n: number): string {
 }
 
 describe("matchReportIntent", () => {
-  // ── Overview ──
-  it("matches overview: how's my business", () => {
-    expect(matchReportIntent("how's my business")).toBe("overview");
+  // ── Overview (church "at a glance") ──
+  it("matches overview: how is the church doing", () => {
+    expect(matchReportIntent("how is the church doing")).toBe("overview");
   });
-  it("matches overview: business summary", () => {
-    expect(matchReportIntent("business summary")).toBe("overview");
+  it("matches overview: church overview", () => {
+    expect(matchReportIntent("church overview")).toBe("overview");
   });
-  it("matches overview: how are we doing", () => {
-    expect(matchReportIntent("how are we doing")).toBe("overview");
+  it("matches overview: at a glance", () => {
+    expect(matchReportIntent("at a glance")).toBe("overview");
   });
   it("matches overview: dashboard", () => {
     expect(matchReportIntent("dashboard")).toBe("overview");
   });
 
-  // ── Customers ──
-  it("matches customers: how many customers", () => {
-    expect(matchReportIntent("how many customers")).toBe("customers");
-  });
-  it("matches customers: customer report", () => {
-    expect(matchReportIntent("customer report")).toBe("customers");
-  });
-  it("matches customers: my customers", () => {
-    expect(matchReportIntent("my customers")).toBe("customers");
-  });
-
-  // ── Sales ──
-  it("matches sales: sales report", () => {
-    expect(matchReportIntent("sales report")).toBe("sales");
-  });
-  it("matches sales: total sales", () => {
-    expect(matchReportIntent("total sales")).toBe("sales");
-  });
-  it("matches sales: how much did we sell", () => {
-    expect(matchReportIntent("how much did we sell")).toBe("sales");
-  });
-  it("matches sales: revenue", () => {
-    expect(matchReportIntent("revenue")).toBe("sales");
-  });
-  it("matches sales: sales this month", () => {
-    expect(matchReportIntent("sales this month")).toBe("sales");
-  });
-
-  // ── Expenses ──
-  it("matches expenses: expense report", () => {
-    expect(matchReportIntent("expense report")).toBe("expenses");
-  });
-  it("matches expenses: how much did we spend", () => {
-    expect(matchReportIntent("how much did we spend")).toBe("expenses");
-  });
-  it("matches expenses: show expenses", () => {
-    expect(matchReportIntent("show expenses")).toBe("expenses");
-  });
-  it("matches expenses: spending", () => {
-    expect(matchReportIntent("spending")).toBe("expenses");
-  });
-
-  // ── Requests ──
+  // ── Requests / approvals ──
   it("matches requests: my requests", () => {
     expect(matchReportIntent("my requests")).toBe("requests");
   });
@@ -124,33 +60,8 @@ describe("matchReportIntent", () => {
   it("matches requests: pending approvals", () => {
     expect(matchReportIntent("pending approvals")).toBe("requests");
   });
-  it("matches requests: requests report", () => {
-    expect(matchReportIntent("requests report")).toBe("requests");
-  });
-
-  // ── Inventory ──
-  it("matches inventory: inventory report", () => {
-    expect(matchReportIntent("inventory report")).toBe("inventory");
-  });
-  it("matches inventory: stock levels", () => {
-    expect(matchReportIntent("stock levels")).toBe("inventory");
-  });
-  it("matches inventory: what's low", () => {
-    expect(matchReportIntent("what's low")).toBe("inventory");
-  });
-  it("matches inventory: low stock", () => {
-    expect(matchReportIntent("low stock")).toBe("inventory");
-  });
-
-  // ── Wallet ──
-  it("matches wallet: wallet balance", () => {
-    expect(matchReportIntent("wallet balance")).toBe("wallet");
-  });
-  it("matches wallet: my balance", () => {
-    expect(matchReportIntent("my balance")).toBe("wallet");
-  });
-  it("matches wallet: how much do I have", () => {
-    expect(matchReportIntent("how much do I have")).toBe("wallet");
+  it("matches requests: what needs my approval", () => {
+    expect(matchReportIntent("what needs my approval")).toBe("requests");
   });
 
   // ── Issues ──
@@ -162,6 +73,20 @@ describe("matchReportIntent", () => {
   });
   it("matches issues: facility issues", () => {
     expect(matchReportIntent("facility issues")).toBe("issues");
+  });
+
+  // ── Business reports are NOT part of the church surface anymore ──
+  it("does not route customers/sales/wallet/inventory/expenses", () => {
+    expect(matchReportIntent("how many customers")).toBeNull();
+    expect(matchReportIntent("sales report")).toBeNull();
+    expect(matchReportIntent("total sales")).toBeNull();
+    expect(matchReportIntent("revenue")).toBeNull();
+    expect(matchReportIntent("wallet balance")).toBeNull();
+    expect(matchReportIntent("my balance")).toBeNull();
+    expect(matchReportIntent("stock levels")).toBeNull();
+    expect(matchReportIntent("low stock")).toBeNull();
+    expect(matchReportIntent("show expenses")).toBeNull();
+    expect(matchReportIntent("how's my business")).toBeNull();
   });
 
   // ── Should NOT match create messages ──
@@ -311,22 +236,25 @@ describe("buildReport", () => {
 });
 
 describe("buildOrgOverviewReport", () => {
-  it("sums totals across branches and lists each by name", () => {
+  it("combines giving + attendance across branches — church, not business", () => {
     const { text, buttons } = buildOrgOverviewReport([
-      { id: "a", name: "Lagos", metrics: fixtureMetrics({ totalSales: 100_000, walletBalance: 50_000, customers: 10, pendingApprovals: 2, openIssues: 1, lowStock: 1 }) },
-      { id: "b", name: "Abuja", metrics: fixtureMetrics({ totalSales: 200_000, walletBalance: 30_000, customers: 5, pendingApprovals: 1, openIssues: 0, lowStock: 2 }) },
+      { id: "a", name: "Lagos", giving: fixtureGiving({ totalThisMonth: 100_000, countThisMonth: 8 }), snapshot: { dateLabel: "2026-07-19", adults: 120, children: 30, firstTimers: 4 }, pending: 2, issues: 1 },
+      { id: "b", name: "Abuja", giving: fixtureGiving({ totalThisMonth: 200_000, countThisMonth: 12 }), snapshot: { dateLabel: "2026-07-19", adults: 80, children: 20, firstTimers: 2 }, pending: 1, issues: 0 },
     ]);
-    expect(text).toContain("All Branches — Overview");
-    expect(text).toContain(naira(300_000));
+    expect(text).toContain("All Branches — at a glance");
+    expect(text).toContain(naira(300_000)); // combined giving
+    expect(text).toContain("250"); // combined attendance 150 + 100
+    expect(text).toContain("Pending approvals: 3");
     expect(text).toContain("Lagos");
     expect(text).toContain("Abuja");
+    expect(text).not.toMatch(/Sales|Wallet|Customers|Low stock/);
     expect(buttons).toEqual([{ id: "rpt:org-giving", title: "Giving (all branches)" }]);
   });
 
-  it("shows a fallback line for a branch whose data failed to load, and excludes it from totals", () => {
+  it("shows a fallback line for a branch whose data failed to load", () => {
     const { text } = buildOrgOverviewReport([
-      { id: "a", name: "Lagos", metrics: fixtureMetrics({ totalSales: 100_000 }) },
-      { id: "c", name: "Enugu", metrics: undefined },
+      { id: "a", name: "Lagos", giving: fixtureGiving({ totalThisMonth: 100_000 }), snapshot: null, pending: 0, issues: 0 },
+      { id: "c", name: "Enugu", giving: undefined, snapshot: undefined },
     ]);
     expect(text).toContain("Enugu: ⚠️ couldn't load");
     expect(text).toContain(naira(100_000));

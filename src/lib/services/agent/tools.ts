@@ -78,18 +78,18 @@ export const READ_TOOLS: AgentTool[] = [
     },
   },
   {
-    name: "get_low_stock",
-    description: "Inventory items at or below their minimum stock level.",
+    name: "get_low_supplies",
+    description: "Church supplies or resources running low and needing a restock.",
     parameters: NO_PARAMS,
     minRank: 2,
     handler: async (_args, ctx) => {
       const c = await loadWorkspaceContext(ctx.workspaceId);
-      return { count: c.lowInventoryItems.length, items: c.lowInventoryItems };
+      return { count: c.lowInventoryItems.length, supplies: c.lowInventoryItems };
     },
   },
   {
     name: "get_open_issues",
-    description: "Open facility and issue reports in this workspace.",
+    description: "Open facility and maintenance issues at the church.",
     parameters: NO_PARAMS,
     minRank: 2,
     handler: async (_args, ctx) => {

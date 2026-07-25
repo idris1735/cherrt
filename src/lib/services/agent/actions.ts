@@ -85,50 +85,51 @@ export const ACTION_TOOLS: AgentTool[] = [
     },
   },
   {
-    name: "add_inventory_item",
-    description: "Add or restock an inventory item. Use when the user wants to track stock of something.",
+    name: "track_supply",
+    description:
+      "Track a church supply or resource — communion cups, children's-church materials, chairs, equipment — and how many you have. Use when someone wants to record or restock supplies.",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Item name" },
-        inStock: { type: "number", description: "Quantity currently in stock" },
-        minLevel: { type: "number", description: "Reorder threshold (optional)" },
-        location: { type: "string", description: "Where it's stored (optional)" },
+        name: { type: "string", description: "What it is, e.g. 'Communion cups'" },
+        quantity: { type: "number", description: "How many you have now" },
+        lowAt: { type: "number", description: "Flag as low when it drops to this (optional)" },
+        location: { type: "string", description: "Where it's kept (optional)" },
       },
-      required: ["name", "inStock"],
+      required: ["name", "quantity"],
     },
     minRank: 2,
     mutates: true,
     handler: async (args, ctx) => {
       const name = String(args.name ?? "").trim();
-      const inStock = Number(args.inStock);
-      if (!name || !Number.isFinite(inStock) || inStock < 0) {
-        return { error: "Need an item name and a stock count." };
+      const quantity = Number(args.quantity);
+      if (!name || !Number.isFinite(quantity) || quantity < 0) {
+        return { error: "Need a supply name and how many you have." };
       }
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
-      const minLevelRaw = Number(args.minLevel);
+      const lowAtRaw = Number(args.lowAt);
       const { error } = await db.from("toolkit_inventory_items").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
         name,
-        in_stock: inStock,
-        min_level: Number.isFinite(minLevelRaw) ? minLevelRaw : 0,
+        in_stock: quantity,
+        min_level: Number.isFinite(lowAtRaw) ? lowAtRaw : 0,
         location: String(args.location ?? ""),
       });
       if (error) return { error: error.message };
-      return { ok: true, added: { name, inStock } };
+      return { ok: true, message: `✅ Tracked *${name}* — ${quantity} in store.` };
     },
   },
   {
     name: "draft_document",
     description:
-      "Draft a letter, memo, or invoice. YOU write the full body text in the 'body' argument. This is consequential, so it is saved only after the user confirms.",
+      "Draft a letter or memo. YOU write the full body text in the 'body' argument. This is consequential, so it is saved only after the user confirms.",
     parameters: {
       type: "object",
       properties: {
         title: { type: "string", description: "Document title" },
-        type: { type: "string", description: "letter, memo, or invoice" },
+        type: { type: "string", description: "letter or memo" },
         body: { type: "string", description: "The full drafted document text you have written" },
       },
       required: ["title", "body"],
@@ -143,7 +144,7 @@ export const ACTION_TOOLS: AgentTool[] = [
       if (!title || !body) return { error: "Need a title and body." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
-      const type = ["letter", "memo", "invoice"].includes(String(args.type)) ? String(args.type) : "letter";
+      const type = ["letter", "memo"].includes(String(args.type)) ? String(args.type) : "letter";
       const { error } = await db.from("smart_documents").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,

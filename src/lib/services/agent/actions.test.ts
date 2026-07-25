@@ -54,16 +54,16 @@ describe("report_issue", () => {
   });
 });
 
-describe("add_inventory_item", () => {
-  it("inserts a scoped inventory row", async () => {
-    const out = (await tool("add_inventory_item").handler({ name: "Chairs", inStock: 40, minLevel: 10 }, ctx)) as { ok: boolean };
+describe("track_supply", () => {
+  it("inserts a scoped supply row", async () => {
+    const out = (await tool("track_supply").handler({ name: "Communion cups", quantity: 40, lowAt: 10 }, ctx)) as { ok: boolean };
     expect(out.ok).toBe(true);
     expect(inserts[0].table).toBe("toolkit_inventory_items");
-    expect(inserts[0].row).toMatchObject({ workspace_id: "ws1", name: "Chairs", in_stock: 40, min_level: 10 });
+    expect(inserts[0].row).toMatchObject({ workspace_id: "ws1", name: "Communion cups", in_stock: 40, min_level: 10 });
   });
 
   it("rejects a missing name without inserting", async () => {
-    const out = (await tool("add_inventory_item").handler({ name: "", inStock: 5 }, ctx)) as { error?: string };
+    const out = (await tool("track_supply").handler({ name: "", quantity: 5 }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
     expect(inserts).toHaveLength(0);
   });

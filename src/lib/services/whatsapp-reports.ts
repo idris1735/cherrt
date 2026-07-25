@@ -1,6 +1,6 @@
 import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
 import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
-import type { WorkspaceData, ComputedMetrics } from "@/lib/services/business-metrics";
+import type { WorkspaceData } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { GivingSummary, PhoneLink, WorkspaceContext, ServiceSnapshot } from "@/lib/services/whatsapp-workspace";
 
@@ -23,46 +23,22 @@ export function matchReportIntent(text: string): ReportKey | null {
   // Never match if the message contains a CREATE verb
   if (CREATE_VERBS.test(t)) return null;
 
-  // Overview
-  if (/\bhow(?:'s| is) my business\b/i.test(t)) return "overview";
-  if (/\bbusiness (?:summary|overview)\b/i.test(t)) return "overview";
-  if (/\bhow (?:are we|we are) doing\b/i.test(t)) return "overview";
+  // The church report surface is deliberately small: an at-a-glance overview,
+  // giving, pending approvals, and open issues. Business phrasings (sales,
+  // customers, wallet, inventory) are NOT routed — Chertt is a church.
+
+  // Overview / "at a glance"
+  if (/\bhow (?:are we|we are|is the church) doing\b/i.test(t)) return "overview";
+  if (/\b(?:church|business) (?:summary|overview)\b/i.test(t)) return "overview";
+  if (/\bat a glance\b/i.test(t)) return "overview";
   if (/^dashboard$/i.test(t)) return "overview";
 
-  // Customers
-  if (/\bhow many customers?\b/i.test(t)) return "customers";
-  if (/\bcustomer (?:overview|report|summary)\b/i.test(t)) return "customers";
-  if (/\bmy customers\b/i.test(t)) return "customers";
-
-  // Sales
-  if (/^sales$/i.test(t) || /\bsales (?:report|overview|summary)\b/i.test(t)) return "sales";
-  if (/\btotal sales\b/i.test(t)) return "sales";
-  if (/\bhow much (?:did|have) (?:we|you) sell?\b/i.test(t)) return "sales";
-  if (/\brevenue\b/i.test(t)) return "sales";
-  if (/\bsales this (?:month|week)\b/i.test(t)) return "sales";
-
-  // Expenses
-  if (/^expenses?$/i.test(t) || /\bexpense (?:report|overview|summary)\b/i.test(t)) return "expenses";
-  if (/\bhow much (?:did|have) (?:we|you) spend?\b/i.test(t)) return "expenses";
-  if (/\bshow expenses\b/i.test(t)) return "expenses";
-  if (/\bspending\b/i.test(t)) return "expenses";
-
-  // Requests
+  // Requests / approvals
   if (/^requests?$/i.test(t) || /\brequests? (?:report|overview)\b/i.test(t)) return "requests";
   if (/\bmy requests\b/i.test(t)) return "requests";
   if (/\bwhat(?:'s| is) pending\b/i.test(t)) return "requests";
   if (/\bpending approvals?\b/i.test(t)) return "requests";
-
-  // Inventory
-  if (/^inventory$/i.test(t) || /\binventory (?:report|overview|summary)\b/i.test(t)) return "inventory";
-  if (/\bstock levels?\b/i.test(t)) return "inventory";
-  if (/\bwhat(?:'s| is) low\b/i.test(t)) return "inventory";
-  if (/\blow stock\b/i.test(t)) return "inventory";
-
-  // Wallet
-  if (/\bwallet balance\b/i.test(t)) return "wallet";
-  if (/\bmy balance\b/i.test(t)) return "wallet";
-  if (/\bhow much (?:do|have) I (?:have|got)\b/i.test(t)) return "wallet";
+  if (/\bwhat needs (?:my )?approval\b/i.test(t)) return "requests";
 
   // Issues
   if (/^issues?$/i.test(t) || /\bissues? (?:report|overview)\b/i.test(t)) return "issues";
@@ -371,30 +347,47 @@ function deltaPct(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
-export type OrgBranchOverview = { id: string; name: string; metrics?: ComputedMetrics };
+export type OrgBranchOverview = {
+  id: string;
+  name: string;
+  giving?: GivingSummary;
+  snapshot?: ServiceSnapshot | null;
+  pending?: number;
+  issues?: number;
+};
+
+// A branch counts as "loaded" if we got either its giving or its last service;
+// only a total fetch failure renders the ⚠️ line.
+function orgBranchFailed(b: OrgBranchOverview): boolean {
+  return b.giving === undefined && b.snapshot === undefined;
+}
+
+function attendanceOf(s: ServiceSnapshot | null | undefined): number {
+  return (s?.adults ?? 0) + (s?.children ?? 0);
+}
 
 export function buildOrgOverviewReport(
   branches: OrgBranchOverview[],
 ): { text: string; buttons?: Array<{ id: string; title: string }> } {
-  const loaded = branches.filter((b) => b.metrics);
-  const totalSales = loaded.reduce((s, b) => s + (b.metrics?.totalSales ?? 0), 0);
-  const totalWallet = loaded.reduce((s, b) => s + (b.metrics?.walletBalance ?? 0), 0);
-  const totalCustomers = loaded.reduce((s, b) => s + (b.metrics?.customers ?? 0), 0);
-  const totalPending = loaded.reduce((s, b) => s + (b.metrics?.pendingApprovals ?? 0), 0);
-  const totalOpenIssues = loaded.reduce((s, b) => s + (b.metrics?.openIssues ?? 0), 0);
-  const totalLowStock = loaded.reduce((s, b) => s + (b.metrics?.lowStock ?? 0), 0);
+  const totalGiving = branches.reduce((s, b) => s + (b.giving?.totalThisMonth ?? 0), 0);
+  const totalGifts = branches.reduce((s, b) => s + (b.giving?.countThisMonth ?? 0), 0);
+  const totalAttendance = branches.reduce((s, b) => s + attendanceOf(b.snapshot), 0);
+  const totalPending = branches.reduce((s, b) => s + (b.pending ?? 0), 0);
+  const totalIssues = branches.reduce((s, b) => s + (b.issues ?? 0), 0);
 
   const branchLines = branches.map((b) =>
-    b.metrics ? `• ${b.name}: ${fmt(b.metrics.totalSales)} sales` : `• ${b.name}: ⚠️ couldn't load`,
+    orgBranchFailed(b)
+      ? `• ${b.name}: ⚠️ couldn't load`
+      : `• ${b.name}: ${fmt(b.giving?.totalThisMonth ?? 0)} giving · ${attendanceOf(b.snapshot)} at last service`,
   );
 
   return {
     text: [
-      "📊 *All Branches — Overview*",
+      "⛪ *All Branches — at a glance*",
       "",
-      `💰 Sales this month (combined): *${fmt(totalSales)}*`,
-      `👛 Wallet (combined): ${fmt(totalWallet)} · 👥 Customers (combined): ${totalCustomers}`,
-      `🧾 Pending: ${totalPending} · Open issues: ${totalOpenIssues} · Low stock: ${totalLowStock}`,
+      `🙏 Giving this month (combined): *${fmt(totalGiving)}* from ${totalGifts} gift${totalGifts !== 1 ? "s" : ""}`,
+      `🧎 Last-service attendance (combined): ${totalAttendance}`,
+      `🧾 Pending approvals: ${totalPending} · Open issues: ${totalIssues}`,
       "",
       "*By branch*",
       ...branchLines,

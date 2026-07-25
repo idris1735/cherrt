@@ -63,7 +63,6 @@ import {
   type OrgReportKey,
 } from "@/lib/services/whatsapp-reports";
 import { loadWorkspaceData } from "@/lib/services/workspace-data";
-import { computeMetrics } from "@/lib/services/business-metrics";
 import type { AiCommandResult } from "@/lib/types";
 
 export type IncomingMessage = {
@@ -642,8 +641,19 @@ async function buildOrgWideReport(
 
   const perBranch = await Promise.all(
     branches.map(async (b) => {
-      const data = await loadWorkspaceData(b.id).catch(() => undefined);
-      return { id: b.id, name: b.name, metrics: data ? computeMetrics(data, "month") : undefined };
+      const [giving, snapshot, wc] = await Promise.all([
+        getGivingSummary(b.id).catch(() => undefined),
+        getServiceSnapshot(b.id).catch(() => undefined),
+        loadWorkspaceContext(b.id).catch(() => undefined),
+      ]);
+      return {
+        id: b.id,
+        name: b.name,
+        giving,
+        snapshot,
+        pending: wc?.pendingRequests?.length ?? 0,
+        issues: wc?.pendingIssues?.length ?? 0,
+      };
     }),
   );
   return buildOrgOverviewReport(perBranch);

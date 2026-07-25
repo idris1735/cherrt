@@ -337,7 +337,7 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, text, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(text).toContain("All Branches — Overview");
+    expect(text).toContain("All Branches — at a glance");
     expect(text).toContain("Grace Chapel — Lagos");
     expect(text).toContain("Grace Chapel — Abuja");
     expect(buttons).toEqual([{ id: "rpt:org-giving", title: "Giving (all branches)" }]);
@@ -457,7 +457,7 @@ describe("processWhatsAppMessage", () => {
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
     ]);
     await skipWelcome();
-    await processWhatsAppMessage({ from: PHONE, type: "text", text: "sales this month" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "giving this month" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("admins and leaders"));
     expect(mockButtons).not.toHaveBeenCalled();
   });

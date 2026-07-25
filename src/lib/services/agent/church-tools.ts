@@ -232,4 +232,33 @@ export const CHURCH_TOOLS: AgentTool[] = [
       return { ok: true, message: `✅ Added *${name}* to the church${role !== "member" ? ` as ${role.replace("dept_leader", "an usher/leader")}` : ""}.` };
     },
   },
+  {
+    name: "get_top_givers",
+    description:
+      "The church's top givers this month — who has given the most. Use for 'top givers', 'who gives the most', 'biggest givers this month'. Leadership/finance only.",
+    parameters: { type: "object", properties: {} },
+    minRank: 3, // reveals who gives what — finance and above
+    handler: async (_args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { count: 0, givers: [] };
+      const start = new Date();
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      const { data } = await db
+        .from("giving_records")
+        .select("donor_name, amount")
+        .eq("workspace_id", ctx.workspaceId)
+        .gte("created_at", start.toISOString());
+      const totals: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ donor_name?: string; amount?: number }>) {
+        const name = (r.donor_name ?? "").trim() || "Anonymous";
+        totals[name] = (totals[name] ?? 0) + Number(r.amount ?? 0);
+      }
+      const givers = Object.entries(totals)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, total]) => ({ name, total }));
+      return { count: givers.length, givers };
+    },
+  },
 ];
