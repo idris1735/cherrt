@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { store, provisionMock, approvedTplMock, rejectedTplMock } = vi.hoisted(() => ({
+const { store, provisionMock, approvedTplMock, rejectedTplMock, startSetupMock } = vi.hoisted(() => ({
   store: { app: null as any, updates: [] as any[], workspace: { id: "ws1", slug: "grace", name: "Grace Chapel" }, org: { id: "org1" } },
   provisionMock: vi.fn().mockResolvedValue(true),
   approvedTplMock: vi.fn().mockResolvedValue(undefined),
   rejectedTplMock: vi.fn().mockResolvedValue(undefined),
+  startSetupMock: vi.fn().mockResolvedValue("setup prompt"),
 }));
+vi.mock("@/lib/services/onboarding-flow", () => ({ startSetupFlow: startSetupMock }));
 
 vi.mock("@/lib/services/supabase-server", () => ({
   getSupabaseServerClient: () => ({
@@ -51,6 +53,10 @@ describe("approveKycApplication", () => {
     expect(provisionMock).toHaveBeenCalledWith(expect.objectContaining({ phoneNumber: "234800", role: "creator", workspaceId: "ws1" }));
     expect(approvedTplMock).toHaveBeenCalledWith("234800", expect.any(String), "Grace Chapel");
     expect(store.updates.some((u) => u.table === "kyc_applications" && u.patch.status === "approved" && u.patch.workspace_id === "ws1")).toBe(true);
+  });
+  it("seeds the post-approval setup for the applicant", async () => {
+    await approveKycApplication("k1", "ops@chertt.com");
+    expect(startSetupMock).toHaveBeenCalledWith("234800", "org1", "ws1");
   });
   it("is idempotent — refuses a non-pending row", async () => {
     store.app = { ...pendingApp, status: "approved" };
