@@ -2,7 +2,7 @@ import { createHash, randomInt } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { sendTextMessage } from "@/lib/services/whatsapp";
 
-type Purpose = "migrate" | "step_up";
+type Purpose = "migrate" | "step_up" | "email";
 const TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 
