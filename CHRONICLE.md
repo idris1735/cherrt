@@ -19,6 +19,15 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 6. **Memory & Context** — the "it remembers" layer. *← recall DONE; proactive/scheduled cron scaffold DONE (daily discipleship live; more jobs pluggable).*
 7. **Capabilities & infra** — church executors ✓, cron ✓, **payments (Paystack) ✓ behind keys check**; Store/Events still on the old creator; approved WhatsApp templates still pending (external).
 
+### 2026-08-09 — Phase 1 Slice 3: Platform-Admin Foundation Console (SHIPPED) — PHASE 1 COMPLETE
+**Spec:** `docs/superpowers/specs/2026-08-09-admin-foundation-console-design.md` · **Plan:** `plans/2026-08-09-admin-foundation-console.md` · **Merged `d40342d`.**
+Kola's ask — an admin dashboard that makes the foundation visible ("magic backend" console; web = admin-only).
+- **Foundation service** (`src/lib/services/admin/foundation.ts`, service-role reads): `platformOverview` (church/member/verified counts + recent KYC/churches), `listChurches` (branch + member counts), `getChurchDetail` (org + workspaces + members with role & `verificationLevel` L0/L1/L2 + linked KYC).
+- **Gated routes** (`platformAdminEmail`): `GET /api/admin/overview`, `/api/admin/churches`, `/api/admin/churches/[id]`.
+- **Console pages** (`/admin` overview, `/admin/churches` list, `/admin/churches/[id]` detail) + shared `/admin` layout/nav (Overview · Churches · KYC).
+- **Design:** Vercel-minimal LIGHT, built on the existing `globals.css` `:root` tokens (`--bg`/`--surface`/`--ink`/`--muted`/`--line`/`--accent`, hairline borders, ~10px radii, orange only on primary/active). Shared `admin.module.css` kit. **The dark-green inline UI on the KYC + onboard pages was scrapped and restyled to the kit** (owner: "scrap the entire ui of the previous thing… proper Vercel-like dashboard"). **409 tests, typecheck + build clean.**
+- **✅ PHASE 1 (Foundation: Church & Identity) COMPLETE:** identity+OTP (Slice 1), creator/IT roles, admin-assigned roles, CAC+NIN KYC + tiered access + review dashboard + approval (Slice 2), multi-church disambiguation, guest vs member, number-migration, and now the visible admin foundation console (Slice 3). **Next: Phase 2 — People & Pastoral Care** (member/children registration, first-timers, prayer referral, pastoral care + forms, life journeys, join department) — pending owner Saturday validation. OPEN foundational decisions still unresolved (data ownership, WhatsApp billing/templates, own-number-vs-shared).
+
 ### 2026-08-09 — Phase 1 Slice 2: Church KYC onboarding (Plans 1 & 2 SHIPPED)
 Post owner-review (Kola + Isaiah): demo eradicated; foundation-first, module-by-module. **Slice 1 (Identity Foundation)** shipped 2026-08-08 (commit `82809e7`): `creator`/`it_technical` roles, `foundingAdminRole("church")=creator`, `it_technical` denied on data-sensitive tools, inbound-WhatsApp = verified person (L1), OTP-over-WhatsApp step-up + number migration, all demo code removed.
 
