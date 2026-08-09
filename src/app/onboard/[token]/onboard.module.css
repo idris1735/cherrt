@@ -1,0 +1,13 @@
+.shell { min-height: 100vh; background: var(--bg); color: var(--ink); font-family: var(--font-sans); display: flex; justify-content: center; padding: 32px 20px 64px; }
+.inner { width: 100%; max-width: 440px; }
+.h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; }
+.sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+.form { display: grid; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--ink); }
+.input, .select { padding: 11px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; }
+.row { display: flex; gap: 8px; }
+.consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); }
+.btn { padding: 13px; border: none; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+.btnGhost { padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-weight: 600; cursor: pointer; }
+.err { color: #b42020; font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 22px; }
