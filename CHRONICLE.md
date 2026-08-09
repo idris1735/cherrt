@@ -19,6 +19,16 @@ WhatsApp is the product; the web app is an internal admin console only (confirme
 6. **Memory & Context** — the "it remembers" layer. *← recall DONE; proactive/scheduled cron scaffold DONE (daily discipleship live; more jobs pluggable).*
 7. **Capabilities & infra** — church executors ✓, cron ✓, **payments (Paystack) ✓ behind keys check**; Store/Events still on the old creator; approved WhatsApp templates still pending (external).
 
+### 2026-08-09 — Phase 1 Slice 2: Church KYC onboarding (Plans 1 & 2 SHIPPED)
+Post owner-review (Kola + Isaiah): demo eradicated; foundation-first, module-by-module. **Slice 1 (Identity Foundation)** shipped 2026-08-08 (commit `82809e7`): `creator`/`it_technical` roles, `foundingAdminRole("church")=creator`, `it_technical` denied on data-sensitive tools, inbound-WhatsApp = verified person (L1), OTP-over-WhatsApp step-up + number migration, all demo code removed.
+
+**Slice 2 = production KYC** ("think Nigerian, think production" — Kola). Nigerian churches register as **Incorporated Trustees (IT)** under CAMA Part F. Liveness provider skipped (cost) → manual selfie-vs-NIN-photo compare + "selfie holding ID".
+- **Spec:** `docs/superpowers/specs/2026-08-09-church-kyc-onboarding-design.md`. **Plans:** `plans/2026-08-09-kyc-verification-engine.md` (P1), `plans/2026-08-09-kyc-web-form.md` (P2).
+- **Plan 1 — KYC engine (merged `cef61c6`):** Mono lookup client (CAC/IT + trustees + NIN-with-photo, `src/lib/services/kyc/mono.ts`), `kyc_applications` table (RLS deny-all), tokenized draft service (`applications.ts`), trustee anti-hijack name-match (`trustee-match.ts`), `runKycChecks` orchestrator.
+- **Plan 2 — web intake (merged `03c60c8`):** email OTP via **Resend** (reuses `otp_challenges`, `purpose='email'`), **private `kyc` storage bucket** + signed-URL helpers, `/onboard/[token]` page + client form (church + IT# + NIN/BVN + email verify + selfie + consent), `POST /api/onboard/email-code` + `POST /api/onboard/submit` (verify → store selfie → `runKycChecks` → status `pending`). **385 tests, typecheck + build clean.**
+- **Env / keys:** Mono **sandbox** key in local `.env.local` (dev); **live** Mono keys go in Vercel prod only. `RESEND_API_KEY` needed for real email delivery (mocked in tests; flow builds without it). `OTP_PEPPER` must be a real secret in Vercel.
+- **Remaining for Slice 2:** Plan 3 = review dashboard + approve/reject + WhatsApp notify; Plan 4 = tiered access + rewire WhatsApp "set up my church" to issue a token & send the `/onboard` link (until then the page has no in-product entry point).
+
 ### 2026-07-21 — Identity & Tenancy Spine (v1 BUILT, tests green)
 **Spec:** `docs/superpowers/specs/2026-07-21-identity-tenancy-spine-design.md`
 
