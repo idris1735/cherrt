@@ -57,9 +57,20 @@ describe("assignableRoles", () => {
 });
 
 describe("founding + branch-lead roles by vertical", () => {
-  it("seats a church founder as senior_pastor and others as owner", () => {
-    expect(foundingAdminRole("church")).toBe("senior_pastor");
+  it("seats a church founder as creator (never a ministry title), others as owner", () => {
+    expect(foundingAdminRole("church")).toBe("creator");
     expect(foundingAdminRole("toolkit")).toBe("owner");
+  });
+
+  it("ranks creator at the top and it_technical low", () => {
+    expect(roleRank("creator")).toBe(6);
+    expect(roleRank("it_technical")).toBe(2);
+  });
+
+  it("creator can assign any church role; it_technical can assign none", () => {
+    expect(canAssignRole("creator", "pastor")).toBe(true);
+    expect(canAssignRole("creator", "finance")).toBe(true);
+    expect(canAssignRole("it_technical", "member")).toBe(false);
   });
 
   it("seats a branch claimer as pastor for church, manager otherwise", () => {

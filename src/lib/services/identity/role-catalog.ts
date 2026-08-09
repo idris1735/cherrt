@@ -19,6 +19,7 @@ const ROLE_RANK: Record<string, number> = {
   dept_leader: 1,
   secretary: 2,
   operations: 2,
+  it_technical: 2, // configures/fixes the church setup; no data access (see access.ts)
   finance: 3,
   approver: 3,
   pastoral: 4,
@@ -27,6 +28,7 @@ const ROLE_RANK: Record<string, number> = {
   admin: 5,
   owner: 6,
   senior_pastor: 6,
+  creator: 6, // the account owner who signed the church up — full admin, NOT a ministry title
 };
 
 // Only roles at this rank or above may assign roles at all (manager, pastor,
@@ -64,7 +66,7 @@ export function assignableRoles(vertical: ModuleKey): string[] {
 // Founding org admin is always senior_pastor (church) / owner (other
 // verticals); a branch admin claiming a code becomes the branch-lead role.
 export function foundingAdminRole(vertical: ModuleKey): string {
-  return vertical === "church" ? "senior_pastor" : "owner";
+  return vertical === "church" ? "creator" : "owner";
 }
 
 export function branchLeadRole(vertical: ModuleKey): string {

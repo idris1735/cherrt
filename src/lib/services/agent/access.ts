@@ -11,6 +11,10 @@ import type { AgentContext, AgentTool } from "@/lib/services/agent/tools";
 // Returns null when the caller may use the tool, or a user-facing refusal
 // message when they may not.
 export function toolAccessError(tool: AgentTool, ctx: AgentContext): string | null {
+  // IT/technical can configure the church's setup but never read its data.
+  if (ctx.role === "it_technical" && tool.dataSensitive) {
+    return "Your role can configure the church's setup, but not view its data.";
+  }
   if (tool.minRank === undefined) return null;
   if (roleRank(ctx.role) >= tool.minRank) return null;
   return "You don't have permission to do that here — please ask a church admin or the relevant leader.";

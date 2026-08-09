@@ -10,6 +10,8 @@ export type Role =
   // Identity-spine per-vertical catalog roles (2026-07-21). See
   // docs/superpowers/specs/2026-07-21-identity-tenancy-spine-design.md and
   // src/lib/services/identity/role-catalog.ts.
+  | "creator"
+  | "it_technical"
   | "senior_pastor"
   | "pastor"
   | "secretary"

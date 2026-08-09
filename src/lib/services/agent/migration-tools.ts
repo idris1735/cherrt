@@ -7,7 +7,8 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { normalizePhoneNumber } from "@/lib/services/phone";
-import { migratePersonPhone } from "@/lib/services/identity/provisioning";
+import { migratePersonPhone, resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
+import { sendOtp, verifyOtp } from "@/lib/services/identity/otp";
 import { sendTextMessage } from "@/lib/services/whatsapp";
 import type { AgentTool } from "@/lib/services/agent/tools";
 
@@ -81,6 +82,41 @@ export const GUEST_MIGRATION_TOOLS: AgentTool[] = [
       return personId
         ? { ok: true, message: `Thanks, ${name}! 🙏 I've asked your church's admins to reconnect you to this new number. Once they confirm it's you, everything — your history and all — comes right back.` }
         : { ok: true, message: `Thanks, ${name}. I couldn't immediately match that old number — please double-check it, or ask a church admin to reconnect you directly. Your records are safe.` };
+    },
+  },
+  {
+    name: "start_number_migration",
+    description:
+      "Begin moving a member's history to the number they're messaging from. Use when someone says they changed their phone number and STILL HAVE the old number. Sends a 6-digit code to the old number.",
+    parameters: { type: "object", properties: { oldPhone: { type: "string", description: "Their previous WhatsApp number" } }, required: ["oldPhone"] },
+    mutates: true,
+    handler: async (args) => {
+      const oldPhone = String(args.oldPhone ?? "").trim();
+      if (!oldPhone) return { error: "What was your old number?" };
+      const personId = await resolvePersonIdByPhone(oldPhone);
+      if (!personId) return { error: "I couldn't find that old number on record — a church admin can help you reconnect." };
+      const sent = await sendOtp(oldPhone, "migrate");
+      if (!sent) return { error: "Couldn't send the code just now — please try again." };
+      return { ok: true, message: "I've sent a 6-digit code to your OLD number. Reply with it here to finish moving your account." };
+    },
+  },
+  {
+    name: "confirm_number_migration",
+    description: "Finish a number migration by confirming the code sent to the old number.",
+    parameters: { type: "object", properties: { oldPhone: { type: "string" }, code: { type: "string", description: "The 6-digit code from the old number" } }, required: ["oldPhone", "code"] },
+    mutates: true,
+    handler: async (args, ctx) => {
+      const oldPhone = String(args.oldPhone ?? "").trim();
+      const code = String(args.code ?? "").trim();
+      const newPhone = ctx.phone ?? "";
+      if (!oldPhone || !code || !newPhone) return { error: "Need your old number and the code." };
+      const check = await verifyOtp(oldPhone, "migrate", code);
+      if (!check.ok) return { error: check.reason === "expired" ? "That code has expired — say you changed your number to start again." : "That code isn't right. Try again." };
+      const personId = await resolvePersonIdByPhone(oldPhone);
+      if (!personId) return { error: "Couldn't find that old number anymore." };
+      const ok = await migratePersonPhone(personId, newPhone);
+      if (!ok) return { error: "This new number is already linked to someone else — a church admin can help." };
+      return { ok: true, message: "✅ Done — your history now lives on this number. Welcome back." };
     },
   },
 ];

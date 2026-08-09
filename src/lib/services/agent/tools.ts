@@ -43,6 +43,10 @@ export type AgentTool = {
   // True if the tool writes/changes data — used to filter tools out in a
   // workspace's read-only agent mode.
   mutates?: boolean;
+  // True if the tool reads or exposes church data (giving, members, prayer,
+  // PII). IT/technical may configure the church but never read its data, so
+  // these are denied to that role regardless of rank (see access.ts).
+  dataSensitive?: boolean;
   // Handlers are workspace-scoped via ctx and return JSON-serializable data.
   handler: (args: Record<string, unknown>, ctx: AgentContext) => Promise<unknown>;
 };
@@ -57,6 +61,7 @@ export const READ_TOOLS: AgentTool[] = [
       "Giving totals for this workspace: amount and count this month, last month, and a breakdown by giving type.",
     parameters: NO_PARAMS,
     minRank: 3, // finance and above
+    dataSensitive: true,
     handler: async (_args, ctx) => {
       const g = await getGivingSummary(ctx.workspaceId);
       return {
@@ -72,6 +77,7 @@ export const READ_TOOLS: AgentTool[] = [
     description: "Requests and approvals currently pending in this workspace.",
     parameters: NO_PARAMS,
     minRank: 2, // secretary/operations and above
+    dataSensitive: true,
     handler: async (_args, ctx) => {
       const c = await loadWorkspaceContext(ctx.workspaceId);
       return { count: c.pendingRequests.length, requests: c.pendingRequests };
@@ -102,6 +108,7 @@ export const READ_TOOLS: AgentTool[] = [
     description: "People who belong to this branch and their roles.",
     parameters: NO_PARAMS,
     minRank: 2, // roster is leadership-only
+    dataSensitive: true,
     handler: async (_args, ctx) => {
       const members = await listBranchMembers(ctx.workspaceId);
       return { count: members.length, members };

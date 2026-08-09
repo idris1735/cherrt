@@ -34,13 +34,11 @@ import {
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
-import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { provisionPersonMembership, ensureVerifiedPerson } from "@/lib/services/identity/provisioning";
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
 import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
-import { demoModeEnabled } from "@/lib/services/demo/demo-mode";
-import { provisionDemoChurch } from "@/lib/services/demo/provision-demo";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
@@ -229,125 +227,21 @@ function buildGuestWelcome(): string {
   ].join("\n");
 }
 
-// Instant Demo Mode: for an unlinked phone, run a 2-step name→church capture,
-// then provision a fully-seeded demo church and send a guided tour. Returns
-// true when it consumed the turn. Reuses the session's onboarding union so no
-// new state field is needed. See
-// docs/superpowers/specs/2026-07-24-instant-demo-mode-design.md
-async function handleDemoOnboarding(
-  from: string,
-  session: WhatsAppSession,
-  trimmed: string,
-): Promise<boolean> {
-  const ob = session.onboarding;
-
-  // Not yet started → ask for the name.
-  if (!ob || ob.flow !== "demo-onboarding") {
-    await updateSession(from, { welcomed: true, onboarding: { flow: "demo-onboarding", step: "name", collected: {} } });
-    await sendTextMessage(from, "👋 I'm *Chertt* — I'll set you up in 10 seconds. First, what's your name?");
-    return true;
-  }
-
-  if (ob.step === "name") {
-    if (!trimmed) { await sendTextMessage(from, "What's your name? 🙂"); return true; }
-    await updateSession(from, { onboarding: { flow: "demo-onboarding", step: "church", collected: { name: trimmed } } });
-    await sendTextMessage(from, `Lovely to meet you, *${trimmed}*! And what's your church called?`);
-    return true;
-  }
-
-  // step === "church"
-  if (!trimmed) { await sendTextMessage(from, "What's your church called?"); return true; }
-  const personName = ob.collected.name ?? "Pastor";
-  await sendTextMessage(from, `🎉 Setting up *${trimmed}* for you — one sec…`);
-  const result = await provisionDemoChurch(from, personName, trimmed).catch(() => null);
-  await updateSession(from, { onboarding: undefined });
-  if (!result) {
-    await sendTextMessage(from, "Hmm, something hiccuped setting up. Say *hi* to try again.");
-    return true;
-  }
-  // isDemo=true is the authorization gate for role-switching: it is set ONLY
-  // here, on a genuinely demo-provisioned session, never on a real account.
-  await updateSession(from, { activeWorkspaceId: result.workspaceId, userName: personName, isDemo: true });
-  await sendDemoTour(from, result.link);
-  return true;
-}
-
-// The guided-tour welcome after a demo church is provisioned: warm framing +
-// the tappable starter buttons the tester loves. Falls back to text.
-async function sendDemoTour(from: string, link: PhoneLink): Promise<void> {
-  const text = [
-    `You're all set, *${link.userName}* — welcome to *${link.workspaceName}*! 🙏`,
-    "",
-    "You're the *senior pastor* here, so you can run the whole church from this chat. Try things like:",
-    "💰 “give ₦5,000 tithe”",
-    "📊 “how much giving this month?”",
-    "🙏 “please pray for my mum”",
-    "👶 “check in my daughter, age 6”",
-    "➕ “add Sister Grace as an usher”",
-    "",
-    "Tap a button below, type *menu* anytime to see everything, or say *try another role* to explore as a member. 👇",
-  ].join("\n");
-  try {
-    await sendInteractiveButtons(from, text, [
-      { id: "help_give", title: "Give" },
-      { id: "help_prayer", title: "Prayer" },
-      { id: "demo_menu", title: "Show me around" },
-    ], "Welcome 🙏");
-  } catch {
-    await sendTextMessage(from, text);
-  }
-}
-
-// The five roles a tester can wear, in menu order. First is the reset.
-const DEMO_ROLES: Array<{ id: string; label: string; note: string }> = [
-  { id: "pastor", label: "Senior pastor (full access)", note: "You're back to *senior pastor* — full access to everything." },
-  { id: "finance", label: "Finance officer", note: "You're now on *finance* — you can see giving and approvals, but not admin-only settings." },
-  { id: "member", label: "Church member", note: "You're now a *member* — you can give, ask for prayer, register for events and check a child in. Approvals and reports are hidden." },
-  { id: "dept_leader", label: "Usher / department leader", note: "You're now a *department leader* — you can manage your unit and check children in." },
-  { id: "children", label: "Children's team", note: "You're now on the *children's team* — you can check kids in and release them to guardians." },
-];
-
 // The main menu as a WhatsApp interactive list (richer than 3 buttons).
-// Available to any linked member — no typing required. The "Try another role"
-// row only appears for a demo session (real accounts can't role-switch).
-async function sendMainMenu(from: string, isDemo: boolean): Promise<void> {
+// Available to any linked member — no typing required.
+async function sendMainMenu(from: string): Promise<void> {
   const rows: InteractiveListRow[] = [
     { id: "help_give", title: "Give", description: "Give a tithe or offering" },
     { id: "help_prayer", title: "Ask for prayer", description: "Submit a prayer request" },
     { id: "help_checkin", title: "Check in a child", description: "Get a pickup code" },
-    { id: "demo_event", title: "Register for an event", description: "See what's coming up" },
     { id: "rpt:giving", title: "Giving this month", description: "Totals and recent gifts" },
     { id: "rpt:overview", title: "Church at a glance", description: "Attendance, approvals, issues" },
   ];
-  if (isDemo) rows.push({ id: "role:menu", title: "Try another role", description: "Experience Chertt as any role" });
   try {
     await sendInteractiveList(from, "What do you need? 👇", "Open menu", rows, "Menu");
   } catch {
     await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month");
   }
-}
-
-// The role picker, so a tester can feel other roles' permission walls.
-async function sendRoleMenu(from: string): Promise<void> {
-  const rows: InteractiveListRow[] = DEMO_ROLES.map((r) => ({ id: `role:${r.id}`, title: r.label }));
-  try {
-    await sendInteractiveList(from, "Which role do you want to feel? I'll switch you instantly — you'll hit the same permission walls a real person in that role would.", "Pick a role", rows, "Try another role");
-  } catch {
-    await sendTextMessage(from, "Say: switch to member · switch to finance · switch to usher · switch to children · back to pastor");
-  }
-}
-
-// Applies a role switch (from a button id "role:<x>" or a text command) and
-// confirms what changed. Returns true if it handled the message.
-async function handleRoleSwitch(from: string, target: string): Promise<boolean> {
-  const t = target.trim().toLowerCase();
-  const back = /^(pastor|senior|back)/.test(t);
-  const match = DEMO_ROLES.find((r) => t.includes(r.id) || (r.id === "dept_leader" && t.includes("usher")));
-  const chosen = back ? DEMO_ROLES[0] : match;
-  if (!chosen) return false;
-  await updateSession(from, { demoRole: chosen.id === "pastor" ? undefined : chosen.id });
-  await sendTextMessage(from, chosen.note + "\n\nSay *back to pastor* anytime, or *menu* to see options.");
-  return true;
 }
 
 // Proactive, role-aware welcome. A first-time member shouldn't have to ask
@@ -670,19 +564,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
-  // ── Menu buttons — available to any linked member (no security concern) ──
-  if (buttonId === "main_menu" || buttonId === "demo_menu") { await sendMainMenu(from, !!session.isDemo); return; }
-  if (buttonId === "demo_event") {
-    await sendTextMessage(from, "Which event? Say its name, or ask *what's coming up?* 🎟️");
-    return;
-  }
-
-  // ── Role switching — demo sessions only (a real account must never
-  // role-switch by sending a spoofed button id). ──
-  if (demoModeEnabled() && session.isDemo) {
-    if (buttonId === "role:menu") { await sendRoleMenu(from); return; }
-    if (buttonId.startsWith("role:")) { await handleRoleSwitch(from, buttonId.slice(5)); return; }
-  }
+  // ── Menu button — available to any linked member ──
+  if (buttonId === "main_menu") { await sendMainMenu(from); return; }
 
   // ── Org-wide report navigation buttons ──
   if (buttonId === "rpt:org-overview" || buttonId === "rpt:org-giving") {
@@ -769,7 +652,7 @@ async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppS
   // Linked users: hand the transcript to the agent (its history capture covers
   // the message). Falls through to the creator when the agent is unavailable.
   if (link) {
-    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId, session))) return;
+    if (await dispatchToAgent(from, transcript, agentCtx(link, from, personId))) return;
   }
 
   const display = transcript.length > 120 ? transcript.slice(0, 120) + "..." : transcript;
@@ -835,13 +718,8 @@ async function resolveActiveLinks(
   return { allLinks, link: resolveActivePhoneLink(allLinks, activeWorkspaceId), personId: undefined };
 }
 
-function agentCtx(link: PhoneLink, from: string, personId?: string, session?: WhatsAppSession): AgentContext {
-  // Security: the demoRole override applies ONLY to a genuinely demo-provisioned
-  // session (session.isDemo, set only by provisionDemoChurch) and only while demo
-  // mode is enabled. This ensures a real, production-linked account can never
-  // escalate its role via the demo path, even if a stale demo_role value exists.
-  const demoRole = session?.isDemo && demoModeEnabled() ? session.demoRole : undefined;
-  return { workspaceId: link.workspaceId, role: (demoRole ?? link.userRole) as Role, userName: link.userName, phone: from, personId };
+function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContext {
+  return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
 }
 
 // Runs the agent and handles its outcome (text answer or a pending confirmation
@@ -869,17 +747,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   const claimed = await claimWhatsAppMessage(message.messageId, from, type);
   if (!claimed) return;
 
+  // Every inbound number is a known, number-verified (L1) person — the message
+  // proves control of the number. Best-effort; never blocks handling.
+  await ensureVerifiedPerson(from).catch(() => null);
+
   const session = await getSession(from);
   const { allLinks, link: resolvedLink, personId } = await resolveActiveLinks(from, session.activeWorkspaceId);
   let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
-
-  // Instant Demo Mode: an unlinked phone gets the guided demo instead of the
-  // guest nudge. Runs the capture→provision→tour flow; consumes the turn while
-  // in progress. A text message drives it; non-text first contact still welcomes.
-  if (!link && demoModeEnabled() && (message.type === "text" || session.onboarding?.flow === "demo-onboarding")) {
-    if (await handleDemoOnboarding(from, session, trimmed)) return;
-  }
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
@@ -1042,16 +917,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // ── Menu / lost — any linked member gets the tappable menu, no typing a
   // command out. Placed before HELP_RE so the richer list wins. ──
-  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, !!session.isDemo); return; }
-
-  // ── Role switching — demo sessions only (role-switching must never change
-  // the effective role of a real, production-linked account). ──
-  if (demoModeEnabled() && session.isDemo) {
-    if (/^try another role$/i.test(trimmed)) { await sendRoleMenu(from); return; }
-    const sw = trimmed.match(/^(?:switch to|become(?: a)?|be(?: a)?|act as)\s+(.+)$/i)
-      || (/^back to pastor$/i.test(trimmed) ? ([null, "pastor"] as unknown as RegExpMatchArray) : null);
-    if (sw && (await handleRoleSwitch(from, sw[1]))) return;
-  }
+  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from); return; }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^privacy$/i.test(trimmed)) {
@@ -1198,7 +1064,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // Gemini key) or produces no answer; media (image/voice/doc) still goes to
   // the creator below until the agent gets multimodal tools.
   if (trimmed && link) {
-    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId, session))) return;
+    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
   }
 
   if (type === "audio") {
@@ -1220,7 +1086,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a photo — please help with it. If it's a receipt or bill, read the merchant and amount.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
     }
 
     // Guest / no-Gemini fallback: receipt OCR auto-log, then the creator.
@@ -1246,7 +1112,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
       const agentPrompt = trimmed || "I've sent a document — please help me with it.";
-      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId, session), media)) return;
+      if (await dispatchToAgent(from, agentPrompt, agentCtx(link, from, personId), media)) return;
     }
 
     const mediaAttachment = { mimeType, data: buffer.toString("base64") };

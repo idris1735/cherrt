@@ -22,6 +22,12 @@ describe("toolAccessError", () => {
   it("fails closed for an unknown role (ranks as 0)", () => {
     expect(toolAccessError(fakeTool(1), ctx("not-a-real-role"))).toMatch(/permission/i);
   });
+
+  it("denies it_technical on data-sensitive tools but allows config tools", () => {
+    const dataTool: AgentTool = { name: "list_members", description: "d", parameters: { type: "object", properties: {} }, minRank: 2, dataSensitive: true, handler: async () => ({}) };
+    expect(toolAccessError(dataTool, ctx("it_technical"))).toMatch(/not view its data|configure/i);
+    expect(toolAccessError(fakeTool(undefined), ctx("it_technical"))).toBeNull();
+  });
 });
 
 describe("critical per-tool gating (locks the security decisions)", () => {

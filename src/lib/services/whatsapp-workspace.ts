@@ -748,7 +748,7 @@ export async function claimBranchAdmin(
     .from("branch_memberships")
     .select("id")
     .eq("workspace_id", workspaceId)
-    .in("role", [leadRole, "owner", "senior_pastor"])
+    .in("role", [leadRole, "owner", "senior_pastor", "creator"])
     .maybeSingle();
 
   if (existingLead) return null;
@@ -855,7 +855,7 @@ export async function getApproverPhone(workspaceId: string): Promise<string | nu
     .from("whatsapp_phone_links")
     .select("phone_number")
     .eq("workspace_id", workspaceId)
-    .in("user_role", ["owner", "senior_pastor", "admin", "pastor"])
+    .in("user_role", ["owner", "senior_pastor", "admin", "pastor", "creator"])
     .limit(1)
     .maybeSingle();
 

@@ -5,6 +5,51 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { normalizePhoneNumber } from "@/lib/services/phone";
 
+// Every inbound WhatsApp number is a known, number-verified (L1) person: the
+// inbound message itself proves control of the number. Creates the person +
+// active verified contact when absent; backfills verified_at otherwise.
+// Returns the person id, or null when storage is unavailable.
+export async function ensureVerifiedPerson(phoneRaw: string): Promise<string | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const phone = normalizePhoneNumber(phoneRaw) ?? phoneRaw;
+  const now = new Date().toISOString();
+
+  const { data: existing } = await db
+    .from("phone_contacts")
+    .select("person_id, verified_at")
+    .eq("phone_number", phone)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (existing?.person_id) {
+    if (!existing.verified_at) {
+      await db.from("phone_contacts").update({ verified_at: now }).eq("phone_number", phone).eq("status", "active");
+    }
+    return existing.person_id as string;
+  }
+
+  const { data: person, error } = await db.from("people").insert({ full_name: "" }).select("id").single();
+  if (error || !person) return null;
+  await db.from("phone_contacts").insert({ phone_number: phone, person_id: person.id, status: "active", verified_at: now });
+  return person.id as string;
+}
+
+// The person id behind an active phone number, or null. Used to find who's
+// behind an OLD number during a self-serve migration.
+export async function resolvePersonIdByPhone(phoneRaw: string): Promise<string | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const phone = normalizePhoneNumber(phoneRaw) ?? phoneRaw;
+  const { data } = await db
+    .from("phone_contacts")
+    .select("person_id")
+    .eq("phone_number", phone)
+    .eq("status", "active")
+    .maybeSingle();
+  return (data?.person_id as string) ?? null;
+}
+
 // Find-or-create the Person behind a phone, then seat them in a branch with a
 // role. Idempotent on (person, workspace). Optionally records org-admin
 // (person-based) when organizationId is given. Returns the person id, or null

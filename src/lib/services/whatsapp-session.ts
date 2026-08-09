@@ -9,14 +9,6 @@ export type WhatsAppSession = {
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."
   activeWorkspaceId?: string;
-  // Instant Demo Mode: effective-role override so a tester can feel other
-  // roles' permission walls. Undefined = use the real membership role.
-  demoRole?: string;
-  // Security gate: true ONLY for sessions created via provisionDemoChurch.
-  // Role-switching and the demoRole authz override apply only when this is set,
-  // so a genuinely-provisioned production account can never escalate via the
-  // demo path. See docs/superpowers/specs/2026-07-24-instant-demo-mode-design.md
-  isDemo?: boolean;
   // In-progress guided flow (e.g. new church signup, post-approval setup) —
   // deterministic step-by-step state, separate from the free-form Gemini
   // artifact path. Discriminated union so the two flows can have
@@ -64,14 +56,6 @@ export type WhatsAppSession = {
           targetName?: string;
           chosenRole?: string;
         };
-      }
-    | {
-        // Instant Demo Mode capture: name then church, before provisioning a
-        // fully-seeded demo church. See
-        // docs/superpowers/specs/2026-07-24-instant-demo-mode-design.md
-        flow: "demo-onboarding";
-        step: "name" | "church";
-        collected: { name?: string };
       };
   pendingConfirmation?: {
     originalPrompt: string;
@@ -108,8 +92,6 @@ type DbRow = {
   demo_balance: number;
   user_name: string | null;
   active_workspace_id: string | null;
-  demo_role: string | null;
-  is_demo: boolean | null;
   onboarding: WhatsAppSession["onboarding"] | null;
   pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
   pending_approval: WhatsAppSession["pendingApproval"] | null;
@@ -134,8 +116,6 @@ function toSession(row: DbRow): WhatsAppSession {
     demoBalance: row.demo_balance,
     userName: row.user_name ?? undefined,
     activeWorkspaceId: row.active_workspace_id ?? undefined,
-    demoRole: row.demo_role ?? undefined,
-    isDemo: row.is_demo ?? undefined,
     onboarding: row.onboarding ?? undefined,
     pendingConfirmation: row.pending_confirmation ?? undefined,
     pendingApproval: row.pending_approval ?? undefined,
@@ -151,8 +131,6 @@ function toDbRow(session: WhatsAppSession): DbRow {
     demo_balance: session.demoBalance,
     user_name: session.userName ?? null,
     active_workspace_id: session.activeWorkspaceId ?? null,
-    demo_role: session.demoRole ?? null,
-    is_demo: session.isDemo ?? false,
     onboarding: session.onboarding ?? null,
     pending_confirmation: session.pendingConfirmation ?? null,
     pending_approval: session.pendingApproval ?? null,

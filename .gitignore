@@ -38,3 +38,11 @@ supabase/.temp/
 .vercel
 
 .vercel
+
+# owner docs, secrets, scratch — never commit
+Chertt-*.docx
+~$*.docx
+claudetask.txt
+flow.html
+probs.txt
+insights/

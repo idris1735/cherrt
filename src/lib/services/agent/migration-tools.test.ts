@@ -19,7 +19,8 @@ vi.mock("@/lib/services/supabase-server", () => ({
   }),
 }));
 vi.mock("@/lib/services/whatsapp", () => ({ sendTextMessage: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@/lib/services/identity/provisioning", () => ({ migratePersonPhone: vi.fn() }));
+vi.mock("@/lib/services/identity/otp", () => ({ sendOtp: vi.fn().mockResolvedValue(true), verifyOtp: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock("@/lib/services/identity/provisioning", () => ({ migratePersonPhone: vi.fn().mockResolvedValue(true), resolvePersonIdByPhone: vi.fn().mockResolvedValue("p1") }));
 
 import { migratePersonPhone } from "@/lib/services/identity/provisioning";
 import { GUEST_MIGRATION_TOOLS, ADMIN_MIGRATION_TOOLS } from "@/lib/services/agent/migration-tools";
@@ -99,5 +100,22 @@ describe("approve_number_migration (admin)", () => {
     store.list["number_migration_requests"] = [];
     const out = (await approve.handler({ code: "ZZZZZZ" }, admin)) as { error?: string };
     expect(out.error).toBeTruthy();
+  });
+});
+
+describe("self-serve migration via OTP", () => {
+  it("start_number_migration sends an OTP to the old number", async () => {
+    const tool = GUEST_MIGRATION_TOOLS.find((t) => t.name === "start_number_migration")!;
+    const out = (await tool.handler({ oldPhone: "234800old" }, guest)) as { ok?: boolean };
+    const { sendOtp } = await import("@/lib/services/identity/otp");
+    expect(sendOtp).toHaveBeenCalledWith("234800old", "migrate");
+    expect(out.ok).toBe(true);
+  });
+
+  it("confirm_number_migration verifies then migrates", async () => {
+    const tool = GUEST_MIGRATION_TOOLS.find((t) => t.name === "confirm_number_migration")!;
+    const out = (await tool.handler({ oldPhone: "234800old", code: "123456" }, guest)) as { ok?: boolean };
+    expect(migratePersonPhone).toHaveBeenCalled();
+    expect(out.ok).toBe(true);
   });
 });
