@@ -15,6 +15,7 @@ import {
   type PendingOrganization,
 } from "@/lib/services/whatsapp-workspace";
 import { sendNewSignupAlertTemplate } from "@/lib/services/whatsapp-templates";
+import { startApplication } from "@/lib/services/kyc/applications";
 
 type SignupState = Extract<NonNullable<WhatsAppSession["onboarding"]>, { flow: "new-church-signup" }>;
 type OnboardingStep = SignupState["step"];
@@ -55,11 +56,24 @@ function promptFor(step: OnboardingStep, collected: Collected): string {
   }
 }
 
+const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
+
+// A church now onboards on a secure web page with real KYC — not by typing
+// details into chat. We mint a single-use application token and send the link;
+// the web form + platform review (see kyc/*) take it from there.
 export async function startSignupFlow(phoneNumber: string): Promise<string> {
-  await updateSession(phoneNumber, {
-    onboarding: { flow: "new-church-signup", step: "name", collected: {} },
-  });
-  return promptFor("name", {});
+  const app = await startApplication(phoneNumber);
+  if (!app) {
+    return "Something went wrong starting your church setup — please try again in a moment.";
+  }
+  return [
+    "Setting up a church on Chertt takes a quick, secure verification (Nigerian law — we confirm your CAC registration and your ID).",
+    "",
+    "Open this private link to continue — it's just for you:",
+    `${APP_URL()}/onboard/${app.token}`,
+    "",
+    "Once you submit, our team reviews it and I'll message you here the moment you're approved.",
+  ].join("\n");
 }
 
 export async function cancelOnboardingFlow(phoneNumber: string): Promise<void> {
