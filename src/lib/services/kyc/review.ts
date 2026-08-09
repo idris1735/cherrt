@@ -4,6 +4,7 @@ import { provisionPersonMembership } from "@/lib/services/identity/provisioning"
 import { foundingAdminRole } from "@/lib/services/identity/role-catalog";
 import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
 import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
+import { startSetupFlow } from "@/lib/services/onboarding-flow";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type PendingRow = { id: string; church_legal_name: string; applicant_phone: string; trustee_match: string | null; created_at: string };
@@ -71,6 +72,10 @@ export async function approveKycApplication(id: string, reviewerEmail: string): 
   await db.from("kyc_applications").update({
     status: "approved", workspace_id: ws.id, reviewed_by: reviewerEmail, reviewed_at: new Date().toISOString(),
   }).eq("id", id);
+
+  // Resume onboarding in WhatsApp: seed the post-approval setup so the creator's
+  // next message continues configuring giving categories, ministries, branches.
+  try { if (org?.id) await startSetupFlow(app.applicant_phone, org.id, ws.id); } catch { /* best-effort */ }
 
   try { await sendOrgApprovedTemplate(app.applicant_phone, founderName, ws.name); } catch { /* notify is best-effort */ }
   return { ok: true, workspaceSlug: ws.slug };
