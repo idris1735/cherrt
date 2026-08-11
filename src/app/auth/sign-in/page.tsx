@@ -1,66 +1,41 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
-import { BrandMark } from "@/components/shared/brand-mark";
-import type { ModuleKey } from "@/lib/types";
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ module?: string }>;
-}) {
-  const { module } = await searchParams;
-  const selectedModule = (module && ["toolkit", "church", "store", "events"].includes(module) ? module : "toolkit") as ModuleKey;
-
+export default function SignInPage() {
   return (
-    <main className="auth-entry-page">
-      <section className="auth-entry-visual">
-        <Image
-          alt="Warm modern workspace interior"
-          className="auth-entry-visual__image"
-          fill
-          priority
-          sizes="(max-width: 980px) 100vw, 58vw"
-          src="/hero-office.jpg"
-        />
-        <div className="auth-entry-visual__overlay" />
-        <div className="auth-entry-visual__content">
-          <div className="auth-entry-visual__brand">
-            <BrandMark />
-          </div>
-          <div className="auth-entry-visual__copy">
-            <p className="auth-entry-visual__eyebrow">Returning to Chertt</p>
-            <h1>Pick up work exactly where you left it.</h1>
-            <p className="auth-entry-visual__body">
-              Approvals, smart documents, staff coordination, and operational records stay in one calm workspace.
-            </p>
-          </div>
-
-          <div className="auth-entry-visual__metrics">
-            <div className="auth-entry-metric">
-              <span>One workspace</span>
-              <strong>Chat, records, and approvals</strong>
-            </div>
-            <div className="auth-entry-metric">
-              <span>Built for teams</span>
-              <strong>Business, church, store, and events</strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="auth-entry-panel-wrap">
-        <div className="auth-panel auth-panel--tight auth-entry-panel">
-          <p className="auth-panel__label">Sign in</p>
-          <h2>Welcome back</h2>
-          <p className="auth-entry-panel__body">Use your existing account to return to your workspace.</p>
-          <SignInForm hideModeToggle forcedMode="signin" selectedModule={selectedModule} />
-        </div>
-        <p className="auth-entry-panel__back">
-          <Link href="/auth/onboarding">Back to get started</Link>
+    <main style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "var(--bg, #fafafa)",
+      fontFamily: "var(--font-sans, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif)",
+      color: "var(--ink, #171717)",
+      padding: "24px",
+    }}>
+      <div style={{
+        background: "var(--surface, #ffffff)",
+        border: "1px solid var(--line, #ebebeb)",
+        borderRadius: "var(--radius-lg, 14px)",
+        padding: "36px 32px",
+        width: "100%",
+        maxWidth: "400px",
+      }}>
+        <h1 style={{ fontSize: "20px", fontWeight: 700, margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+          Chertt Admin
+        </h1>
+        <p style={{ fontSize: "14px", color: "var(--muted, #737373)", margin: "0 0 24px" }}>
+          Sign in to access the platform dashboard.
         </p>
-      </section>
+        <SignInForm hideModeToggle forcedMode="signin" />
+        <p style={{ fontSize: "13px", color: "var(--muted, #737373)", marginTop: "20px", textAlign: "center" }}>
+          <Link href="/auth/create-account" style={{ color: "var(--accent, #fa8300)", textDecoration: "none" }}>
+            Create an account
+          </Link>
+        </p>
+      </div>
     </main>
   );
 }
+
