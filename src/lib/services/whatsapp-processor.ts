@@ -101,18 +101,19 @@ function shouldStopAfterWelcome(message: IncomingMessage, text: string) {
 function buildHelpText(link: PhoneLink | null, session: WhatsAppSession): string {
   const name = link?.userName || session.userName;
   return [
-    name ? "*Hi " + name + "! Here's what I can help with.*" : "*Here's what I can help with.*",
+    name ? "*Hi " + name + "! Here's everything I can help with.*" : "*Here's everything I can help with.*",
     "",
     "Just talk to me normally — type or send a voice note:",
     "",
-    "🙏 *Give* — \"I want to give ₦5,000 tithe\"",
+    "💰 *Give* — \"I want to give ₦5,000 tithe\"",
     "🕊️ *Prayer* — \"Please pray for my mum, she's unwell\"",
     "👋 *First time?* — \"I'm new here, my name is Ada\"",
     "👶 *Kids* — \"Check in my daughter Amara, age 6\"",
-    "📅 *Belong* — \"What's on this week?\" · \"I'd like to join the choir\"",
-    "📋 *Leaders* — \"Record today's service\" · \"How much giving this month?\"",
-    "",
-    "Ask me anything — I've got you. 🙂",
+    "🤝 *Belong* — \"I'd like to join the choir\"",
+    "📅 *Events* — \"What's on this week?\" · \"Register me for the retreat\"",
+    "📝 *Service* — \"Record today's service: 120 adults, ₦45k offering\"",
+    "📊 *Reports* — \"How much giving this month?\" · \"Church overview\"",
+    "💡 *More* — Ask me anything at all — I've got you. 🙂",
   ].join("\n");
 }
 
@@ -156,12 +157,55 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "You'll get a pickup code to show at collection.",
     ].join("\n"),
+    help_firsttimer: [
+      "*First time at church?* 👋",
+      "",
+      "Welcome! Tell me about yourself, e.g.:",
+      "\"I'm new here, my name is Ada, I came with a friend\"",
+      "",
+      "I'll let the pastoral team know so they can follow up with you.",
+    ].join("\n"),
+    help_join: [
+      "*Join a ministry or department* 🤝",
+      "",
+      "Tell me which group you'd like to join, e.g.:",
+      "\"I'd like to join the choir\" or \"Sign me up for the ushering team\"",
+      "",
+      "I'll send your request to the department leader for approval.",
+    ].join("\n"),
+    help_event: [
+      "*Events & Programmes* 📅",
+      "",
+      "Ask me what's coming up or register for something:",
+      "\"What events are on this month?\"",
+      "\"Register me for the women's conference\"",
+      "",
+      "I'll confirm your spot and send you the details.",
+    ].join("\n"),
+    help_service: [
+      "*Record a service* 📝",
+      "",
+      "After service, tell me the numbers — leaders and pastors can log:",
+      "\"Record today: 150 adults, 40 children, ₦55k tithe, ₦30k offering\"",
+      "",
+      "You can also note the sermon title, first-timers, and salvations.",
+    ].join("\n"),
   };
   const guide = guides[buttonId];
-  if (!guide) return false;
-  await sendTextMessage(from, guide);
-  await addToHistory(from, "assistant", guide);
-  return true;
+  if (guide) {
+    await sendTextMessage(from, guide);
+    await addToHistory(from, "assistant", guide);
+    return true;
+  }
+  // "More help" — re-send the full help menu with buttons
+  if (buttonId === "help_more") {
+    const session = await getSession(from);
+    // resolve link for role-aware help (best-effort; fallback to guest context)
+    const { link } = await resolveActiveLinks(from, session.activeWorkspaceId);
+    await sendHelpMenu(from, session, link);
+    return true;
+  }
+  return false;
 }
 
 // ─── Gemini Multimodal (voice + image) ───────────────────────────────────────
@@ -214,33 +258,43 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 // ─── Welcome Messages ────────────────────────────────────────────────────────
 
-function buildGuestWelcome(): string {
-  return [
+async function sendGuestWelcome(from: string): Promise<void> {
+  const text = [
     "👋 Hi, I'm *Chertt* — I help churches run everything right here on WhatsApp: giving, prayer, first-timers, kids' check-in, events, pastoral care and more.",
     "",
-    "You're not connected to a church yet. To get going:",
-    "",
-    "⛪ *Lead or help run a church?* Reply *set up my church*.",
-    "🙌 *Been given a code by your church?* Just send it here.",
-    "",
-    "Or ask me anything — happy to explain. 🙂",
+    "You're not connected to a church yet. Tap a button below to get going 👇",
   ].join("\n");
+  try {
+    await sendInteractiveButtons(from, text, [
+      { id: "guest_setup", title: "Set up my church" },
+      { id: "guest_code", title: "I have a church code" },
+      { id: "guest_help", title: "What can you do?" },
+    ], "Welcome 👋");
+  } catch {
+    await sendTextMessage(from, text + "\n\n⛪ *Lead or help run a church?* Reply *set up my church*.\n🙌 *Been given a code by your church?* Just send it here.");
+  }
 }
 
 // The main menu as a WhatsApp interactive list (richer than 3 buttons).
-// Available to any linked member — no typing required.
+// Available to any linked member — no typing required. 10 items max (WhatsApp
+// list limit). "More help →" shows the full help text with button shortcuts.
 async function sendMainMenu(from: string): Promise<void> {
   const rows: InteractiveListRow[] = [
-    { id: "help_give", title: "Give", description: "Give a tithe or offering" },
-    { id: "help_prayer", title: "Ask for prayer", description: "Submit a prayer request" },
-    { id: "help_checkin", title: "Check in a child", description: "Get a pickup code" },
-    { id: "rpt:giving", title: "Giving this month", description: "Totals and recent gifts" },
-    { id: "rpt:overview", title: "Church at a glance", description: "Attendance, approvals, issues" },
+    { id: "help_give", title: "💰 Give", description: "Give a tithe or offering" },
+    { id: "help_prayer", title: "🕊️ Ask for prayer", description: "Submit a prayer request" },
+    { id: "help_checkin", title: "👶 Check in a child", description: "Get a pickup code" },
+    { id: "help_firsttimer", title: "👋 I'm new here", description: "Register as a first-timer" },
+    { id: "help_join", title: "🤝 Join a ministry", description: "Join a department or team" },
+    { id: "help_event", title: "📅 Events", description: "See or register for events" },
+    { id: "help_service", title: "📝 Record service", description: "Log attendance & offering" },
+    { id: "rpt:giving", title: "📊 Giving this month", description: "Totals and recent gifts" },
+    { id: "rpt:overview", title: "🏛️ Church at a glance", description: "Attendance, approvals, issues" },
+    { id: "help_more", title: "💡 More help →", description: "See everything I can do" },
   ];
   try {
     await sendInteractiveList(from, "What do you need? 👇", "Open menu", rows, "Menu");
   } catch {
-    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month");
+    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month · I'm new here · join a ministry · events");
   }
 }
 
@@ -564,6 +618,23 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
+  // ── Guest navigation buttons (unlinked users) ──
+  if (buttonId === "guest_setup") {
+    if (isSignupTrigger("set up my church")) {
+      const reply = await startSignupFlow(from);
+      await sendTextMessage(from, reply);
+    }
+    return;
+  }
+  if (buttonId === "guest_code") {
+    await sendTextMessage(from, "📨 Send the 8-character code your church gave you — I'll connect you right away.");
+    return;
+  }
+  if (buttonId === "guest_help") {
+    await sendHelpMenu(from, session, null);
+    return;
+  }
+
   // ── Menu button — available to any linked member ──
   if (buttonId === "main_menu") { await sendMainMenu(from); return; }
 
@@ -759,7 +830,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
     if (link) await sendWorkspaceWelcome(from, link);
-    else await sendTextMessage(from, buildGuestWelcome());
+    else await sendGuestWelcome(from);
     if (shouldStopAfterWelcome(message, trimmed)) return;
   }
 

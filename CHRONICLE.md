@@ -8,6 +8,15 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-11 — First-contact UX overhaul + DB reset for demo prep
+- **DB fully wiped:** 231 rows across all 17 tables cleared (people, orgs, workspaces, giving, prayers, sessions, etc.) — clean slate for the pastor demo.
+- **Guest welcome now has tappable buttons** (was bare text): "Set up my church" · "I have a church code" · "What can you do?" — no more guessing what to type. Falls back to plain text if interactive messaging fails.
+- **Main menu expanded from 5 to 10 items:** Give · Prayer · Check-in · First-timer · Join ministry · Events · Record service · Giving report · Church overview · More help →. Full WhatsApp list-picker limit used.
+- **Help text enhanced** — now 10 lines covering all major actions (give, prayer, first-timer, kids, belong, events, service recording, reports, more).
+- **New button guides:** first-timer, join ministry, events, service recording — each gets a contextual guide. "More help →" re-opens the full help menu.
+- **Guest buttons wired:** tapping "Set up my church" triggers the signup flow; "I have a code" prompts for the code; "What can you do?" opens the help menu.
+- **414 tests pass, tsc clean, build compiles.** No new migrations.
+
 ### The roadmap (the "magic backend"), in dependency order
 WhatsApp is the product; the web app is an internal admin console only (confirmed 2026-07-21). The backend must run the whole business end-to-end with zero reliance on any web UI. Subsystems, foundation-first:
 

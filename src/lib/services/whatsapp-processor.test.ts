@@ -77,10 +77,13 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledOnce();
-    const [, welcomeText] = mockSend.mock.calls[0] as [string, string];
-    expect(welcomeText).toContain("Chertt");
-    expect(welcomeText).toContain("set up my church");
+    // Guest welcome now sends interactive buttons (richer than bare text)
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(bodyText).toContain("Chertt");
+    expect(buttons.some((b) => b.title.includes("Set up my church"))).toBe(true);
+    mockButtons.mockClear();
+    mockSend.mockClear();
   });
 
   it("does not discard a real command sent as the first message", async () => {
@@ -88,7 +91,11 @@ describe("processWhatsAppMessage", () => {
 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request ₦85,000 for diesel" });
 
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("set up my church"));
+    // Guest welcome now uses buttons (not plain text) — "set up my church" is a button title
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, , welcomeButtons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(welcomeButtons.some((b) => b.title.includes("Set up my church"))).toBe(true);
+    // The command is still processed after welcome
     expect(mockRun).toHaveBeenCalledWith(
       "Request ₦85,000 for diesel",
       expect.objectContaining({ role: "owner" }),
@@ -480,13 +487,15 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("an unlinked phone gets the guest welcome on first contact", async () => {
+  it("an unlinked phone gets the guest welcome with interactive buttons on first contact", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
-    const [, text] = mockSend.mock.calls[0] as [string, string];
-    expect(text).toContain("set up my church");
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(bodyText).toContain("Chertt");
+    expect(buttons.some((b) => b.title.includes("Set up my church"))).toBe(true);
   });
 
-  it("'menu' opens the interactive list for a linked member", async () => {
+  it("'menu' opens a rich interactive list (10 items) for a linked member", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
     ]);
@@ -495,6 +504,62 @@ describe("processWhatsAppMessage", () => {
     expect(mockList).toHaveBeenCalled();
     const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
     expect(rows.some((r) => r.id === "rpt:giving")).toBe(true);
+    expect(rows.some((r) => r.id === "help_give")).toBe(true);
+    expect(rows.some((r) => r.id === "help_firsttimer")).toBe(true);
+    expect(rows.some((r) => r.id === "help_join")).toBe(true);
+    expect(rows.some((r) => r.id === "help_more")).toBe(true);
+    expect(rows.length).toBe(10);
     expect(rows.some((r) => r.id === "role:menu")).toBe(false); // no demo role-switch
+  });
+
+  it("'help first-timer' button sends a first-timer guide", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_firsttimer" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("First time"));
+    mockSend.mockClear();
+  });
+
+  it("'help join' button sends a ministry joining guide", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_join" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Join"));
+    mockSend.mockClear();
+  });
+
+  it("'help event' button sends an events guide", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_event" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Events"));
+    mockSend.mockClear();
+  });
+
+  it("'help service' button sends a service recording guide", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "pastor" },
+    ]);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_service" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Record"));
+    mockSend.mockClear();
+  });
+
+  it("'help more' button sends the full help menu", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_more" });
+    expect(mockButtons).toHaveBeenCalled(); // sends help menu with buttons
+    mockButtons.mockClear();
+    mockSend.mockClear();
   });
 });
