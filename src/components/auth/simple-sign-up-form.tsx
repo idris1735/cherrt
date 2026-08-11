@@ -85,7 +85,7 @@ export function SimpleSignUpForm() {
     setActiveUserProfile(profile);
     rememberUserProfileForEmail(normalizedEmail, profile);
 
-    router.push("/auth/modules");
+    router.push("/admin");
     router.refresh();
   }
 

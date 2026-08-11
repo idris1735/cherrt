@@ -118,7 +118,7 @@ export function SignInForm({
       return;
     }
 
-    router.push("/auth/modules");
+    router.push("/admin");
     router.refresh();
   }
 
