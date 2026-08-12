@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-12 — Web rebuild: professional admin dashboard (Slices 1-4)
+
+**Brief:** `docs/prompts/2026-08-12-web-rebuild.md`. The web app is being rebuilt as a professional admin-only dashboard. WhatsApp is the product; web is the control room. Parallel track — does not block the pastor demo.
+
+**Slice 1 (design kit + shell):** New `src/components/admin/admin-kit.module.css` — a proper component kit on `:root` tokens (Sidebar, TopBar, Card, StatCard, Table, Badge, Button, Input, EmptyState, Skeleton). Light + dark via `[data-chertt-theme]`. Responsive (sidebar collapses on mobile). `AdminShell` wraps every dashboard page.
+
+**Slice 2 (auth):** Sign-in page (minimal centered card) → on success lands on `/admin`. Platform-admin check via `platformAdminEmail`; non-admins get "not authorized." Onboarding redirect removed.
+
+**Slices 3-4 (admin pages):** Overview (stat cards + recent activity), Churches list + detail (members, roles, verification levels), KYC list + review detail (selfie beside Mono ID photo, approve/reject) — all restyled to the new kit. Skeleton loading, error states, semantic badges.
+
+**Remaining:** Slice 5 (People view + API), Slice 6 (teardown legacy /w/* + old auth + demo data), Slice 7 (restyle /onboard/[token]). 414 tests pass, tsc clean, build compiles.
+
 ### 2026-08-11 — First-contact UX overhaul + DB reset for demo prep
 - **DB fully wiped:** 231 rows across all 17 tables cleared (people, orgs, workspaces, giving, prayers, sessions, etc.) — clean slate for the pastor demo.
 - **Guest welcome now has tappable buttons** (was bare text): "Set up my church" · "I have a church code" · "What can you do?" — no more guessing what to type. Falls back to plain text if interactive messaging fails.
