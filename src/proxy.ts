@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const segments = pathname.split("/").filter(Boolean);
-
-  // Only redirect the bare workspace root:
-  // /w/:workspaceSlug -> /w/:workspaceSlug/chat
-  if (segments[0] === "w" && segments.length === 2) {
-    const workspaceSlug = segments[1];
-    const url = request.nextUrl.clone();
-    url.pathname = `/w/${workspaceSlug}/modules/toolkit`;
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
+// The /w workspace surface was deleted (2026-08-12 web rebuild).
+// This middleware now passes through — kept as a no-op in case the
+// config.matcher is still referenced by Next.js routing.
+export function proxy(_request: NextRequest) {
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/w/:path*"],
+  matcher: [], // no routes — dead surface
 };
+

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { SignInForm } from "@/components/auth/sign-in-form";
 
 export default function SignInPage() {
@@ -28,12 +26,7 @@ export default function SignInPage() {
         <p style={{ fontSize: "14px", color: "var(--muted, #737373)", margin: "0 0 24px" }}>
           Sign in to access the platform dashboard.
         </p>
-        <SignInForm hideModeToggle forcedMode="signin" />
-        <p style={{ fontSize: "13px", color: "var(--muted, #737373)", marginTop: "20px", textAlign: "center" }}>
-          <Link href="/auth/create-account" style={{ color: "var(--accent, #fa8300)", textDecoration: "none" }}>
-            Create an account
-          </Link>
-        </p>
+        <SignInForm />
       </div>
     </main>
   );
