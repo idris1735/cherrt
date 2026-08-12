@@ -1,0 +1,377 @@
+/* ─── Chertt Admin Design Kit ────────────────────────────────────────────
+   Built on globals.css :root tokens. Light + dark via [data-chertt-theme].
+   Professional SaaS console: sidebar, topbar, cards, tables, badges, buttons.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* ─── Shell ─────────────────────────────────────────────────────────── */
+.adminShell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* ─── Sidebar ───────────────────────────────────────────────────────── */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  transition: transform 0.2s ease;
+}
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 20px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.sidebarBrandDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.sidebarNav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebarLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+.sidebarLink:hover { background: var(--surface-muted, #fafafa); color: var(--ink); }
+.sidebarLinkActive { background: var(--accent-soft, #fff4e8); color: var(--accent); font-weight: 600; }
+.sidebarLinkIcon { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.65; }
+.sidebarLinkActive .sidebarLinkIcon { opacity: 1; }
+.sidebarFooter {
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ─── TopBar ────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.topbarLeft { display: flex; align-items: center; gap: 12px; }
+.topbarRight { display: flex; align-items: center; gap: 12px; }
+.topbarTitle { font-size: 15px; font-weight: 600; color: var(--ink); }
+.topbarUser { font-size: 13px; color: var(--muted); }
+
+/* ─── Main content ──────────────────────────────────────────────────── */
+.adminMain {
+  flex: 1;
+  margin-left: 240px;
+  min-width: 0;
+}
+.adminContent {
+  max-width: 1160px;
+  padding: 28px 32px 64px;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.cardHead {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cardBody { padding: 20px; }
+
+/* ─── Stat cards ────────────────────────────────────────────────────── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.statCard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+}
+.statLabel {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.statHint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ─── Tables ────────────────────────────────────────────────────────── */
+.tableWrap { overflow-x: auto; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table td {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--surface-muted, #fafafa); }
+
+/* ─── Badges ────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badgeGreen  { background: #e7f6ec; color: #17803d; }
+.badgeAmber  { background: #fdf3e2; color: #a3620a; }
+.badgeRed    { background: #fce9e9; color: #b42020; }
+.badgeNeutral { background: var(--surface-muted, #f5f5f5); color: var(--muted); }
+.badgeAccent { background: var(--accent-soft, #fff4e8); color: var(--accent); }
+
+/* ─── Buttons ───────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  transition: opacity 0.1s;
+  line-height: 1.4;
+}
+.btn:hover { opacity: 0.85; }
+.btnPrimary { background: var(--accent); color: #fff; }
+.btnGhost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btnGhost:hover { background: var(--surface-muted, #fafafa); opacity: 1; }
+.btnDanger { background: transparent; color: #b42020; border: 1px solid #fce9e9; }
+.btnDanger:hover { background: #fce9e9; opacity: 1; }
+.btnSm { padding: 5px 12px; font-size: 13px; }
+
+/* ─── Inputs ────────────────────────────────────────────────────────── */
+.input {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-family: var(--font-sans);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft, #fff4e8); }
+.select { composes: input; appearance: none; cursor: pointer; }
+
+/* ─── Page header ───────────────────────────────────────────────────── */
+.pageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+.pageSub {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+/* ─── Empty state ───────────────────────────────────────────────────── */
+.emptyState {
+  text-align: center;
+  color: var(--muted);
+  padding: 56px 16px;
+}
+.emptyStateIcon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+.emptyStateTitle { font-weight: 600; font-size: 15px; color: var(--ink); margin-bottom: 4px; }
+.emptyStateBody { font-size: 14px; max-width: 360px; margin: 0 auto; }
+
+/* ─── Skeleton loading ──────────────────────────────────────────────── */
+.skeleton {
+  background: var(--line);
+  border-radius: var(--radius-sm);
+  animation: skPulse 1.5s ease-in-out infinite;
+}
+@keyframes skPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ─── Section ───────────────────────────────────────────────────────── */
+.section { margin-top: 32px; }
+.sectionTitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+/* ─── KV list ───────────────────────────────────────────────────────── */
+.kvGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 24px;
+  font-size: 14px;
+}
+.kvKey { color: var(--muted); white-space: nowrap; }
+
+/* ─── Photo compare ─────────────────────────────────────────────────── */
+.photoRow { display: flex; gap: 16px; flex-wrap: wrap; }
+.photoCol { flex: 1 1 220px; }
+.photoImg { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--line); display: block; }
+.photoLabel { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ─── Error state ───────────────────────────────────────────────────── */
+.errorBox {
+  background: #fce9e9;
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  color: #b42020;
+  font-size: 14px;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .adminMain {
+    margin-left: 0;
+  }
+  .adminContent {
+    padding: 20px 16px 48px;
+  }
+  .topbar {
+    padding: 0 16px;
+  }
+  .statGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ─── Mobile menu overlay ───────────────────────────────────────────── */
+.sidebarOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 15;
+}
+@media (max-width: 768px) {
+  .sidebar.open + .sidebarOverlay,
+  .sidebarOverlay.show {
+    display: block;
+  }
+}
+
+/* ─── Theme toggle ──────────────────────────────────────────────────── */
+.themeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.themeBtn:hover { color: var(--ink); border-color: var(--accent); }
+
+/* ─── Not authorized ────────────────────────────────────────────────── */
+.authBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  gap: 12px;
+}
+.authBlockIcon { font-size: 40px; opacity: 0.3; }
+.authBlockTitle { font-size: 18px; font-weight: 700; }
+.authBlockBody { color: var(--muted); font-size: 14px; max-width: 300px; }

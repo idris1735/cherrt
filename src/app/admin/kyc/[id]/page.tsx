@@ -2,7 +2,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import s from "../../admin.module.css";
+import s from "@/components/admin/admin-kit.module.css";
 import { adminFetch } from "../../use-admin-fetch";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 
@@ -12,7 +12,12 @@ async function authHeader(): Promise<Record<string, string>> {
   const token = supa ? (await supa.auth.getSession()).data.session?.access_token : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
-const badge = (st: string) => st === "match" || st === "approved" ? s.badgeActive : st === "no_match" || st === "rejected" ? s.badgeRejected : s.badgePending;
+
+function kBadge(st: string) {
+  if (st === "match" || st === "approved") return s.badgeGreen;
+  if (st === "no_match" || st === "rejected") return s.badgeRed;
+  return s.badgeAmber;
+}
 
 export default function AdminKycDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -32,46 +37,44 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
     if (j.ok) router.push("/admin/kyc"); else setMsg(j.error ?? j.reason ?? "Action failed.");
   }
 
-  if (msg && !app) return <div className={s.empty}>{msg}</div>;
-  if (!app) return <div className={s.empty}>Loading…</div>;
+  if (msg && !app) return <div className={s.errorBox}>{msg}</div>;
+  if (!app) return <><div className={s.skeleton} style={{ height: 200 }} /></>;
   return (
     <>
-      <Link href="/admin/kyc" className={s.back}>← KYC</Link>
-      <h1 className={s.h1} style={{ marginTop: 10 }}>{app.church_legal_name}</h1>
-      <p className={s.sub}>IT/RC {app.it_number} · {app.address}</p>
+      <Link href="/admin/kyc" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 13 }}>← KYC</Link>
+      <h1 className={s.pageTitle} style={{ marginTop: 8 }}>{app.church_legal_name}</h1>
+      <p className={s.pageSub}>IT/RC {app.it_number} · {app.address}</p>
 
       <div className={s.section}>
         <div className={s.sectionTitle}>Applicant</div>
-        <div className={s.kvs}>
-          <span className={s.kvKey}>Stated</span><span>{app.applicant_role ?? "—"}</span>
-          <span className={s.kvKey}>Phone</span><span>{app.applicant_phone}</span>
-          <span className={s.kvKey}>Email</span><span>{app.email ?? "—"}{app.email_verified_at ? " ✓" : ""}</span>
-          <span className={s.kvKey}>Trustee</span><span><span className={`${s.badge} ${badge(app.trustee_match ?? "unknown")}`}>{app.trustee_match ?? "—"}</span></span>
-        </div>
+        <div className={s.card}><div className={s.cardBody}>
+          <div className={s.kvGrid}>
+            <span className={s.kvKey}>Stated role</span><span>{app.applicant_role ?? "—"}</span>
+            <span className={s.kvKey}>Phone</span><span>{app.applicant_phone}</span>
+            <span className={s.kvKey}>Email</span><span>{app.email ?? "—"}{app.email_verified_at ? " ✓" : ""}</span>
+            <span className={s.kvKey}>Trustee match</span><span><span className={`${s.badge} ${kBadge(app.trustee_match ?? "unknown")}`}>{app.trustee_match ?? "—"}</span></span>
+          </div>
+        </div></div>
       </div>
 
       <div className={s.section}>
-        <div className={s.sectionTitle}>Identity photos (compare)</div>
+        <div className={s.sectionTitle}>Identity photos — compare side by side</div>
         <div className={s.photoRow}>
-          <Photo label="Selfie holding ID" src={app.selfieUrl} />
-          <Photo label="ID photo (Mono)" src={app.idPhotoDataUrl} />
+          <div className={s.photoCol}><div className={s.photoLabel}>Selfie holding ID</div>{app.selfieUrl ? <img src={app.selfieUrl} alt="Selfie" className={s.photoImg} /> : <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No image</div>}</div>
+          <div className={s.photoCol}><div className={s.photoLabel}>NIN photo (Mono)</div>{app.idPhotoDataUrl ? <img src={app.idPhotoDataUrl} alt="ID" className={s.photoImg} /> : <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No image</div>}</div>
         </div>
       </div>
 
-      <div className={s.section}><div className={s.sectionTitle}>CAC lookup</div><pre className={s.pre}>{JSON.stringify(app.cac_result, null, 2)}</pre></div>
-      <div className={s.section}><div className={s.sectionTitle}>ID lookup</div><pre className={s.pre}>{JSON.stringify(app.id_result, null, 2)}</pre></div>
+      {app.cac_result && <div className={s.section}><div className={s.sectionTitle}>CAC lookup</div><pre style={{ background: "var(--surface-muted, #fafafa)", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", padding: 12, overflowX: "auto", fontSize: 12, color: "var(--ink)" }}>{JSON.stringify(app.cac_result, null, 2)}</pre></div>}
+      {app.id_result && <div className={s.section}><div className={s.sectionTitle}>ID lookup</div><pre style={{ background: "var(--surface-muted, #fafafa)", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", padding: 12, overflowX: "auto", fontSize: 12, color: "var(--ink)" }}>{JSON.stringify(app.id_result, null, 2)}</pre></div>}
 
-      {msg && <p className={s.err}>{msg}</p>}
+      {msg && <p style={{ color: "#b42020", fontSize: 14, marginTop: 12 }}>{msg}</p>}
       {app.status === "pending" ? (
-        <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-          <button disabled={busy} onClick={() => act("approve")} className={s.btn}>Approve &amp; create church</button>
-          <button disabled={busy} onClick={() => act("reject")} className={s.btnGhost}>Reject…</button>
+        <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+          <button disabled={busy} onClick={() => act("approve")} className={`${s.btn} ${s.btnPrimary}`}>Approve &amp; create church</button>
+          <button disabled={busy} onClick={() => act("reject")} className={`${s.btn} ${s.btnDanger}`}>Reject…</button>
         </div>
-      ) : <p className={s.sub}>Already {app.status}.</p>}
+      ) : <p className={s.pageSub} style={{ marginTop: 24 }}>Already {app.status}.</p>}
     </>
   );
-}
-function Photo({ label, src }: { label: string; src: string | null }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <div className={s.photo}><div className={s.statLabel}>{label}</div>{src ? <img src={src} alt={label} className={s.photoImg} /> : <div className={s.empty}>No image</div>}</div>;
 }
