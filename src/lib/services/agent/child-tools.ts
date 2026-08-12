@@ -7,6 +7,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { sendImageMessage } from "@/lib/services/whatsapp";
 import type { AgentTool } from "@/lib/services/agent/tools";
+import { ensurePerson } from "@/lib/services/identity/people";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -177,6 +178,111 @@ export const CHILD_TOOLS: AgentTool[] = [
         const row = r as { child_name?: string; age?: number; guardian_name?: string; allergies?: string };
         return { name: row.child_name ?? "", age: row.age ?? null, guardian: row.guardian_name ?? "", allergies: row.allergies ?? "" };
       });
+      return { count: children.length, children };
+    },
+  },
+  {
+    name: "register_child",
+    description:
+      "Register a child in the church. Captures the child's name, age/birthdate, allergies, medical notes, and classroom. The sender is automatically linked as the primary guardian. Use for 'register my daughter Amara, age 6, in the children's class' or 'add my son as a child in the church'.",
+    parameters: {
+      type: "object",
+      properties: {
+        childName: { type: "string", description: "Full name of the child (required)" },
+        age: { type: "number", description: "Age in years (optional)" },
+        birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
+        allergies: { type: "string", description: "Any allergies (optional)" },
+        medicalNotes: { type: "string", description: "Medical conditions or notes (optional)" },
+        classroom: { type: "string", description: "Classroom or age group (optional)" },
+      },
+      required: ["childName"],
+    },
+    mutates: true,
+    handler: async (args, ctx) => {
+      const childName = String(args.childName ?? "").trim();
+      if (!childName) return { error: "What's the child's name?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+
+      // Create the child as a person (is_minor=true)
+      const childPersonId = await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: childName,
+      });
+      await db.from("people").update({ is_minor: true }).eq("id", childPersonId);
+
+      // Store child-specific profile
+      await db.from("child_profiles").insert({
+        id: newId(),
+        person_id: childPersonId,
+        workspace_id: ctx.workspaceId,
+        allergies: String(args.allergies ?? "") || null,
+        medical_notes: String(args.medicalNotes ?? "") || null,
+        classroom: String(args.classroom ?? "") || null,
+      });
+
+      // Link the sender as primary guardian
+      const guardianId = ctx.personId;
+      if (guardianId) {
+        await db.from("guardianships").insert({
+          id: newId(),
+          child_person_id: childPersonId,
+          guardian_person_id: guardianId,
+          relationship: "parent",
+          is_primary: true,
+          can_pickup: true,
+          workspace_id: ctx.workspaceId,
+        });
+      }
+
+      return { ok: true, message: `✅ Registered *${childName}* in the children's ministry.` };
+    },
+  },
+  {
+    name: "list_children",
+    description:
+      "List all registered children in the church with their guardians. Use for 'show me the children', 'who are the kids', 'list children'. Leaders/children-workers only.",
+    parameters: { type: "object", properties: {} },
+    minRank: 3, // leaders +
+    dataSensitive: true, // children's data
+    handler: async (_args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { count: 0, children: [] };
+      const { data: childRows } = await db
+        .from("child_profiles")
+        .select("person_id, allergies, medical_notes, classroom, age_group")
+        .eq("workspace_id", ctx.workspaceId)
+        .limit(200);
+      if (!childRows?.length) return { count: 0, children: [] };
+
+      const personIds = (childRows as Array<{ person_id: string }>).map((r) => r.person_id);
+      const { data: peopleRows } = await db.from("people").select("id, full_name").in("id", personIds);
+      const { data: guardRows } = await db
+        .from("guardianships")
+        .select("child_person_id, guardian_person_id, relationship, is_primary")
+        .in("child_person_id", personIds)
+        .eq("workspace_id", ctx.workspaceId);
+      const guardianIds = [...new Set((guardRows ?? []).map((g: any) => g.guardian_person_id))];
+      const { data: guardianPeople } = guardianIds.length
+        ? await db.from("people").select("id, full_name").in("id", guardianIds)
+        : { data: [] };
+
+      const nameById = new Map((peopleRows ?? []).map((p: any) => [p.id, p.full_name]));
+      const guardianNameById = new Map((guardianPeople ?? []).map((p: any) => [p.id, p.full_name]));
+      const guardsByChild = new Map<string, Array<{ name: string; relationship: string; primary: boolean }>>();
+      for (const g of (guardRows ?? []) as any[]) {
+        const list = guardsByChild.get(g.child_person_id) ?? [];
+        list.push({ name: guardianNameById.get(g.guardian_person_id) ?? "Unknown", relationship: g.relationship, primary: !!g.is_primary });
+        guardsByChild.set(g.child_person_id, list);
+      }
+
+      const children = (childRows as any[]).map((r) => ({
+        name: nameById.get(r.person_id) ?? "Unknown",
+        allergies: r.allergies ?? "",
+        classroom: r.classroom ?? r.age_group ?? "",
+        guardians: guardsByChild.get(r.person_id) ?? [],
+      }));
+
       return { count: children.length, children };
     },
   },
