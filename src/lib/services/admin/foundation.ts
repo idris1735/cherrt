@@ -67,3 +67,52 @@ export async function getChurchDetail(id: string) {
   const kycRow = (await db.from("kyc_applications").select("id, status").eq("workspace_id", wsIds[0] ?? "___none___").maybeSingle()).data as any;
   return { org, workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, city: w.city ?? null })), members, kyc: kycRow ? { id: kycRow.id, status: kycRow.status } : null };
 }
+
+export async function listPeople() {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+  const [peopleRes, contactsRes, membershipsRes, workspacesRes, orgsRes] = await Promise.all([
+    db.from("people").select("id, full_name"),
+    db.from("phone_contacts").select("person_id, phone_number, verified_at").eq("status", "active"),
+    db.from("branch_memberships").select("person_id, workspace_id, role").eq("status", "active"),
+    db.from("workspaces").select("id, name, organization_id"),
+    db.from("organizations").select("id, name"),
+  ]);
+  const people = (peopleRes.data ?? []) as any[];
+  const contacts = (contactsRes.data ?? []) as any[];
+  const memberships = (membershipsRes.data ?? []) as any[];
+  const workspaces = (workspacesRes.data ?? []) as any[];
+  const orgs = (orgsRes.data ?? []) as any[];
+
+  const wsById = new Map(workspaces.map((w) => [w.id, w]));
+  const orgById = new Map(orgs.map((o) => [o.id, o]));
+  const contactsByPerson = new Map<string, any[]>();
+  for (const c of contacts) {
+    const a = contactsByPerson.get(c.person_id) ?? [];
+    a.push(c);
+    contactsByPerson.set(c.person_id, a);
+  }
+  const membershipsByPerson = new Map<string, any[]>();
+  for (const m of memberships) {
+    const a = membershipsByPerson.get(m.person_id) ?? [];
+    a.push(m);
+    membershipsByPerson.set(m.person_id, a);
+  }
+
+  return people.map((p) => {
+    const personContacts = contactsByPerson.get(p.id) ?? [];
+    const personMemberships = membershipsByPerson.get(p.id) ?? [];
+    const verified = personContacts.some((c) => c.verified_at);
+    return {
+      id: p.id,
+      name: p.full_name,
+      phones: personContacts.map((c) => ({ phone: c.phone_number, verified: !!c.verified_at })),
+      verified,
+      churches: personMemberships.map((m) => {
+        const ws = wsById.get(m.workspace_id);
+        const org = ws ? orgById.get(ws.organization_id) : undefined;
+        return { workspaceId: m.workspace_id, churchName: org?.name ?? ws?.name ?? "Unknown", role: m.role };
+      }),
+    };
+  });
+}
