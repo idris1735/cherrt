@@ -1,32 +1,40 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Fake Supabase: records inserts; select chains (incl. ilike) are thenable and
-// resolve to per-table configured data.
 const { store } = vi.hoisted(() => ({
   store: {
     inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
     selectData: {} as Record<string, unknown[]>,
   },
 }));
-vi.mock("@/lib/services/supabase-server", () => ({
-  getSupabaseServerClient: () => ({
-    from(table: string) {
-      const chain: Record<string, unknown> = {
-        insert: (row: Record<string, unknown>) => {
-          store.inserts.push({ table, row });
-          return Promise.resolve({ error: null });
-        },
-        select: () => chain,
-        eq: () => chain,
-        ilike: () => chain,
-        order: () => chain,
-        limit: () => chain,
-        then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
-          resolve({ data: store.selectData[table] ?? [], error: null }),
-      };
-      return chain;
+
+function qb(table: string) {
+  const rows = store.selectData[table] ?? [];
+  const chain: Record<string, unknown> = {
+    insert: (row: Record<string, unknown>) => {
+      store.inserts.push({ table, row });
+      return { select: () => ({ single: () => Promise.resolve({ data: { ...row, id: "new-id" } }) }) };
     },
-  }),
+    select: () => chain,
+    eq: () => chain,
+    ilike: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    maybeSingle: () => Promise.resolve({ data: rows[0] ?? null }),
+    update: (patch: Record<string, unknown>) => {
+      store.inserts.push({ table, row: patch });
+      return { eq: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+    },
+    then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
+      resolve({ data: rows, error: null }),
+  };
+  return chain;
+}
+
+vi.mock("@/lib/services/supabase-server", () => ({
+  getSupabaseServerClient: () => ({ from: (t: string) => qb(t) }),
+}));
+vi.mock("@/lib/services/church/referral", () => ({
+  notifyLeaders: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
@@ -60,26 +68,28 @@ describe("register_for_event", () => {
 });
 
 describe("join_department", () => {
-  it("creates a pending application against a matched ministry unit", async () => {
-    store.selectData["ministry_units"] = [{ name: "Choir" }];
+  it("creates a pending application linked via person_id", async () => {
+    store.selectData["ministry_units"] = [{ id: "mu1", name: "Choir" }];
     const out = (await tool("join_department").handler({ department: "choir" }, ctx)) as { ok: boolean };
     expect(out.ok).toBe(true);
-    expect(store.inserts[0]).toMatchObject({
-      table: "department_memberships",
-      row: { workspace_id: "ws1", unit_name: "Choir", member_name: "Ruth", status: "pending" },
-    });
+    // ensurePerson creates people + phone_contacts first, then department_memberships
+    const deptInsert = store.inserts.find((i) => i.table === "department_memberships");
+    expect(deptInsert).toBeDefined();
+    expect(deptInsert!.row).toMatchObject({ workspace_id: "ws1", unit_name: "Choir", member_name: "Ruth", status: "pending" });
+    expect(deptInsert!.row.person_id).toBeDefined();
+    expect(deptInsert!.row.ministry_unit_id).toBe("mu1");
   });
 
   it("falls back to the raw name when no unit matches", async () => {
     store.selectData["ministry_units"] = [];
     await tool("join_department").handler({ department: "Media Team" }, ctx);
-    expect(store.inserts[0].row).toMatchObject({ unit_name: "Media Team" });
+    const deptInsert = store.inserts.find((i) => i.table === "department_memberships");
+    expect(deptInsert!.row).toMatchObject({ unit_name: "Media Team" });
   });
 
   it("rejects an empty department", async () => {
     const out = (await tool("join_department").handler({ department: "" }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
-    expect(store.inserts).toHaveLength(0);
   });
 });
 

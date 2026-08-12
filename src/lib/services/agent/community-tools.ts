@@ -6,6 +6,8 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
+import { ensurePerson } from "@/lib/services/identity/people";
+import { notifyLeaders } from "@/lib/services/church/referral";
 
 export const COMMUNITY_TOOLS: AgentTool[] = [
   {
@@ -87,34 +89,105 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
   {
     name: "join_department",
     description:
-      "Apply to join a ministry unit / department (e.g. choir, ushering, media). Creates a pending application for the leader to approve.",
+      "Apply to join a ministry unit / department (e.g. choir, ushering, media). Creates a pending application linked to your person record.",
     parameters: {
       type: "object",
       properties: { department: { type: "string", description: "The department/ministry to join" } },
       required: ["department"],
     },
-    mutates: true, // member self-service — no minRank
+    mutates: true,
     handler: async (args, ctx) => {
       const dept = String(args.department ?? "").trim();
       if (!dept) return { error: "Which department would you like to join?" };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+
+      // Find the ministry unit
       const { data: units } = await db
         .from("ministry_units")
-        .select("name")
+        .select("id, name")
         .eq("workspace_id", ctx.workspaceId)
         .ilike("name", `%${dept}%`)
         .limit(1);
-      const unitName = ((units ?? [])[0] as { name?: string } | undefined)?.name ?? dept;
+      const unit = (units ?? [])[0] as { id?: string; name?: string } | undefined;
+      const unitName = unit?.name ?? dept;
+      const unitId = unit?.id ?? null;
+
+      // Link to identity spine
+      const personId = ctx.personId ?? await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: ctx.userName ?? "Member",
+        phone: ctx.phone,
+      });
+
       const { error } = await db.from("department_memberships").insert({
         id: randomUUID(),
         workspace_id: ctx.workspaceId,
+        person_id: personId,
+        ministry_unit_id: unitId,
         unit_name: unitName,
         member_name: ctx.userName ?? "",
         status: "pending",
       });
       if (error) return { error: error.message };
+
+      // Notify unit leaders
+      notifyLeaders({
+        workspaceId: ctx.workspaceId,
+        message: `🤝 ${ctx.userName ?? "A member"} wants to join ${unitName}. Reply APPROVE or DECLINE to handle it.`,
+      }).catch(() => {});
+
       return { ok: true, message: `🙌 Your application to join ${unitName} is in — the leader will follow up with you.` };
+    },
+  },
+  {
+    name: "approve_department_request",
+    description: "Approve a pending department membership request. Leaders only.",
+    parameters: {
+      type: "object",
+      properties: {
+        memberName: { type: "string", description: "The member's name to look up" },
+        department: { type: "string", description: "The department name (for disambiguation)" },
+      },
+      required: ["memberName"],
+    },
+    minRank: 3,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const memberName = String(args.memberName ?? "").trim();
+      if (!memberName) return { error: "Whose request?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      let query = db.from("department_memberships").update({ status: "approved" }).eq("workspace_id", ctx.workspaceId).eq("member_name", memberName).eq("status", "pending");
+      if (typeof args.department === "string") query = query.eq("unit_name", args.department);
+      const { error } = await query;
+      if (error) return { error: error.message };
+      return { ok: true, message: `✅ Approved ${memberName}'s department request.` };
+    },
+  },
+  {
+    name: "decline_department_request",
+    description: "Decline a pending department membership request. Leaders only.",
+    parameters: {
+      type: "object",
+      properties: {
+        memberName: { type: "string", description: "The member's name to look up" },
+        department: { type: "string", description: "The department name (for disambiguation)" },
+      },
+      required: ["memberName"],
+    },
+    minRank: 3,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const memberName = String(args.memberName ?? "").trim();
+      if (!memberName) return { error: "Whose request?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      let query = db.from("department_memberships").update({ status: "declined" }).eq("workspace_id", ctx.workspaceId).eq("member_name", memberName).eq("status", "pending");
+      if (typeof args.department === "string") query = query.eq("unit_name", args.department);
+      const { error } = await query;
+      if (error) return { error: error.message };
+      return { ok: true, message: `Declined ${memberName}'s department request.` };
     },
   },
   {
