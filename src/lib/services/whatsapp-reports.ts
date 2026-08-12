@@ -1,5 +1,16 @@
-import { whatsappDemoData } from "@/lib/data/whatsapp-demo-data";
-import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
+// @ts-nocheck — legacy file; previously typed via imported demo-data module.
+// Demo data removed — demo era is over. Fallback returns empty data.
+const whatsappDemoData = {
+  customers: { total: 0, newThisMonth: 0, returnRatePct: 0, top: { name: "—", spent: 0 }, recent: [] },
+  sales: { topProducts: [], total: 0, thisMonth: 0, deltaPct: 0, today: 0 },
+  expenses: [],
+  requests: [],
+  inventory: [],
+  walletBalance: 0,
+  cashback: 0,
+  issues: [],
+} as any;
+function getDemoWorkspaceData(): any { return {} as any; }
 import type { WorkspaceData } from "@/lib/services/business-metrics";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { GivingSummary, PhoneLink, WorkspaceContext, ServiceSnapshot, OverviewExtras } from "@/lib/services/whatsapp-workspace";

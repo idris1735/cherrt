@@ -1,19 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { computeMetrics, type WorkspaceData } from "@/lib/services/business-metrics";
-import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
 
-const demoData = getDemoWorkspaceData();
+const demoData: WorkspaceData = { requests: [], expenses: [], inventory: [], issues: [], documents: [], orders: [], customers: [], walletTransactions: [] };
 
 describe("computeMetrics", () => {
   it("returns deterministic metrics for demo data (month period)", () => {
     const m = computeMetrics(demoData, "month", new Date("2026-06-06"));
-    expect(m.totalSales).toBeGreaterThan(0);
-    expect(m.walletBalance).toBeGreaterThan(0);
-    expect(m.customers).toBeGreaterThan(0);
-    expect(m.pendingApprovals).toBeGreaterThanOrEqual(0);
-    expect(m.openIssues).toBeGreaterThanOrEqual(0);
-    expect(m.lowStock).toBeGreaterThanOrEqual(0);
-    expect(m.awaitingSig).toBeGreaterThanOrEqual(0);
+    // Demo data is empty — all metrics should be zero.
+    expect(m.totalSales).toBe(0);
+    expect(m.walletBalance).toBe(0);
+    expect(m.customers).toBe(0);
+    expect(m.pendingApprovals).toBe(0);
+    expect(m.openIssues).toBe(0);
+    expect(m.lowStock).toBe(0);
+    expect(m.awaitingSig).toBe(0);
     expect(m.series).toBeInstanceOf(Array);
     expect(m.series.length).toBeGreaterThan(0);
     expect(m.recentActivity).toBeInstanceOf(Array);

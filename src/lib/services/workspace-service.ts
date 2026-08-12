@@ -1,4 +1,29 @@
-import { cloneSnapshot } from "@/lib/data/seed";
+// cloneSnapshot removed — demo era is over. Returns empty workspace snapshot.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function cloneSnapshot(): any {
+  return {
+    workspace: {} as any,
+    requests: [] as any[],
+    expenses: [] as any[],
+    inventory: [] as any[],
+    issues: [] as any[],
+    forms: [] as any[],
+    polls: [] as any[],
+    appointments: [] as any[],
+    documents: [] as any[],
+    records: [] as any[],
+    members: [] as any[],
+    giving: [] as any[],
+    careRequests: [] as any[],
+    directory: [] as any[],
+    orders: [] as any[],
+    products: [] as any[],
+    invoices: [] as any[],
+    events: [] as any[],
+    registrations: [] as any[],
+    checkIns: [] as any[],
+  };
+}
 import type { ModuleKey, WorkspaceSnapshot } from "@/lib/types";
 
 export function getWorkspaceSnapshot(workspaceSlug: string): WorkspaceSnapshot {

@@ -1,6 +1,24 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-import { cloneSnapshot } from "@/lib/data/seed";
+// cloneSnapshot removed — demo era is over. Returns empty workspace snapshot.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function cloneSnapshot(): any {
+  return {
+    workspace: {} as any,
+    requests: [] as any[],
+    documents: [] as any[],
+    paymentLinks: [] as any[],
+    appointments: [] as any[],
+    forms: [] as any[],
+    inventory: [] as any[],
+    issues: [] as any[],
+    expenses: [] as any[],
+    polls: [] as any[],
+    directory: [] as any[],
+    giving: [] as any[],
+    members: [] as any[],
+  };
+}
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/services/supabase";
 import type {
   AiCommandResult,

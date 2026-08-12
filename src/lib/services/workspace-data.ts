@@ -3,7 +3,8 @@
  * Falls back to shared demo data if Supabase is unavailable or tables are empty.
  * Never throws — always returns data.
  */
-import { getDemoWorkspaceData } from "@/lib/data/demo-workspace";
+// Demo data removed — demo era is over.
+function getDemoWorkspaceData(): any { return { requests: [], expenses: [], inventory: [], issues: [], members: [], givingRecords: [], services: [] }; }
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { WorkspaceData } from "@/lib/services/business-metrics";
 
