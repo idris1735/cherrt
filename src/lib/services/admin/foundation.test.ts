@@ -22,7 +22,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
 }));
 vi.mock("@/lib/services/identity/verification", () => ({ verificationLevel: vi.fn().mockResolvedValue(1) }));
 
-import { platformOverview, listChurches, getChurchDetail, listPeople } from "@/lib/services/admin/foundation";
+import { platformOverview, listChurches, getChurchDetail, listPeople, getPersonDetail } from "@/lib/services/admin/foundation";
 
 beforeEach(() => {
   tables.organizations = [
@@ -37,9 +37,17 @@ beforeEach(() => {
     { id: "m1", person_id: "p1", workspace_id: "w1", role: "creator", status: "active", created_at: "2026-08-01" },
     { id: "m2", person_id: "p2", workspace_id: "w1", role: "member", status: "active", created_at: "2026-08-02" },
   ];
-  tables.people = [{ id: "p1", full_name: "Ada Obi" }, { id: "p2", full_name: "Sam Eze" }];
+  tables.people = [
+    { id: "p1", full_name: "Ada Obi", gender: "female", birthdate: "1990-05-01", email: "ada@x.com", marital_status: "married", joined_at: "2026-08-01" },
+    { id: "p2", full_name: "Sam Eze" },
+    { id: "p3", full_name: "Amara Obi", is_minor: true },
+  ];
   tables.phone_contacts = [{ person_id: "p1", phone_number: "2348001111111", status: "active", verified_at: "2026-08-01" }, { person_id: "p2", phone_number: "2348002222222", status: "active", verified_at: null }];
   tables.kyc_applications = [{ id: "k1", church_legal_name: "Grace Chapel", status: "pending", created_at: "2026-08-03", workspace_id: "w1" }];
+  tables.child_profiles = [{ id: "cp1", person_id: "p3", workspace_id: "w1", allergies: "peanuts", classroom: "Little Stars" }];
+  tables.guardianships = [{ id: "g1", child_person_id: "p3", guardian_person_id: "p1", relationship: "parent", is_primary: true, workspace_id: "w1" }];
+  tables.person_milestones = [{ id: "pm1", person_id: "p1", workspace_id: "w1", type: "joined_membership", occurred_on: "2026-08-01", details: {} }];
+  tables.pastoral_care_requests = [{ id: "pr1", workspace_id: "w1", person_id: "p1", category: "marriage", status: "open" }];
 });
 
 describe("platformOverview", () => {
@@ -77,7 +85,8 @@ describe("getChurchDetail", () => {
 describe("listPeople", () => {
   it("returns every person with their phone, verification level, and church memberships", async () => {
     const people = await listPeople();
-    expect(people.length).toBe(2);
+    // p1, p2, and the child p3 all exist in the fixture
+    expect(people.length).toBe(3);
     const ada = people.find((p) => p.name === "Ada Obi")!;
     expect(ada.phones.length).toBe(1);
     expect(ada.phones[0]).toMatchObject({ phone: "2348001111111", verified: true });
@@ -89,5 +98,39 @@ describe("listPeople", () => {
     const people = await listPeople();
     const sam = people.find((p) => p.name === "Sam Eze")!;
     expect(sam.verified).toBe(false);
+  });
+});
+
+describe("getChurchDetail — richer members + children", () => {
+  it("includes richer profile fields on member rows", async () => {
+    const d = await getChurchDetail("o1");
+    const ada = d?.members.find((m) => m.name === "Ada Obi");
+    expect(ada).toMatchObject({ gender: "female", birthdate: "1990-05-01", email: "ada@x.com", maritalStatus: "married" });
+  });
+  it("includes children with guardian names", async () => {
+    const d = await getChurchDetail("o1");
+    expect(d?.children.length).toBe(1);
+    expect(d?.children[0]).toMatchObject({
+      name: "Amara Obi", guardian: "Ada Obi", relationship: "parent", allergies: "peanuts", classroom: "Little Stars",
+    });
+  });
+  it("includes pastoral requests summary", async () => {
+    const d = await getChurchDetail("o1");
+    expect(d?.pastoralRequests.open).toBe(1);
+  });
+});
+
+describe("getPersonDetail", () => {
+  it("assembles person + memberships + milestones + guardian-of", async () => {
+    const p = await getPersonDetail("p1");
+    expect(p).not.toBeNull();
+    expect(p?.person.full_name).toBe("Ada Obi");
+    expect(p?.memberships[0]).toMatchObject({ church: "Grace Chapel", role: "creator" });
+    expect(p?.milestones[0]).toMatchObject({ type: "joined_membership" });
+    expect(p?.guardianOf[0]).toMatchObject({ childName: "Amara Obi", relationship: "parent" });
+    expect(p?.pastoralRequests.length).toBe(1);
+  });
+  it("returns null for an unknown person", async () => {
+    expect(await getPersonDetail("nope")).toBeNull();
   });
 });

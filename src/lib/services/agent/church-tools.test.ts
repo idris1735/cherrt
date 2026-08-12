@@ -23,7 +23,11 @@ function qb(table: string, rows: unknown[]) {
     maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null }),
     update: (patch: Record<string, unknown>) => {
       store.updates.push({ table, patch });
-      return { eq: () => Promise.resolve({ error: null }) };
+      const uq: Record<string, unknown> = {
+        eq: () => uq,
+        then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
+      };
+      return uq;
     },
     then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
       resolve({ data: store.selectData[table] ?? filtered, error: null }),
@@ -113,6 +117,45 @@ describe("request_pastoral_care", () => {
       table: "pastoral_care_requests",
       row: { workspace_id: "ws1", requester_name: "Ruth", category: "marriage" },
     });
+  });
+});
+
+describe("convert_first_timer — auto-emits joined_membership milestone (B3)", () => {
+  it("writes a joined_membership milestone on the new member's timeline", async () => {
+    store.selectData["first_timers"] = [{ id: "ft1", person_id: null, name: "John", follow_up_status: "new" }];
+    const out = (await tool("convert_first_timer").handler({ name: "John" }, ctx)) as { ok: boolean };
+    expect(out.ok).toBe(true);
+
+    const milestoneInsert = store.inserts.find((i) => i.table === "person_milestones");
+    expect(milestoneInsert).toBeDefined();
+    expect(milestoneInsert!.row).toMatchObject({ type: "joined_membership" });
+    expect(milestoneInsert!.row.person_id).toBeDefined();
+  });
+});
+
+describe("update_pastoral_form_status — auto-emits child_dedication on completion (B3)", () => {
+  it("writes a child_dedication milestone when a dedication form completes", async () => {
+    store.selectData["pastoral_form_submissions"] = [{ id: "s1", form_type: "baby_dedication", person_id: "p1" }];
+    const out = (await tool("update_pastoral_form_status").handler({ submissionId: "s1", status: "completed" }, ctx)) as { ok: boolean };
+    expect(out.ok).toBe(true);
+
+    const milestoneInsert = store.inserts.find((i) => i.table === "person_milestones");
+    expect(milestoneInsert).toBeDefined();
+    expect(milestoneInsert!.row).toMatchObject({ type: "child_dedication", person_id: "p1" });
+  });
+
+  it("does NOT emit a milestone when completing a non-dedication form", async () => {
+    store.selectData["pastoral_form_submissions"] = [{ id: "s2", form_type: "pre_marital", person_id: "p1" }];
+    await tool("update_pastoral_form_status").handler({ submissionId: "s2", status: "completed" }, ctx);
+    const milestoneInsert = store.inserts.find((i) => i.table === "person_milestones");
+    expect(milestoneInsert).toBeUndefined();
+  });
+
+  it("does NOT emit a milestone for non-completed status changes", async () => {
+    store.selectData["pastoral_form_submissions"] = [{ id: "s3", form_type: "baby_dedication", person_id: "p1" }];
+    await tool("update_pastoral_form_status").handler({ submissionId: "s3", status: "reviewing" }, ctx);
+    const milestoneInsert = store.inserts.find((i) => i.table === "person_milestones");
+    expect(milestoneInsert).toBeUndefined();
   });
 });
 

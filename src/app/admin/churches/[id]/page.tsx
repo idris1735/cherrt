@@ -8,7 +8,9 @@ import { adminFetch } from "../../use-admin-fetch";
 type Detail = {
   org: any;
   workspaces: { id: string; name: string; city: string | null }[];
-  members: { name: string; role: string; level: 0 | 1 | 2; joinedAt: string }[];
+  members: { name: string; role: string; level: 0 | 1 | 2; joinedAt: string; gender: string | null; birthdate: string | null; email: string | null; maritalStatus: string | null }[];
+  children?: { name: string; guardian: string; relationship: string | null; allergies: string; medicalNotes: string; classroom: string }[];
+  pastoralRequests?: { total: number; open: number; scheduled: number; resolved: number };
   kyc: { id: string; status: string } | null;
 };
 const LVL = ["Unverified", "WhatsApp-verified", "KYC-verified"];
@@ -53,9 +55,17 @@ export default function ChurchDetail({ params }: { params: Promise<{ id: string 
       <div className={s.section}>
         <div className={s.sectionTitle}>Members ({d.members.length})</div>
         <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-          <thead><tr><th>Name</th><th>Role</th><th>Verification</th><th>Joined</th></tr></thead>
-          <tbody>{d.members.map((m, i) => <tr key={i}><td>{m.name}</td><td><span className={`${s.badge} ${s.badgeNeutral}`}>{m.role}</span></td><td>{LVL[m.level]}</td><td>{m.joinedAt?.slice(0, 10)}</td></tr>)}
-          {d.members.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No members yet.</td></tr>}</tbody>
+          <thead><tr><th>Name</th><th>Role</th><th>Gender</th><th>Email</th><th>Verification</th><th>Joined</th></tr></thead>
+          <tbody>{d.members.map((m, i) => <tr key={i}><td>{m.name}</td><td><span className={`${s.badge} ${s.badgeNeutral}`}>{m.role}</span></td><td>{m.gender ?? "—"}</td><td>{m.email ?? "—"}</td><td>{LVL[m.level]}</td><td>{m.joinedAt?.slice(0, 10)}</td></tr>)}
+          {d.members.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No members yet.</td></tr>}</tbody>
+        </table></div></div>
+      </div>
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Children ({d.children?.length ?? 0})</div>
+        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
+          <thead><tr><th>Name</th><th>Guardian</th><th>Relationship</th><th>Classroom</th><th>Allergies</th></tr></thead>
+          <tbody>{(d.children ?? []).map((c, i) => <tr key={i}><td>{c.name}</td><td>{c.guardian}</td><td>{c.relationship ?? "—"}</td><td>{c.classroom || "—"}</td><td>{c.allergies || "—"}</td></tr>)}
+          {(d.children ?? []).length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No children registered.</td></tr>}</tbody>
         </table></div></div>
       </div>
     </>

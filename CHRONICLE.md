@@ -8,6 +8,22 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-12 — Phase 2 completion + sign-in fix (Claude review bundle)
+
+**Brief:** `docs/prompts/2026-08-12-signin-fix-and-phase2-finish.md`
+
+**Part A — sign-in fix (already largely in place from web rebuild):**
+- **Review-critical regression test added** (`sign-in-form.test.tsx`): seeds stale `lastWorkspaceSlug` + onboarding-draft in localStorage (the exact failure mode Claude found) and asserts sign-in lands on `/admin` — never `/w/*` or `/auth/setup`. Plus wrong-credentials mapping + invalid-email blocking.
+- Pruned `profile.ts` (only referenced by the deleted sign-up form). `onboarding-draft.ts` kept — `slugifyWorkspaceName` still used by kyc/review + whatsapp-workspace.
+
+**Part B — Phase 2 finish (visible in /admin):**
+- **B1:** `getChurchDetail` extended — member rows carry richer profile (gender/birthdate/email/maritalStatus), plus `children` section (child_profiles + guardianships with guardian names) and `pastoralRequests` summary. New `getPersonDetail(personId)` → person + memberships + milestones + guardianOf + pastoralRequests. 5 new tests.
+- **B2:** `GET /api/admin/people/[id]` (gated) + `/admin/people/[id]` page — profile card, vertical milestone timeline, memberships, guardian-of children, pastoral requests. `/admin/people` rows now link to detail. Church-detail page shows richer members + children list.
+- **B3:** `src/lib/services/church/milestones.ts::recordMilestone` + auto-emit — `convert_first_timer` → `joined_membership`; `update_pastoral_form_status` → completed dedication/naming form → `child_dedication`. **4 tests assert the milestone insert actually fires** (and does NOT fire for non-dedication forms or non-completed statuses).
+- **B4:** `submit_pastoral_form` uses `ensurePerson` — unlinked submitters still link to a real person.
+
+**436 tests pass (+12 from 424), tsc clean, build compiles. No new migrations.**
+
 ### 2026-08-12 — Web rebuild: professional admin dashboard (Slices 1-4)
 
 **Brief:** `docs/prompts/2026-08-12-web-rebuild.md`. The web app is being rebuilt as a professional admin-only dashboard. WhatsApp is the product; web is the control room. Parallel track — does not block the pastor demo.

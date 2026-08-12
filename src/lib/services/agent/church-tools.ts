@@ -8,6 +8,7 @@ import type { AgentTool } from "@/lib/services/agent/tools";
 import { churchApproved } from "@/lib/services/kyc/tiered-access";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
+import { recordMilestone } from "@/lib/services/church/milestones";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -192,6 +193,14 @@ export const CHURCH_TOOLS: AgentTool[] = [
         id: newId(), person_id: personId, workspace_id: ctx.workspaceId, role, status: "active",
       });
       await db.from("first_timers").update({ follow_up_status: "joined", person_id: personId }).eq("id", ft.id);
+
+      // Auto-emit the joined_membership milestone (best-effort)
+      recordMilestone({
+        personId,
+        workspaceId: ctx.workspaceId,
+        type: "joined_membership",
+        details: { via: "first_timer_conversion" },
+      }).catch(() => {});
 
       return { ok: true, message: `✅ ${name} is now a member${role !== "member" ? ` (${role})` : ""}.` };
     },
@@ -509,10 +518,17 @@ export const CHURCH_TOOLS: AgentTool[] = [
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
 
+      // Link to a real person — an unlinked submitter still gets a person row
+      const personId = ctx.personId ?? await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: ctx.userName ?? "Member",
+        phone: ctx.phone,
+      });
+
       const { error } = await db.from("pastoral_form_submissions").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
-        person_id: ctx.personId ?? null,
+        person_id: personId,
         form_type: formType,
         data: { details: String(args.details ?? ""), submitted_by: ctx.userName ?? "" },
         status: "submitted",
@@ -571,8 +587,28 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (!["submitted", "reviewing", "scheduled", "completed"].includes(status)) return { error: "Status must be submitted, reviewing, scheduled, or completed." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+
+      // Look up the submission so completion can auto-emit a milestone
+      const { data: subRows } = await db.from("pastoral_form_submissions")
+        .select("form_type, person_id")
+        .eq("id", submissionId)
+        .eq("workspace_id", ctx.workspaceId)
+        .limit(1);
+      const sub = (subRows ?? [])[0] as { form_type?: string; person_id?: string | null } | undefined;
+
       const { error } = await db.from("pastoral_form_submissions").update({ status }).eq("id", submissionId).eq("workspace_id", ctx.workspaceId);
       if (error) return { error: error.message };
+
+      // Auto-emit child_dedication when a dedication/naming form completes
+      if (status === "completed" && sub && (sub.form_type === "baby_dedication" || sub.form_type === "child_naming") && sub.person_id) {
+        recordMilestone({
+          personId: sub.person_id,
+          workspaceId: ctx.workspaceId,
+          type: "child_dedication",
+          details: { via: `${sub.form_type}_form` },
+        }).catch(() => {});
+      }
+
       return { ok: true, message: `✅ Updated to "${status}".` };
     },
   },

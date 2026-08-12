@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import s from "@/components/admin/admin-kit.module.css";
 import { adminFetch } from "../use-admin-fetch";
 
@@ -44,7 +45,11 @@ export default function PeoplePage() {
             <tbody>
               {people.map((p) => (
                 <tr key={p.id}>
-                  <td style={{ fontWeight: 500 }}>{p.name}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <Link href={`/admin/people/${p.id}`} style={{ color: "var(--ink)", textDecoration: "none", fontWeight: 500 }}>
+                      {p.name}
+                    </Link>
+                  </td>
                   <td>{p.phones.map((ph) => ph.phone).join(", ") || "—"}</td>
                   <td>
                     <span className={`${s.badge} ${p.verified ? s.badgeGreen : s.badgeNeutral}`}>
