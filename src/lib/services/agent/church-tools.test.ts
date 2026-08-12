@@ -36,6 +36,9 @@ vi.mock("@/lib/services/supabase-server", () => ({
     from(table: string) { return qb(table, store.selectData[table] ?? []); },
   }),
 }));
+vi.mock("@/lib/services/church/referral", () => ({
+  notifyLeaders: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { CHURCH_TOOLS } from "@/lib/services/agent/church-tools";
 import type { AgentContext } from "@/lib/services/agent/tools";
@@ -68,6 +71,26 @@ describe("capture_prayer_request", () => {
     const out = (await tool("capture_prayer_request").handler({ request: "" }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
     expect(store.inserts).toHaveLength(0);
+  });
+
+  it("calls notifyLeaders so the prayer is actually referred to a human", async () => {
+    const { notifyLeaders } = await import("@/lib/services/church/referral");
+    await tool("capture_prayer_request").handler({ request: "healing" }, ctx);
+    expect(notifyLeaders).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: "ws1",
+      message: expect.stringContaining("prayer"),
+    }));
+  });
+
+  it("reply is a fixed referral string — bot never generates spiritual content", async () => {
+    const out = (await tool("capture_prayer_request").handler({ request: "healing for my mum" }, ctx)) as { ok: boolean; message: string };
+    // Enforce Kola's rule: the reply must be exactly the fixed referral string.
+    // No "I'll pray for you," no "God bless," no variable comfort text.
+    expect(out.message).toBe("🙏 Your prayer request has been sent to the prayer team.");
+    expect(out.message).not.toContain("pray for");
+    expect(out.message).not.toContain("God");
+    expect(out.message).not.toContain("Lord");
+    expect(out.message).not.toContain("bless");
   });
 });
 

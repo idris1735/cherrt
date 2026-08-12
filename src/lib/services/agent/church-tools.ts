@@ -7,6 +7,7 @@ import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { churchApproved } from "@/lib/services/kyc/tiered-access";
 import { ensurePerson } from "@/lib/services/identity/people";
+import { notifyLeaders } from "@/lib/services/church/referral";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -97,6 +98,13 @@ export const CHURCH_TOOLS: AgentTool[] = [
         status: "open",
       });
       if (error) return { error: error.message };
+      // Notify leaders so this prayer doesn't go unseen
+      notifyLeaders({
+        workspaceId: ctx.workspaceId,
+        roleAtLeast: "secretary",
+        message: `🙏 New prayer request from ${anonymous ? "someone (anonymous)" : ctx.userName ?? "a member"}. Reply here to follow up.`,
+      }).catch(() => {});
+      // Fixed referral confirmation — never generated spiritual content
       return { ok: true, message: "🙏 Your prayer request has been sent to the prayer team." };
     },
   },
@@ -239,6 +247,14 @@ export const CHURCH_TOOLS: AgentTool[] = [
         status: "open",
       });
       if (error) return { error: error.message };
+      // Notify leaders — this is the referral loop being closed
+      const category = String(args.category ?? "general") || "general";
+      notifyLeaders({
+        workspaceId: ctx.workspaceId,
+        roleAtLeast: "secretary",
+        message: `🕊️ New pastoral-care request (${category}) from ${ctx.userName ?? "a member"}. Reply here to follow up.`,
+      }).catch(() => {});
+      // Fixed referral confirmation — never generated spiritual content
       return { ok: true, message: "A pastor will reach out to you soon. 🙏" };
     },
   },
@@ -398,6 +414,79 @@ export const CHURCH_TOOLS: AgentTool[] = [
         .slice(0, 5)
         .map(([name, total]) => ({ name, total }));
       return { count: givers.length, givers };
+    },
+  },
+  {
+    name: "list_pastoral_requests",
+    description: "List pastoral-care requests for the church so a pastor/leader can follow up. Shows open/pending requests with category and requester.",
+    parameters: { type: "object", properties: {} },
+    minRank: 3,
+    dataSensitive: true,
+    handler: async (_args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { count: 0, requests: [] };
+      const { data } = await db
+        .from("pastoral_care_requests")
+        .select("id, requester_name, category, details, status, created_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      const requests = (data ?? []).map((r: any) => ({
+        id: r.id, requester: r.requester_name, category: r.category,
+        details: r.details ?? "", status: r.status, createdAt: r.created_at,
+      }));
+      return { count: requests.length, requests };
+    },
+  },
+  {
+    name: "assign_pastoral_request",
+    description: "Assign a pastoral-care request to yourself or someone else for follow-up.",
+    parameters: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "The request ID to assign" },
+        assignee: { type: "string", description: "Who to assign to (name; optional — defaults to you)" },
+      },
+      required: ["requestId"],
+    },
+    minRank: 3,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const requestId = String(args.requestId ?? "").trim();
+      if (!requestId) return { error: "Which request?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      const { error } = await db.from("pastoral_care_requests")
+        .update({ assigned_to: String(args.assignee ?? ctx.userName ?? ""), status: "scheduled" })
+        .eq("id", requestId)
+        .eq("workspace_id", ctx.workspaceId);
+      if (error) return { error: error.message };
+      return { ok: true, message: "✅ Request assigned." };
+    },
+  },
+  {
+    name: "resolve_pastoral_request",
+    description: "Mark a pastoral-care request as resolved after follow-up.",
+    parameters: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "The request ID to resolve" },
+      },
+      required: ["requestId"],
+    },
+    minRank: 3,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const requestId = String(args.requestId ?? "").trim();
+      if (!requestId) return { error: "Which request?" };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      const { error } = await db.from("pastoral_care_requests")
+        .update({ status: "resolved" })
+        .eq("id", requestId)
+        .eq("workspace_id", ctx.workspaceId);
+      if (error) return { error: error.message };
+      return { ok: true, message: "✅ Request resolved." };
     },
   },
 ];
