@@ -489,4 +489,91 @@ export const CHURCH_TOOLS: AgentTool[] = [
       return { ok: true, message: "✅ Request resolved." };
     },
   },
+  {
+    name: "submit_pastoral_form",
+    description:
+      "Submit a pastoral-care form — baby dedication, child naming, house dedication, pre-marital counselling, or training school. Use for 'I want to dedicate my baby', 'register for marriage counselling', 'enrol in the training school', or any of the five form types.",
+    parameters: {
+      type: "object",
+      properties: {
+        formType: { type: "string", description: "baby_dedication, child_naming, house_dedication, pre_marital, or training_school" },
+        details: { type: "string", description: "Any extra details — names, dates, preferences (optional)" },
+      },
+      required: ["formType"],
+    },
+    mutates: true,
+    handler: async (args, ctx) => {
+      const formType = String(args.formType ?? "").trim().toLowerCase();
+      const validTypes = ["baby_dedication", "child_naming", "house_dedication", "pre_marital", "training_school"];
+      if (!validTypes.includes(formType)) return { error: `I need one of: ${validTypes.join(", ")}.` };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+
+      const { error } = await db.from("pastoral_form_submissions").insert({
+        id: newId(),
+        workspace_id: ctx.workspaceId,
+        person_id: ctx.personId ?? null,
+        form_type: formType,
+        data: { details: String(args.details ?? ""), submitted_by: ctx.userName ?? "" },
+        status: "submitted",
+      });
+      if (error) return { error: error.message };
+
+      // Notify leaders
+      const labelMap: Record<string, string> = { baby_dedication: "Baby Dedication", child_naming: "Child Naming", house_dedication: "House Dedication", pre_marital: "Pre-Marital Counselling", training_school: "Training School" };
+      const label = labelMap[formType] ?? formType;
+      notifyLeaders({
+        workspaceId: ctx.workspaceId,
+        message: `📋 New ${label} form submitted by ${ctx.userName ?? "a member"}. Reply here to follow up.`,
+      }).catch(() => {});
+
+      return { ok: true, message: `✅ Your ${label} form has been submitted. A pastor will follow up.` };
+    },
+  },
+  {
+    name: "list_pastoral_forms",
+    description: "List all pastoral form submissions for the church. Leaders only.",
+    parameters: { type: "object", properties: {} },
+    minRank: 3,
+    dataSensitive: true,
+    handler: async (_args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { count: 0, submissions: [] };
+      const { data } = await db
+        .from("pastoral_form_submissions")
+        .select("id, form_type, data, status, created_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      const submissions = (data ?? []).map((r: any) => ({
+        id: r.id, formType: r.form_type, details: r.data?.details ?? "", status: r.status, createdAt: r.created_at,
+      }));
+      return { count: submissions.length, submissions };
+    },
+  },
+  {
+    name: "update_pastoral_form_status",
+    description: "Update the status of a pastoral form submission. Leaders only.",
+    parameters: {
+      type: "object",
+      properties: {
+        submissionId: { type: "string", description: "The submission ID" },
+        status: { type: "string", description: "submitted, reviewing, scheduled, or completed" },
+      },
+      required: ["submissionId", "status"],
+    },
+    minRank: 3,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const submissionId = String(args.submissionId ?? "").trim();
+      const status = String(args.status ?? "").trim().toLowerCase();
+      if (!submissionId) return { error: "Which submission?" };
+      if (!["submitted", "reviewing", "scheduled", "completed"].includes(status)) return { error: "Status must be submitted, reviewing, scheduled, or completed." };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      const { error } = await db.from("pastoral_form_submissions").update({ status }).eq("id", submissionId).eq("workspace_id", ctx.workspaceId);
+      if (error) return { error: error.message };
+      return { ok: true, message: `✅ Updated to "${status}".` };
+    },
+  },
 ];
