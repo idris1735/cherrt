@@ -6,6 +6,7 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { churchApproved } from "@/lib/services/kyc/tiered-access";
+import { ensurePerson } from "@/lib/services/identity/people";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -197,15 +198,20 @@ export const CHURCH_TOOLS: AgentTool[] = [
     },
   },
   {
-    name: "add_member",
+    name: "register_member",
     description:
-      "Add a new person to the church and give them a role. Use when a leader says things like 'add Sister Grace as an usher' or 'register John as a member'.",
+      "Register a new person in the church — give their name, and optionally role, phone, gender, birthdate, address, email, or notes. Use for 'add Sister Grace as an usher', 'register John as a member', or 'add a new member'.",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "The person's full name" },
-        role: { type: "string", description: "Their role: member, usher, finance, secretary, children, or pastor (optional; defaults to member)" },
-        phone: { type: "string", description: "Their WhatsApp number (optional)" },
+        name: { type: "string", description: "The person's full name (required)" },
+        role: { type: "string", description: "Their role: member, usher, finance, secretary, children, pastor, dept_leader, staff (optional; defaults to member)" },
+        phone: { type: "string", description: "WhatsApp number (optional)" },
+        gender: { type: "string", description: "male or female (optional)" },
+        birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
+        address: { type: "string", description: "Where they live (optional)" },
+        email: { type: "string", description: "Email address (optional)" },
+        notes: { type: "string", description: "Any extra info (optional)" },
       },
       required: ["name"],
     },
@@ -217,22 +223,69 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (!name) return { error: "Who should I add? Tell me their name." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
-      // Friendly words → internal role slugs; anything unknown becomes a member.
+
+      // Role words → internal slugs
       const roleMap: Record<string, string> = {
         member: "member", usher: "dept_leader", ushering: "dept_leader", leader: "dept_leader",
+        dept_leader: "dept_leader", department_leader: "dept_leader",
         finance: "finance", treasurer: "finance", secretary: "secretary",
-        children: "children", "children's": "children", pastor: "pastor",
+        children: "children", "children's": "children", pastor: "pastor", staff: "staff",
       };
       const asked = String(args.role ?? "").trim().toLowerCase();
       const role = roleMap[asked] ?? "member";
-      const personId = newId();
-      const p = await db.from("people").insert({ id: personId, full_name: name });
-      if (p.error) return { error: p.error.message };
+
+      // Use ensurePerson so this member links to the identity spine
+      const personId = await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: name,
+        phone: typeof args.phone === "string" ? args.phone : undefined,
+      });
+
+      // Update richer profile fields if provided
+      const profilePatch: Record<string, unknown> = {};
+      if (typeof args.gender === "string") profilePatch.gender = args.gender.toLowerCase();
+      if (typeof args.birthdate === "string") profilePatch.birthdate = args.birthdate;
+      if (typeof args.address === "string") profilePatch.address = args.address;
+      if (typeof args.email === "string") profilePatch.email = args.email;
+      if (typeof args.notes === "string") profilePatch.notes = args.notes;
+      if (Object.keys(profilePatch).length > 0) {
+        await db.from("people").update(profilePatch).eq("id", personId);
+      }
+
+      // Create the membership
       const m = await db.from("branch_memberships").insert({
         id: newId(), person_id: personId, workspace_id: ctx.workspaceId, role, status: "active",
       });
       if (m.error) return { error: m.error.message };
-      return { ok: true, message: `✅ Added *${name}* to the church${role !== "member" ? ` as ${role.replace("dept_leader", "an usher/leader")}` : ""}.` };
+
+      const roleLabel = role === "dept_leader" ? "an usher/leader" : role;
+      return { ok: true, message: `✅ Registered *${name}*${role !== "member" ? ` as ${roleLabel}` : ""}.` };
+    },
+  },
+  {
+    // Kept as an alias so existing agent tool lookups still match
+    name: "add_member",
+    description: "Alias for register_member — add a new person to the church.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "The person's full name" },
+        role: { type: "string", description: "Their role (optional; defaults to member)" },
+        phone: { type: "string", description: "WhatsApp number (optional)" },
+        gender: { type: "string", description: "male or female (optional)" },
+        birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
+        address: { type: "string", description: "Where they live (optional)" },
+        email: { type: "string", description: "Email address (optional)" },
+        notes: { type: "string", description: "Any extra info (optional)" },
+      },
+      required: ["name"],
+    },
+    minRank: 4,
+    mutates: true,
+    handler: async (args, ctx) => {
+      // Delegate to the register_member handler
+      const regTool = CHURCH_TOOLS.find((t) => t.name === "register_member");
+      return regTool ? regTool.handler(args, ctx) : { error: "register_member not found" };
     },
   },
   {
