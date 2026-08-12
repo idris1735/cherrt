@@ -118,9 +118,18 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (!name) return { error: "Need the visitor's name." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+
+      // Link to the identity spine
+      const personId = await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: name,
+        phone: typeof args.phone === "string" ? args.phone : undefined,
+      });
+
       const { error } = await db.from("first_timers").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
+        person_id: personId,
         name,
         phone: String(args.phone ?? "") || null,
         invited_by: String(args.invitedBy ?? "") || null,
@@ -128,6 +137,80 @@ export const CHURCH_TOOLS: AgentTool[] = [
       });
       if (error) return { error: error.message };
       return { ok: true, message: `Welcome ${name}! We've noted your details and someone will reach out.` };
+    },
+  },
+  {
+    name: "convert_first_timer",
+    description:
+      "Convert a first-timer into a full church member. Finds by name or phone, creates a member membership, and marks them 'joined'. Leader-only.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "The first-timer's name to look up (required)" },
+        phone: { type: "string", description: "Phone for disambiguation (optional)" },
+        role: { type: "string", description: "Role to assign (optional; defaults to member)" },
+      },
+      required: ["name"],
+    },
+    minRank: 4,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const name = String(args.name ?? "").trim();
+      if (!name) return { error: "Who should I convert? Tell me their name." };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+
+      // Find the first-timer record
+      let query = db.from("first_timers").select("id, person_id, name, phone, follow_up_status").eq("workspace_id", ctx.workspaceId).eq("name", name);
+      if (typeof args.phone === "string") query = query.eq("phone", args.phone);
+      const { data: ftRows } = await query.limit(1);
+      const ft = (ftRows ?? [])[0] as { id: string; person_id: string | null; follow_up_status: string } | undefined;
+      if (!ft) return { error: `No first-timer named "${name}" found.` };
+      if (ft.follow_up_status === "joined") return { error: `${name} is already a member.` };
+
+      // Resolve or create the person
+      const personId = ft.person_id ?? await ensurePerson({
+        workspaceId: ctx.workspaceId,
+        fullName: name,
+        phone: typeof args.phone === "string" ? args.phone : undefined,
+      });
+
+      // Map role
+      const roleMap: Record<string, string> = { member: "member", usher: "dept_leader", finance: "finance", secretary: "secretary", pastor: "pastor" };
+      const role = roleMap[String(args.role ?? "").toLowerCase()] ?? "member";
+
+      // Create membership + update first-timer status
+      await db.from("branch_memberships").insert({
+        id: newId(), person_id: personId, workspace_id: ctx.workspaceId, role, status: "active",
+      });
+      await db.from("first_timers").update({ follow_up_status: "joined", person_id: personId }).eq("id", ft.id);
+
+      return { ok: true, message: `✅ ${name} is now a member${role !== "member" ? ` (${role})` : ""}.` };
+    },
+  },
+  {
+    name: "update_first_timer_status",
+    description: "Update a first-timer's follow-up status. Leader-only.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name to look up" },
+        status: { type: "string", description: "new, contacted, joined, or inactive" },
+      },
+      required: ["name", "status"],
+    },
+    minRank: 4,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const name = String(args.name ?? "").trim();
+      const status = String(args.status ?? "").trim().toLowerCase();
+      if (!name) return { error: "Whose status?" };
+      if (!["new", "contacted", "joined", "inactive"].includes(status)) return { error: "Status must be new, contacted, joined, or inactive." };
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      const { error } = await db.from("first_timers").update({ follow_up_status: status }).eq("workspace_id", ctx.workspaceId).eq("name", name);
+      if (error) return { error: error.message };
+      return { ok: true, message: `Updated ${name} to "${status}".` };
     },
   },
   {

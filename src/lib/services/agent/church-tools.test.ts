@@ -1,27 +1,39 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Fake Supabase client: records inserts, and returns configurable select data.
-// The query builder is thenable so `await db.from(t).select().eq()...` resolves.
+// Fake Supabase client: records inserts/updates, and returns configurable select data.
 const { store } = vi.hoisted(() => ({
-  store: { inserts: [] as Array<{ table: string; row: Record<string, unknown> }>, selectData: {} as Record<string, unknown[]> },
+  store: {
+    inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
+    selectData: {} as Record<string, unknown[]>,
+    updates: [] as Array<{ table: string; patch: Record<string, unknown> }>,
+  },
 }));
+
+function qb(table: string, rows: unknown[]) {
+  let filtered = [...rows];
+  const q: Record<string, unknown> = {
+    insert: (row: Record<string, unknown>) => {
+      store.inserts.push({ table, row });
+      return { select: () => ({ single: () => Promise.resolve({ data: { ...row, id: "new-id" } }) }) };
+    },
+    select: () => q,
+    eq: (_k: string, _v: unknown) => q,
+    order: () => q,
+    limit: () => q,
+    maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null }),
+    update: (patch: Record<string, unknown>) => {
+      store.updates.push({ table, patch });
+      return { eq: () => Promise.resolve({ error: null }) };
+    },
+    then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
+      resolve({ data: store.selectData[table] ?? filtered, error: null }),
+  };
+  return q;
+}
+
 vi.mock("@/lib/services/supabase-server", () => ({
   getSupabaseServerClient: () => ({
-    from(table: string) {
-      const q: Record<string, unknown> = {
-        insert: (row: Record<string, unknown>) => {
-          store.inserts.push({ table, row });
-          return Promise.resolve({ error: null });
-        },
-        select: () => q,
-        eq: () => q,
-        order: () => q,
-        limit: () => q,
-        then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
-          resolve({ data: store.selectData[table] ?? [], error: null }),
-      };
-      return q;
-    },
+    from(table: string) { return qb(table, store.selectData[table] ?? []); },
   }),
 }));
 
@@ -34,6 +46,7 @@ const tool = (name: string) => CHURCH_TOOLS.find((t) => t.name === name)!;
 beforeEach(() => {
   store.inserts.length = 0;
   store.selectData = {};
+  store.updates.length = 0;
 });
 
 describe("capture_prayer_request", () => {
@@ -59,13 +72,14 @@ describe("capture_prayer_request", () => {
 });
 
 describe("capture_first_timer", () => {
-  it("records a visitor scoped to the workspace", async () => {
+  it("records a visitor scoped to the workspace, linked via person_id", async () => {
     const out = (await tool("capture_first_timer").handler({ name: "John", phone: "0803", invitedBy: "Ada" }, ctx)) as { ok: boolean };
     expect(out.ok).toBe(true);
-    expect(store.inserts[0]).toMatchObject({
-      table: "first_timers",
-      row: { workspace_id: "ws1", name: "John", phone: "0803", invited_by: "Ada", follow_up_status: "new" },
-    });
+    // ensurePerson creates people + phone_contacts first, then first_timers
+    const ft = store.inserts.find((i) => i.table === "first_timers");
+    expect(ft).toBeDefined();
+    expect(ft!.row).toMatchObject({ workspace_id: "ws1", name: "John", phone: "0803", invited_by: "Ada", follow_up_status: "new" });
+    expect(ft!.row.person_id).toBeDefined(); // linked to identity spine
   });
 });
 
