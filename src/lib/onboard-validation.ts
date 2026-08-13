@@ -30,9 +30,9 @@ export function isValidPhone(raw?: string): boolean {
 export function isValidEmail(raw?: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req(raw));
 }
-// NIN and BVN are both 11 digits.
+// NIN and BVN are both 11 digits. Spaces are tolerated (display grouping).
 export function isValidId(idType: string | undefined, num?: string): boolean {
-  return /^\d{11}$/.test(req(num));
+  return /^\d{11}$/.test(req(num).replace(/\s/g, ""));
 }
 // CAC IT/RC numbers vary; require a sensible alphanumeric of 4–15 chars.
 export function isValidItNumber(raw?: string): boolean {

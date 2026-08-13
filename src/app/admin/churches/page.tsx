@@ -33,7 +33,7 @@ export default function ChurchesList() {
               <td>{c.branches}</td><td>{c.members}</td><td>{c.createdAt?.slice(0, 10)}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No churches yet.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 40 }}>No churches yet — approve a KYC application and the church appears here.</td></tr>}
         </tbody>
       </table></div></div>
     </>

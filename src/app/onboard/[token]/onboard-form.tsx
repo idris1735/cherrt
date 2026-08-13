@@ -7,6 +7,20 @@ const POSITIONS = ["Senior Pastor", "Pastor", "Trustee", "Church Secretary", "Ad
 
 type Vals = Record<string, string>;
 
+// Display formatters — values stay human-readable; digits are stripped on submit
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 4) return d;
+  if (d.length <= 7) return `${d.slice(0, 4)} ${d.slice(4)}`;
+  return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+}
+function formatIdNumber(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 4) return d;
+  if (d.length <= 8) return `${d.slice(0, 4)} ${d.slice(4)}`;
+  return `${d.slice(0, 4)} ${d.slice(4, 8)} ${d.slice(8)}`;
+}
+
 export function OnboardForm({ token }: { token: string }) {
   const [v, setV] = useState<Vals>({ id_type: "nin" });
   const [errs, setErrs] = useState<FieldErrors>({});
@@ -26,9 +40,28 @@ export function OnboardForm({ token }: { token: string }) {
   }, [resendIn]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setV((p) => ({ ...p, [k]: e.target.value }));
+    let val = e.target.value;
+    // Live formatting: phone + ID number get digit grouping as they type
+    if (k === "church_phone") val = formatPhone(val);
+    if (k === "id_number") val = formatIdNumber(val);
+    setV((p) => ({ ...p, [k]: val }));
     if (errs[k]) setErrs((p) => { const n = { ...p }; delete n[k]; return n; });
   };
+
+  // What's still missing — drives the submit button's disabled state + hint
+  const missing: string[] = [];
+  if (!(v.church_legal_name ?? "").trim()) missing.push("church name");
+  if (!(v.it_number ?? "").trim()) missing.push("IT/RC number");
+  if (!(v.address ?? "").trim()) missing.push("address");
+  if (!(v.full_name ?? "").trim()) missing.push("your full name");
+  if (!(v.position ?? "").trim()) missing.push("your position");
+  if (!(v.id_number ?? "").trim()) missing.push("your ID number");
+  if (!isValidEmail(v.email ?? "")) missing.push("your email");
+  if (!emailSent) missing.push("email verification");
+  if (!selfie) missing.push("selfie");
+  if (!cacCert) missing.push("CAC certificate");
+  if (v.consent !== "on") missing.push("consent");
+  const submitReady = missing.length === 0;
 
   function pickFile(kind: "selfie" | "cac") {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,8 +102,9 @@ export function OnboardForm({ token }: { token: string }) {
     setBusy("submit"); setBanner("");
     const fd = new FormData();
     fd.set("token", token);
-    ["church_legal_name", "it_number", "address", "denomination", "full_name", "position", "id_type", "id_number", "email", "email_code"].forEach((k) => fd.set(k, v[k] ?? ""));
-    fd.set("church_phone", normalizePhone(v.church_phone));
+    ["church_legal_name", "it_number", "address", "denomination", "full_name", "position", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    fd.set("id_number", (v.id_number ?? "").replace(/\s/g, "")); // strip display grouping
+    fd.set("church_phone", normalizePhone((v.church_phone ?? "").replace(/\s/g, "")));
     fd.set("consent", "on");
     if (selfie) fd.set("selfie", selfie);
     if (cacCert) fd.set("cac_cert", cacCert);
@@ -98,6 +132,15 @@ export function OnboardForm({ token }: { token: string }) {
     <Shell>
       <h2 className={s.h1}>Set up your church</h2>
       <p className={s.sub}>Every church is verified so giving and members stay safe. Takes about 3 minutes.</p>
+
+      <div className={s.steps}>
+        <span className={s.step}>🏛️ Church</span>
+        <span className={s.stepArrow}>→</span>
+        <span className={s.step}>🙋 You</span>
+        <span className={s.stepArrow}>→</span>
+        <span className={s.step}>🔒 Verify</span>
+      </div>
+
       <div className={s.trust}>
         <span className={s.trustIcon}>🔒</span>
         <span>Your ID and photo are encrypted and seen only by the Chertt review team, used solely to verify you and your church (NDPR). We never share them.</span>
@@ -107,7 +150,7 @@ export function OnboardForm({ token }: { token: string }) {
         <div className={s.section}>
           <div className={s.sectionTitle}>Your church</div>
           <div className={s.form}>
-            <F name="church_legal_name" label="Church legal name" hint="Exactly as registered with CAC" v={v} errs={errs} set={set} />
+            <F name="church_legal_name" label="Church legal name" hint="Exactly as registered with CAC" v={v} errs={errs} set={set} autoFocus />
             <F name="it_number" label="CAC IT / RC number" hint="The RC/IT number printed on your CAC certificate" v={v} errs={errs} set={set} />
             <F name="address" label="Church address" v={v} errs={errs} set={set} />
             <F name="church_phone" label="Church phone" hint="e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
@@ -162,19 +205,26 @@ export function OnboardForm({ token }: { token: string }) {
         </div>
 
         {banner && <p className={s.banner} style={{ marginTop: 16 }}>{banner}</p>}
-        <button type="submit" disabled={busy === "submit"} className={s.btn}>{busy === "submit" ? "Uploading & verifying…" : "Submit for review"}</button>
+        {!submitReady && (
+          <p className={s.missingHint} style={{ marginTop: 16 }}>
+            Still to complete: {missing.join(" · ")}.
+          </p>
+        )}
+        <button type="submit" disabled={busy === "submit" || !submitReady} className={s.btn} style={!submitReady ? { opacity: 0.5 } : undefined}>
+          {busy === "submit" ? "Uploading & verifying…" : submitReady ? "Submit for review" : "Complete the form to submit"}
+        </button>
       </form>
       <p className={s.foot}>Powered by Chertt · Bank-grade verification</p>
     </Shell>
   );
 }
 
-function F(props: { name: string; label: string; hint?: string; v: Vals; errs: FieldErrors; set: (k: string) => any; inputMode?: string; optional?: boolean }) {
+function F(props: { name: string; label: string; hint?: string; v: Vals; errs: FieldErrors; set: (k: string) => any; inputMode?: string; optional?: boolean; autoFocus?: boolean }) {
   const { name, label, hint, v, errs, set, inputMode } = props;
   return (
     <label className={s.field}>{label}
       {hint && <span className={s.hint}>{hint}</span>}
-      <input name={name} inputMode={inputMode as any} className={`${s.input} ${errs[name] ? s.inputBad : ""}`} value={v[name] ?? ""} onChange={set(name)} />
+      <input name={name} autoFocus={props.autoFocus} inputMode={inputMode as any} className={`${s.input} ${errs[name] ? s.inputBad : ""}`} value={v[name] ?? ""} onChange={set(name)} />
       {errs[name] && <span className={s.fieldErr}>{errs[name]}</span>}
     </label>
   );

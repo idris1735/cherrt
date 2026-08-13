@@ -33,7 +33,7 @@ export default function AdminKycList() {
               <td>{r.created_at?.slice(0, 10)}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>Nothing pending. 🎉</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 40 }}>Nothing awaiting review. New applications will appear here the moment a church submits. 🎉</td></tr>}
         </tbody>
       </table></div></div>
     </>

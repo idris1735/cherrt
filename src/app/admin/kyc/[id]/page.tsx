@@ -47,6 +47,7 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [zoom, setZoom] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => { adminFetch<{ application: any }>(`/api/admin/kyc/${id}`).then((r) => { if (!r.data) setMsg("Not authorized or not found."); else setApp(r.data.application); }); }, [id]);
 
@@ -118,10 +119,27 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
       {msg && <p style={{ color: "#b42020", fontSize: 14, marginTop: 12 }}>{msg}</p>}
       {app.status === "pending" ? (
         <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <button disabled={busy} onClick={() => act("approve")} className={`${s.btn} ${s.btnPrimary}`}>✅ Approve &amp; create church</button>
+          <button disabled={busy} onClick={() => setConfirming(true)} className={`${s.btn} ${s.btnPrimary}`}>✅ Approve &amp; create church</button>
           <button disabled={busy} onClick={() => act("reject")} className={`${s.btn} ${s.btnDanger}`}>Reject…</button>
         </div>
       ) : <p className={s.pageSub} style={{ marginTop: 24 }}>Already {app.status}.</p>}
+
+      {confirming && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius-lg)", padding: 28, maxWidth: 420, width: "100%" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Approve this church?</h3>
+            <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 20px" }}>
+              This creates <strong>{app.church_legal_name ?? "the church"}</strong>, seats the applicant as creator, and notifies them on WhatsApp.
+            </p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <button disabled={busy} onClick={() => { setConfirming(false); act("approve"); }} className={`${s.btn} ${s.btnPrimary}`} style={{ flex: 1, justifyContent: "center" }}>
+                {busy ? "Approving…" : "Yes, approve"}
+              </button>
+              <button disabled={busy} onClick={() => setConfirming(false)} className={`${s.btn} ${s.btnGhost}`} style={{ flex: 1, justifyContent: "center" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {zoom && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, cursor: "zoom-out" }} onClick={() => setZoom(null)}>

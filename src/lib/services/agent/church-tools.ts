@@ -283,7 +283,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     minRank: 3, // finance and above — this writes the official giving ledger
     mutates: true,
     handler: async (args, ctx) => {
-      if (!(await churchApproved(ctx.workspaceId))) return { error: "Your church is still being verified — you'll be able to record giving once it's approved." };
+      if (!(await churchApproved(ctx.workspaceId))) return { error: "Your church is still being verified 🛡️ — you'll be able to record giving as soon as it's approved." };
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) return { error: "Need a positive amount." };
       const db = getSupabaseServerClient();
@@ -326,7 +326,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     minRank: 4, // leaders add people
     mutates: true,
     handler: async (args, ctx) => {
-      if (!(await churchApproved(ctx.workspaceId))) return { error: "Your church is still being verified — you'll be able to add members once it's approved." };
+      if (!(await churchApproved(ctx.workspaceId))) return { error: "Your church is still being verified 🛡️ — you'll be able to add members as soon as it's approved." };
       const name = String(args.name ?? "").trim();
       if (!name) return { error: "Who should I add? Tell me their name." };
       const db = getSupabaseServerClient();

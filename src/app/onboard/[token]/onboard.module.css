@@ -8,6 +8,11 @@
 .h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; }
 .sub { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0 0 18px; }
 
+.steps { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.step { font-size: 12.5px; font-weight: 600; color: var(--ink); background: var(--surface-muted); border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px; }
+.stepArrow { color: var(--muted); font-size: 13px; }
+.missingHint { font-size: 12.5px; color: #a3620a; background: #fdf3e2; border: 1px solid #f0d9ad; border-radius: var(--radius-sm); padding: 10px 12px; line-height: 1.5; }
+
 .trust { display: flex; gap: 10px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); border-radius: var(--radius-md); padding: 12px 14px; margin: 0 0 20px; font-size: 12.5px; color: var(--ink); line-height: 1.5; }
 .trustIcon { flex: none; font-size: 15px; }
 

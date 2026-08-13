@@ -260,9 +260,11 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 async function sendGuestWelcome(from: string): Promise<void> {
   const text = [
-    "👋 Hi, I'm *Chertt* — I help churches run everything right here on WhatsApp: giving, prayer, first-timers, kids' check-in, events, pastoral care and more.",
+    "👋 Welcome to *Chertt* — your church's operations, right here on WhatsApp.",
     "",
-    "You're not connected to a church yet. Tap a button below to get going 👇",
+    "Giving · prayer requests · first-timers · children's check-in · events · pastoral care — all of it, in one chat.",
+    "",
+    "Tap below to get started 👇",
   ].join("\n");
   try {
     await sendInteractiveButtons(from, text, [
