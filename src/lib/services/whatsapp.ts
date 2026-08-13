@@ -18,6 +18,22 @@ function authHeaders() {
 }
 
 async function postToGraph(payload: unknown): Promise<void> {
+  // Slice B (consent layer): never message an opted-out number. Fail-open —
+  // if the opt-out lookup can't run, send anyway (availability beats silence
+  // for operational messages; opted-out suppression is best-effort).
+  const to = (payload as { to?: string })?.to;
+  if (to) {
+    try {
+      const { isOptedOut } = await import("@/lib/services/privacy/consent");
+      if (await isOptedOut(to)) {
+        void logSendFailure(payload, "suppressed: recipient opted out");
+        return;
+      }
+    } catch {
+      // lookup unavailable — proceed
+    }
+  }
+
   const res = await fetch(`${GRAPH_API}/${phoneNumberId()}/messages`, {
     method: "POST",
     headers: authHeaders(),
