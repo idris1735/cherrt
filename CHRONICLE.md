@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-13 — Data continuity, scam sensing, tooltips, WhatsApp upgrades (WS1-WS5)
+
+**Brief:** `docs/prompts/2026-08-13-data-continuity-scam-sensing-tooltips.md`. Built on the consent-first gate (already live). Migrations `20260813150000_flagged_messages` + `20260813160000_ws2_field_gaps` applied.
+
+- **WS1 — never re-ask** (`74563d2`): `getKnownProfile(personId)` (identity/people.ts) assembles every stored field + memberships; injected into `AgentContext.knownProfile` and the system prompt (`buildKnownProfileBlock`) so the agent confirms instead of asking ("Still on 0803…?"). New `lookup_person` read tool lets the LLM check what's stored before asking. `register_member` dedupes existing people by name (no duplicate membership), prefills the sender's stored name/phone for self-registration, and only ever patches new fields.
+- **WS3 — scam & danger sensing** (`6a24fd0`): deterministic `assessRisk(text)` (safety/risk.ts) runs BEFORE any agent routing — money-to-new-account, OTP requests, leader impersonation, phishing links → refused + warned + flagged to leaders; child danger/abuse/self-harm/threats → care reply + immediate human escalation (URGENT notifyLeaders). `flagged_messages` table (RLS deny-all) + `/admin/flagged` panel with reviewed flow. Persona hardened with scam/crisis guardrails. Processor tests prove the scam is refused and the danger escalated.
+- **WS4 — tooltips** (`7f26469`): reusable `<InfoTip>` (aria-describedby, keyboard-focusable, title fallback, tap-to-toggle) on L0/L1/L2 badges, KYC chips (CAC/trustee/ID), KYC statuses.
+- **WS5 — WhatsApp upgrades** (`65618ea`): webhook now handles Meta `statuses` — `recordDeliveryStatus` logs sent/delivered/read/failed into `whatsapp_send_logs` so nothing vanishes silently. Guest persona taps get tappable follow-ups: member → Give · Prayer · Join a ministry; child → Send my code · Talk to a leader.
+- **WS2 — full field set** (`7460b79`): member (+occupation, +emergency_contact), first-timer (+how_heard, +address), leader/volunteer (+skills, +availability on department_memberships), child (+birthdate on person, +who_may_collect on child_profiles — can_pickup already modelled via guardianships). All captured by the existing WhatsApp tools, nothing dropped.
+
+**532 tests (+37), tsc clean, build compiles.** Owner action: run the TRUNCATE SQL in the Supabase editor (resets everyone to first contact → fresh consent gate, cleared AI memory).
+
 ### 2026-08-13 — Kimi dashboard integrated into /admin (reskin + rewire, all steps shipped)
 
 **Brief:** `docs/prompts/2026-08-13-deepseek-integrate-kimi-dashboard.md` + `docs/design/kimi-dashboard.html`. Kimi produced a self-contained HTML design; DeepSeek reskinned the real console to it and rewired every screen to live queries. **Zero Kimi sample data survived** (grep-verified: no `DATA`, names, Unsplash URLs, or hardcoded consent dots in `src/`).
