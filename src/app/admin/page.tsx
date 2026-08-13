@@ -1,41 +1,34 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import s from "@/components/admin/admin-kit.module.css";
-import { GrowthChart, GivingChart, FunnelChart, VerificationDonut, Sparkline, PeriodSwitcher } from "@/components/admin/charts";
+import { GrowthChart, GivingChart, FunnelChart, VerificationDonut, Sparkline } from "@/components/admin/charts";
 import { adminFetch } from "./use-admin-fetch";
 
 type Kpi = { value: number; delta: number; spark: number[] };
 type Overview = {
   churches: { total: number; active: number; pending: number };
   pendingKyc: number; members: number; people: { verified: number; unverified: number };
-  recentKyc: { id: string; church: string; status: string; createdAt: string }[];
-  recentChurches: { id: string; name: string; status: string; createdAt: string }[];
   kpis: { churches: Kpi; members: Kpi; giving: Kpi; verifiedPct: { value: number }; pendingKyc: { value: number } };
 };
 type TrendPoint = { bucket: string; churches: number; members: number; giving: number };
 type Funnel = { draft: number; pending: number; approved: number; rejected: number };
 type Verification = { l0: number; l1: number; l2: number };
 type FeedEvent = { type: string; title: string; subtitle: string; at: string; href: string | null };
-type DataRequest = { id: string; kind: string; status: string; note: string; personName: string; createdAt: string };
 
 const nf = (n: number) => n.toLocaleString("en-NG");
 
-function deltaChip(d: number) {
-  if (d > 0) return <span className={`${s.delta} ${s.deltaUp}`}>▲ {d > 999 ? nf(d) : d}</span>;
-  if (d < 0) return <span className={`${s.delta} ${s.deltaDown}`}>▼ {Math.abs(d) > 999 ? nf(Math.abs(d)) : Math.abs(d)}</span>;
-  return <span className={`${s.delta} ${s.deltaFlat}`}>—</span>;
+function deltaChip(n: number) {
+  const abs = Math.abs(n);
+  const label = abs > 999 ? nf(abs) : String(abs);
+  if (n > 0) return <span style={{ color: "var(--success)", fontSize: 12, fontWeight: 600 }}>▲ {label}</span>;
+  if (n < 0) return <span style={{ color: "var(--danger)", fontSize: 12, fontWeight: 600 }}>▼ {label}</span>;
+  return <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 600 }}>—</span>;
 }
 
-function KpiCard({ label, value, delta, spark, href, format }: { label: string; value: number; delta?: number; spark: number[]; href: string; format?: (n: number) => string }) {
-  return (
-    <Link className={s.kpiCard} href={href}>
-      <div className={s.kpiLabel}><span>{label}</span>{delta !== undefined && deltaChip(delta)}</div>
-      <div className={s.kpiValue}>{format ? format(value) : nf(value)}</div>
-      <div className={s.kpiFoot}><div className={s.kpiSpark}><Sparkline data={spark} /></div><span className={s.feedTime}>↗</span></div>
-    </Link>
-  );
-}
+const FEED_ICON: Record<string, string> = {
+  kyc_submitted: "📄", kyc_approved: "✓", kyc_rejected: "✕",
+  church_created: "+", member_added: "👤", first_timer: "🌟", data_request: "🗑",
+};
 
 export default function AdminOverview() {
   const [o, setO] = useState<Overview | null>(null);
@@ -43,12 +36,12 @@ export default function AdminOverview() {
   const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [verification, setVerification] = useState<Verification | null>(null);
   const [feed, setFeed] = useState<FeedEvent[]>([]);
-  const [dataRequests, setDataRequests] = useState<DataRequest[]>([]);
+  const [dataRequests, setDataRequests] = useState<{ id: string }[]>([]);
   const [period, setPeriod] = useState<"7d" | "30d" | "90d" | "all">("30d");
   const [err, setErr] = useState(false);
 
   const load = useCallback(async (p: "7d" | "30d" | "90d" | "all") => {
-    adminFetch<{ overview: Overview; trends: TrendPoint[]; funnel: Funnel; verification: Verification; feed: FeedEvent[]; dataRequests?: DataRequest[] }>(`/api/admin/overview?period=${p}`).then((r) => {
+    adminFetch<{ overview: Overview; trends: TrendPoint[]; funnel: Funnel; verification: Verification; feed: FeedEvent[]; dataRequests?: { id: string }[] }>(`/api/admin/overview?period=${p}`).then((r) => {
       if (r.status === 401) setErr(true);
       else {
         setO(r.data?.overview ?? null);
@@ -63,129 +56,129 @@ export default function AdminOverview() {
 
   useEffect(() => { load(period); }, [period, load]);
 
-  if (err) return <div className={s.errorBox}>🔒 Not authorized — your account isn&apos;t on the Chertt review team.</div>;
-  if (!o) return <><div className={s.skeleton} style={{ height: 130, marginBottom: 16 }} /><div className={s.skeleton} style={{ height: 240, marginBottom: 16 }} /><div className={s.skeleton} style={{ height: 16, width: "40%" }} /></>;
+  if (err) return <div className="page"><div className="error-box">🔒 Not authorized — your account isn&apos;t on the Chertt review team.</div></div>;
+  if (!o) return <div className="page"><div className="skeleton" style={{ height: 130, marginBottom: 16 }} /><div className="skeleton" style={{ height: 240 }} /></div>;
 
   const giving = trends.map((t) => ({ bucket: t.bucket, amount: t.giving }));
+  const kpis = o.kpis;
 
   return (
-    <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+    <div className="page animate-in">
+      <div className="page-header">
         <div>
-          <h1 className={s.pageTitle}>Overview</h1>
-          <p className={s.pageSub} style={{ marginBottom: 0 }}>The platform at a glance — every number traces to a live query.</p>
+          <div className="breadcrumbs"><span>Platform</span><span className="sep">/</span><span>Overview</span></div>
+          <h1>Command Center</h1>
         </div>
-        <PeriodSwitcher value={period} onChange={setPeriod} />
-      </div>
-
-      {/* KPI row — sparklines fed by platformTrends, deltas = this period vs previous */}
-      <div style={{ marginTop: 20 }}>
-        <div className={s.kpiGrid}>
-          <KpiCard label="Churches" value={o.kpis.churches.value} delta={o.kpis.churches.delta} spark={o.kpis.churches.spark} href="/admin/churches" />
-          <KpiCard label="Members" value={o.kpis.members.value} delta={o.kpis.members.delta} spark={o.kpis.members.spark} href="/admin/people" />
-          <KpiCard label={`Giving · ${period}`} value={o.kpis.giving.value} delta={o.kpis.giving.delta} spark={o.kpis.giving.spark} href="/admin/churches" format={(n) => `₦${nf(n)}`} />
-          <KpiCard label="Verified %" value={o.kpis.verifiedPct.value} spark={[]} href="/admin/people" format={(n) => `${n}%`} />
-          <KpiCard label="Pending KYC" value={o.kpis.pendingKyc.value} spark={[]} href="/admin/kyc" />
+        <div className="flex items-center gap-2">
+          {(["7d", "30d", "90d", "all"] as const).map((p) => (
+            <button key={p} className={`btn ${p === period ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 12, padding: "6px 12px" }} onClick={() => setPeriod(p)}>{p}</button>
+          ))}
         </div>
       </div>
 
-      {/* Attention panel — jump straight to the work */}
-      <div className={s.attentionGrid}>
-        <Link className={s.attentionCard} href="/admin/kyc">
-          <span className={s.attentionIcon}>🛡️</span>
-          <div><div className={s.attentionCount}>{o.pendingKyc}</div><div className={s.attentionLabel}>KYC awaiting review</div></div>
-        </Link>
-        <div className={s.attentionCard}>
-          <span className={s.attentionIcon}>🔒</span>
-          <div><div className={s.attentionCount}>{dataRequests.length}</div><div className={s.attentionLabel}>Open data requests</div></div>
-        </div>
-        <Link className={s.attentionCard} href="/admin/churches">
-          <span className={s.attentionIcon}>⏳</span>
-          <div><div className={s.attentionCount}>{o.churches.pending}</div><div className={s.attentionLabel}>Unverified churches</div></div>
-        </Link>
+      {/* KPI row — fed by platformOverview.kpis (values, deltas vs previous window, real spark series) */}
+      <div className="kpi-grid">
+        {[
+          { label: "Churches", value: nf(kpis.churches.value), delta: kpis.churches.delta, spark: kpis.churches.spark, color: "var(--accent)", href: "/admin/churches" },
+          { label: "Members", value: nf(kpis.members.value), delta: kpis.members.delta, spark: kpis.members.spark, color: "var(--info)", href: "/admin/people" },
+          { label: "Verified %", value: `${kpis.verifiedPct.value}%`, spark: kpis.members.spark, color: "var(--success)", href: "/admin/people" },
+          { label: "Pending KYC", value: String(kpis.pendingKyc.value), spark: [], color: "var(--warning)", href: "/admin/kyc" },
+          { label: "Giving (₦)", value: `₦${nf(kpis.giving.value)}`, delta: kpis.giving.delta, spark: kpis.giving.spark, color: "var(--accent)", href: "/admin/churches" },
+        ].map((k) => (
+          <Link key={k.label} href={k.href} className="card" style={{ padding: 16, cursor: "pointer", textDecoration: "none" }}>
+            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{k.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--ink)" }} className="tabular">{k.value}</div>
+            <div className="mt-2">{k.delta !== undefined && deltaChip(k.delta)}</div>
+            <div className="mt-2"><Sparkline data={k.spark} color={k.color} height={40} /></div>
+          </Link>
+        ))}
       </div>
 
-      {/* Charts — every series fed by real queries */}
-      <div className={s.chartGrid}>
-        <div className={s.card}>
-          <div className={s.cardBody}>
-            <h2 className={s.chartTitle}>Growth</h2>
-            <p className={s.chartSub}>New churches and members per {period === "7d" || period === "30d" ? "day" : "week"} — organizations + branch_memberships</p>
-            <GrowthChart data={trends} />
+      <div className="charts-grid-2" style={{ marginBottom: 24 }}>
+        <div className="flex-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card">
+            <div className="card-header"><h3>Growth</h3><span style={{ fontSize: 12, color: "var(--muted)" }}>New churches + members per {period === "7d" || period === "30d" ? "day" : "week"}</span></div>
+            <div className="card-body">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Churches + members</div>
+                  <GrowthChart data={trends} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Legend</div>
+                  <div className="flex-col gap-2" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="flex items-center gap-2"><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--accent)", display: "inline-block" }} /><span className="text-sm">Churches</span></div>
+                    <div className="flex items-center gap-2"><span style={{ width: 10, height: 10, borderRadius: 3, background: "#3b82f6", display: "inline-block" }} /><span className="text-sm">Members</span></div>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Both series come from the live organizations / branch_memberships tables.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={s.card}>
-          <div className={s.cardBody}>
-            <h2 className={s.chartTitle}>Giving</h2>
-            <p className={s.chartSub}>Total received per {period === "7d" || period === "30d" ? "day" : "week"} — giving_records</p>
-            <GivingChart data={giving} />
+          <div className="card">
+            <div className="card-header"><h3>Giving Trend</h3><span style={{ fontSize: 12, color: "var(--muted)" }}>Per {period === "7d" || period === "30d" ? "day" : "week"} (₦)</span></div>
+            <div className="card-body"><GivingChart data={giving} /></div>
           </div>
-        </div>
-      </div>
-
-      <div className={s.chartGridThree}>
-        <div className={s.card}>
-          <div className={s.cardBody}>
-            <h2 className={s.chartTitle}>KYC funnel</h2>
-            <p className={s.chartSub}>Applications by stage — kyc_applications</p>
-            <FunnelChart data={funnel ?? { draft: 0, pending: 0, approved: 0, rejected: 0 }} />
-          </div>
-        </div>
-        <div className={s.card}>
-          <div className={s.cardBody}>
-            <h2 className={s.chartTitle}>Verification</h2>
-            <p className={s.chartSub}>People by level — phone_contacts + consent stamps</p>
-            <VerificationDonut data={verification ?? { l0: 0, l1: 0, l2: 0 }} />
-            <div className={s.donutLegend}>
-              <span><span className={s.donutDot} style={{ background: "var(--muted)" }} />L0 · Unverified</span>
-              <span><span className={s.donutDot} style={{ background: "#3b82f6" }} />L1 · WhatsApp</span>
-              <span><span className={s.donutDot} style={{ background: "#2e9e5b" }} />L2 · KYC</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="card">
+              <div className="card-header"><h3>KYC Funnel</h3></div>
+              <div className="card-body"><FunnelChart data={funnel ?? { draft: 0, pending: 0, approved: 0, rejected: 0 }} /></div>
+            </div>
+            <div className="card">
+              <div className="card-header"><h3>Verification</h3></div>
+              <div className="card-body"><VerificationDonut data={verification ?? { l0: 0, l1: 0, l2: 0 }} /></div>
             </div>
           </div>
         </div>
-        <div className={s.card}>
-          <div className={s.cardHead}>Live activity</div>
-          <div className={s.feedList}>
-            {feed.map((e, i) => <FeedRow key={`${e.type}-${e.at}-${i}`} e={e} />)}
-            {feed.length === 0 && <div className={s.emptyState}><div className={s.emptyStateTitle}>No activity yet</div><div className={s.emptyStateBody}>Events appear as churches onboard and members join.</div></div>}
+
+        <div className="flex-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card attention-pulse">
+            <div className="card-header"><h3>Needs Attention</h3></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              <Link href="/admin/kyc" style={{ padding: "14px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>Pending KYC</div><div style={{ fontSize: 12, color: "var(--muted)" }}>Applications awaiting review</div></div>
+                <span className="badge badge-warning">{o.pendingKyc}</span>
+              </Link>
+              <Link href="/admin/data-requests" style={{ padding: "14px 20px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>Open Data Requests</div><div style={{ fontSize: 12, color: "var(--muted)" }}>Privacy & deletion requests</div></div>
+                <span className="badge badge-warning">{dataRequests.length}</span>
+              </Link>
+              <Link href="/admin/churches" style={{ padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>Unverified Churches</div><div style={{ fontSize: 12, color: "var(--muted)" }}>Pending approval</div></div>
+                <span className="badge badge-danger">{o.churches.pending}</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><h3>Recent Activity</h3></div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {feed.map((a, i) => {
+                const inner = (
+                  <>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{FEED_ICON[a.type] ?? "•"}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }} className="truncate">{a.title}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }} className="truncate">{a.subtitle}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-light)", marginTop: 2 }}>{a.at.slice(0, 10)}</div>
+                    </div>
+                  </>
+                );
+                const rowStyle: React.CSSProperties = { padding: "12px 20px", borderBottom: "1px solid var(--line)", display: "flex", gap: 12, alignItems: "flex-start" };
+                return a.href
+                  ? <Link key={`${a.type}-${a.at}-${i}`} href={a.href} style={{ ...rowStyle, display: "flex" }}>{inner}</Link>
+                  : <div key={`${a.type}-${a.at}-${i}`} style={rowStyle}>{inner}</div>;
+              })}
+              {feed.length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-state-title">No activity yet</div>
+                  <div className="empty-state-body">Events appear as churches onboard and members join.</div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Open data requests — platform team action list */}
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Privacy: open data requests</div>
-        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-          <thead><tr><th>Type</th><th>Person</th><th>Note</th><th>When</th><th /></tr></thead>
-          <tbody>
-            {dataRequests.map((d) => <tr key={d.id}>
-              <td><span className={`${s.badge} ${d.kind === "deletion" ? s.badgeRed : d.kind === "access" ? s.badgeGreen : s.badgeAmber}`}>{d.kind}</span></td>
-              <td>{d.personName}</td>
-              <td>{d.note}</td>
-              <td>{d.createdAt?.slice(0, 10)}</td>
-              <td style={{ textAlign: "right" }}>
-                <button className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={async () => {
-                  const r = await adminFetch<{ ok: boolean }>(`/api/admin/data-requests/${d.id}`, { method: "POST" });
-                  if (r.data?.ok) setDataRequests((xs) => xs.filter((x) => x.id !== d.id));
-                }}>Done</button>
-              </td>
-            </tr>)}
-            {dataRequests.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No open requests. 🎉</td></tr>}
-          </tbody>
-        </table></div></div>
-      </div>
-    </>
+    </div>
   );
-}
-
-function FeedRow({ e }: { e: FeedEvent }) {
-  const inner = (
-    <>
-      <span className={s.feedDot} />
-      <span className={s.feedTitle}>{e.title}</span>
-      {e.subtitle && <span className={s.feedSub}>{e.subtitle}</span>}
-      <span className={s.feedTime}>{e.at.slice(0, 10)}</span>
-    </>
-  );
-  return e.href ? <Link className={s.feedRow} href={e.href}>{inner}</Link> : <div className={s.feedRow}>{inner}</div>;
 }

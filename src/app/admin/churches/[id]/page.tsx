@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
-import s from "@/components/admin/admin-kit.module.css";
-import { GivingChart, MemberChart, PeriodSwitcher } from "@/components/admin/charts";
+import { GivingChart, MemberChart } from "@/components/admin/charts";
 import { adminFetch } from "../../use-admin-fetch";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,11 +23,13 @@ const LVL = ["Unverified", "WhatsApp-verified", "KYC-verified"];
 const TABS = ["Overview", "Members", "Children", "Branches", "Pastoral", "KYC"] as const;
 type Tab = (typeof TABS)[number];
 
+const nf = (n: number) => n.toLocaleString("en-NG");
+
 function statusBadge(st: string) {
-  if (st === "active") return s.badgeGreen;
-  if (st === "rejected") return s.badgeRed;
-  if (st.includes("pending")) return s.badgeAmber;
-  return s.badgeNeutral;
+  if (st === "active") return "badge-success";
+  if (st === "rejected") return "badge-danger";
+  if (st.includes("pending")) return "badge-warning";
+  return "badge-muted";
 }
 
 export default function ChurchDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -55,127 +56,157 @@ export default function ChurchDetail({ params }: { params: Promise<{ id: string 
     return d.members.filter((m) => m.name.toLowerCase().includes(t));
   }, [d, q]);
 
-  if (msg) return <div className={s.errorBox}>{msg}</div>;
-  if (!d) return <><div className={s.skeleton} style={{ height: 200, marginBottom: 16 }} /><div className={s.skeleton} style={{ height: 16, width: "40%" }} /></>;
+  if (msg) return <div className="page"><div className="error-box">{msg}</div></div>;
+  if (!d) return <div className="page"><div className="skeleton" style={{ height: 200, marginBottom: 16 }} /><div className="skeleton" style={{ height: 16, width: "40%" }} /></div>;
 
   return (
-    <>
-      <div className={s.crumbs}>
-        <Link className={s.crumbLink} href="/admin/churches">Churches</Link><span>/</span><span>{d.org.name}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <h1 className={s.pageTitle} style={{ margin: 0 }}>{d.org.name} <span className={`${s.badge} ${statusBadge(d.org.status)}`}>{d.org.status}</span></h1>
-        {d.kyc && <Link className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} href={`/admin/kyc/${d.kyc.id}`}>View KYC</Link>}
-      </div>
-
-      <div className={s.tabs} role="tablist">
-        {TABS.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={`${s.tab} ${tab === t ? s.tabActive : ""}`} onClick={() => setTab(t)}>{t}</button>
-        ))}
-      </div>
-
-      {tab === "Overview" && (
-        <>
-          {stats && (
-            <div className={s.kpiGrid}>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Members</div><div className={s.kpiValue}>{stats.members}</div></div>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Children</div><div className={s.kpiValue}>{stats.children}</div></div>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>First-timers</div><div className={s.kpiValue}>{stats.firstTimers}</div></div>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Giving total</div><div className={s.kpiValue}>₦{stats.givingTotal.toLocaleString("en-NG")}</div></div>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Verified</div><div className={s.kpiValue}>{stats.verifiedPct}%</div></div>
-              <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Open pastoral</div><div className={s.kpiValue}>{stats.pendingPastoral}</div></div>
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}><PeriodSwitcher value={period} onChange={setPeriod} /></div>
-          <div className={s.chartGrid}>
-            <div className={s.card}><div className={s.cardBody}>
-              <h2 className={s.chartTitle}>Giving trend</h2>
-              <p className={s.chartSub}>Sum per {period === "7d" || period === "30d" ? "day" : "week"} — giving_records in this church&apos;s branches</p>
-              <GivingChart data={giving} />
-            </div></div>
-            <div className={s.card}><div className={s.cardBody}>
-              <h2 className={s.chartTitle}>Member growth</h2>
-              <p className={s.chartSub}>New memberships per {period === "7d" || period === "30d" ? "day" : "week"} — branch_memberships</p>
-              <MemberChart data={growth} />
-            </div></div>
+    <div className="page animate-in">
+      <div className="page-header">
+        <div>
+          <div className="breadcrumbs">
+            <span>Platform</span><span className="sep">/</span>
+            <Link href="/admin/churches">Churches</Link><span className="sep">/</span><span>{d.org.name}</span>
           </div>
-          <div className={s.section}><div className={s.sectionTitle}>Details</div>
-            <div className={s.card}><div className={s.cardBody}>
-              <div className={s.kvGrid}>
-                <span className={s.kvKey}>City</span><span>{d.org.requested_city ?? "—"}</span>
-                <span className={s.kvKey}>Created</span><span>{d.org.created_at?.slice(0, 10) ?? "—"}</span>
-                <span className={s.kvKey}>Approved by</span><span>{d.org.approved_by ?? "—"}</span>
-                <span className={s.kvKey}>KYC</span><span>{d.kyc ? <Link style={{ color: "var(--accent)", textDecoration: "none" }} href={`/admin/kyc/${d.kyc.id}`}>{d.kyc.status}</Link> : "—"}</span>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {d.org.name} <span className={`badge ${statusBadge(d.org.status)}`}>{d.org.status.replace(/_/g, " ")}</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {d.kyc && <Link className="btn btn-sm" href={`/admin/kyc/${d.kyc.id}`}>View KYC</Link>}
+          <Link className="btn btn-sm" href="/admin/churches">Back</Link>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
+        <div className="card" style={{ padding: 16 }}><div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Members</div><div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-2">{nf(stats?.members ?? d.members.length)}</div></div>
+        <div className="card" style={{ padding: 16 }}><div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Branches</div><div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-2">{stats?.branches ?? d.workspaces.length}</div></div>
+        <div className="card" style={{ padding: 16 }}><div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Verified</div><div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-2">{stats?.verifiedPct ?? 0}%</div></div>
+        <div className="card" style={{ padding: 16 }}><div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>Giving</div><div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-2">₦{nf(stats?.givingTotal ?? 0)}</div></div>
+      </div>
+
+      <div className="card">
+        <div className="tabs">
+          {TABS.map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}{t === "Members" ? ` (${d.members.length})` : ""}{t === "Children" ? ` (${d.children?.length ?? 0})` : ""}</button>)}
+        </div>
+
+        {tab === "Overview" && (
+          <div style={{ padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+              <div className="flex items-center gap-2">
+                {(["7d", "30d", "90d", "all"] as const).map((p) => (
+                  <button key={p} className={`btn ${p === period ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 12, padding: "6px 12px" }} onClick={() => setPeriod(p)}>{p}</button>
+                ))}
               </div>
-            </div></div>
-          </div>
-        </>
-      )}
-
-      {tab === "Members" && (
-        <>
-          <div className={s.toolbar}><input className={`${s.input} ${s.toolbarSearch}`} aria-label="Search members" placeholder="Search members…" value={q} onChange={(e) => setQ(e.target.value)} /><span className={s.toolbarSpacer} /><span className={s.feedTime}>{members.length} of {d.members.length}</span></div>
-          <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-            <thead><tr><th>Name</th><th>Role</th><th>Gender</th><th>Email</th><th>Verification</th><th>Joined</th></tr></thead>
-            <tbody>{members.map((m, i) => <tr key={i}><td style={{ fontWeight: 500 }}>{m.name}</td><td><span className={`${s.badge} ${s.badgeNeutral}`}>{m.role}</span></td><td>{m.gender ?? "—"}</td><td>{m.email ?? "—"}</td><td>{LVL[m.level]}</td><td>{m.joinedAt?.slice(0, 10)}</td></tr>)}
-            {members.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>{d.members.length === 0 ? "No members yet." : "No members match."}</td></tr>}</tbody>
-          </table></div></div>
-        </>
-      )}
-
-      {tab === "Children" && (
-        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-          <thead><tr><th>Name</th><th>Guardian</th><th>Relationship</th><th>Classroom</th><th>Allergies</th><th>Medical notes</th></tr></thead>
-          <tbody>{(d.children ?? []).map((c, i) => <tr key={i}><td style={{ fontWeight: 500 }}>{c.name}</td><td>{c.guardian}</td><td>{c.relationship ?? "—"}</td><td>{c.classroom || "—"}</td><td>{c.allergies || "—"}</td><td>{c.medicalNotes || "—"}</td></tr>)}
-          {(d.children ?? []).length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No children registered.</td></tr>}</tbody>
-        </table></div></div>
-      )}
-
-      {tab === "Branches" && (
-        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-          <thead><tr><th>Name</th><th>City</th></tr></thead>
-          <tbody>{d.workspaces.map((w) => <tr key={w.id}><td style={{ fontWeight: 500 }}>{w.name}</td><td>{w.city ?? "—"}</td></tr>)}
-          {d.workspaces.length === 0 && <tr><td colSpan={2} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No branches.</td></tr>}</tbody>
-        </table></div></div>
-      )}
-
-      {tab === "Pastoral" && (
-        <>
-          <div className={s.kpiGrid}>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Requests</div><div className={s.kpiValue}>{d.pastoralRequests?.total ?? 0}</div></div>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Open</div><div className={s.kpiValue}>{d.pastoralRequests?.open ?? 0}</div></div>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Scheduled</div><div className={s.kpiValue}>{d.pastoralRequests?.scheduled ?? 0}</div></div>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Resolved</div><div className={s.kpiValue}>{d.pastoralRequests?.resolved ?? 0}</div></div>
-          </div>
-          <div className={s.section}><div className={s.sectionTitle}>Care requests</div>
-            <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-              <thead><tr><th>From</th><th>Category</th><th>Details</th><th>Status</th><th>When</th></tr></thead>
-              <tbody>{(d.pastoralCareRows ?? []).map((r) => <tr key={r.id}><td>{r.requesterName || "—"}</td><td>{r.category}</td><td>{r.details || "—"}</td><td><span className={`${s.badge} ${r.status === "resolved" ? s.badgeGreen : r.status === "open" ? s.badgeAmber : s.badgeNeutral}`}>{r.status}</span></td><td>{r.createdAt?.slice(0, 10)}</td></tr>)}
-              {(d.pastoralCareRows ?? []).length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No care requests.</td></tr>}</tbody>
-            </table></div></div>
-          </div>
-          <div className={s.section}><div className={s.sectionTitle}>Form submissions</div>
-            <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-              <thead><tr><th>Form</th><th>Status</th><th>When</th></tr></thead>
-              <tbody>{(d.formSubmissions ?? []).map((f) => <tr key={f.id}><td>{f.formType.replace(/_/g, " ")}</td><td><span className={`${s.badge} ${f.status === "completed" ? s.badgeGreen : s.badgeAmber}`}>{f.status}</span></td><td>{f.createdAt?.slice(0, 10)}</td></tr>)}
-              {(d.formSubmissions ?? []).length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No form submissions.</td></tr>}</tbody>
-            </table></div></div>
-          </div>
-        </>
-      )}
-
-      {tab === "KYC" && (
-        <div className={s.card}><div className={s.cardBody}>
-          {d.kyc ? (
-            <div className={s.kvGrid}>
-              <span className={s.kvKey}>Status</span><span><span className={`${s.badge} ${statusBadge(d.kyc.status)}`}>{d.kyc.status}</span></span>
-              <span className={s.kvKey}>Review</span><span><Link style={{ color: "var(--accent)", textDecoration: "none" }} href={`/admin/kyc/${d.kyc.id}`}>Open the review screen →</Link></span>
             </div>
-          ) : (
-            <div className={s.emptyState}><div className={s.emptyStateTitle}>No KYC application</div><div className={s.emptyStateBody}>This church was added outside the KYC flow.</div></div>
-          )}
-        </div></div>
-      )}
-    </>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Member Growth — branch_memberships per {period === "7d" || period === "30d" ? "day" : "week"}</div>
+                <MemberChart data={growth} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Giving Trend — giving_records per {period === "7d" || period === "30d" ? "day" : "week"}</div>
+                <GivingChart data={giving} />
+              </div>
+            </div>
+            <div className="mt-4">
+              <h4 style={{ marginBottom: 12 }}>Details</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>City</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.requested_city ?? "—"}</div></div>
+                <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Created</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.created_at?.slice(0, 10) ?? "—"}</div></div>
+                <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Approved by</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.approved_by ?? "—"}</div></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "Members" && (
+          <div style={{ padding: 0 }}>
+            <div style={{ padding: 16, borderBottom: "1px solid var(--line)" }}>
+              <input type="text" className="input" placeholder="Search members…" style={{ maxWidth: 280 }} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search members" />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Role</th><th>Verification</th><th>Joined</th></tr></thead>
+                <tbody>
+                  {members.map((m, i) => <tr key={i}><td style={{ fontWeight: 600, color: "var(--ink)" }}>{m.name}</td><td>{m.role}</td><td><span className={`badge ${m.level === 2 ? "badge-success" : m.level === 1 ? "badge-info" : "badge-muted"}`}>{LVL[m.level]}</span></td><td style={{ fontSize: 12, color: "var(--muted)" }}>{m.joinedAt?.slice(0, 10)}</td></tr>)}
+                  {members.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>{d.members.length === 0 ? "No members yet." : "No members match."}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "Children" && (
+          <div style={{ padding: 0 }}>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Guardian</th><th>Relationship</th><th>Classroom</th><th>Allergies</th><th>Medical notes</th></tr></thead>
+                <tbody>
+                  {(d.children ?? []).map((c, i) => <tr key={i}><td style={{ fontWeight: 600, color: "var(--ink)" }}>{c.name}</td><td>{c.guardian}</td><td>{c.relationship ?? "—"}</td><td>{c.classroom || "—"}</td><td>{c.allergies || "—"}</td><td>{c.medicalNotes || "—"}</td></tr>)}
+                  {(d.children ?? []).length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No children registered.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "Branches" && (
+          <div style={{ padding: 0 }}>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>City</th></tr></thead>
+                <tbody>
+                  {d.workspaces.map((w) => <tr key={w.id}><td style={{ fontWeight: 600, color: "var(--ink)" }}>{w.name}</td><td>{w.city ?? "—"}</td></tr>)}
+                  {d.workspaces.length === 0 && <tr><td colSpan={2} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No branches.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "Pastoral" && (
+          <div style={{ padding: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+              <div className="card" style={{ padding: 14 }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Requests</div><div style={{ fontSize: 20, fontWeight: 700, color: "var(--ink)" }}>{d.pastoralRequests?.total ?? 0}</div></div>
+              <div className="card" style={{ padding: 14 }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Open</div><div style={{ fontSize: 20, fontWeight: 700, color: "var(--warning)" }}>{d.pastoralRequests?.open ?? 0}</div></div>
+              <div className="card" style={{ padding: 14 }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Scheduled</div><div style={{ fontSize: 20, fontWeight: 700, color: "var(--info)" }}>{d.pastoralRequests?.scheduled ?? 0}</div></div>
+              <div className="card" style={{ padding: 14 }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Resolved</div><div style={{ fontSize: 20, fontWeight: 700, color: "var(--success)" }}>{d.pastoralRequests?.resolved ?? 0}</div></div>
+            </div>
+            <div className="table-wrap" style={{ marginBottom: 16 }}>
+              <table>
+                <thead><tr><th>From</th><th>Category</th><th>Details</th><th>Status</th><th>When</th></tr></thead>
+                <tbody>
+                  {(d.pastoralCareRows ?? []).map((r) => <tr key={r.id}><td style={{ fontWeight: 500, color: "var(--ink)" }}>{r.requesterName || "—"}</td><td>{r.category}</td><td>{r.details || "—"}</td><td><span className={`badge ${r.status === "resolved" ? "badge-success" : r.status === "open" ? "badge-warning" : "badge-muted"}`}>{r.status}</span></td><td style={{ fontSize: 12, color: "var(--muted)" }}>{r.createdAt?.slice(0, 10)}</td></tr>)}
+                  {(d.pastoralCareRows ?? []).length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No care requests.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <h4 style={{ marginBottom: 8 }}>Form submissions</h4>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Form</th><th>Status</th><th>When</th></tr></thead>
+                <tbody>
+                  {(d.formSubmissions ?? []).map((f) => <tr key={f.id}><td>{f.formType.replace(/_/g, " ")}</td><td><span className={`badge ${f.status === "completed" ? "badge-success" : "badge-warning"}`}>{f.status}</span></td><td style={{ fontSize: 12, color: "var(--muted)" }}>{f.createdAt?.slice(0, 10)}</td></tr>)}
+                  {(d.formSubmissions ?? []).length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No form submissions.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "KYC" && (
+          <div style={{ padding: 20 }}>
+            {d.kyc ? (
+              <div className="flex items-center gap-4" style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <span className={`badge ${statusBadge(d.kyc.status)}`}>{d.kyc.status}</span>
+                <Link className="btn btn-primary" href={`/admin/kyc/${d.kyc.id}`}>Review KYC Application</Link>
+              </div>
+            ) : (
+              <p style={{ color: "var(--muted)" }}>No KYC application found for this church.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
