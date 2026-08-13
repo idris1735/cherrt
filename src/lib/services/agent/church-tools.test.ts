@@ -262,4 +262,18 @@ describe("WS1 — register_member never re-asks what's stored", () => {
     const out = (await tool("register_member").handler({}, leaderCtx)) as { error?: string };
     expect(out.error).toBeTruthy();
   });
+
+  it("WS2 — register_member stores the full member field set (occupation + emergency contact)", async () => {
+    await tool("register_member").handler({ name: "Grace", occupation: "Teacher", emergencyContact: "0809 (sister)" }, leaderCtx);
+    const personPatch = store.updates.find((u) => u.table === "people" && "occupation" in u.patch);
+    expect(personPatch?.patch).toMatchObject({ occupation: "Teacher", emergency_contact: "0809 (sister)" });
+  });
+});
+
+describe("WS2 — capture_first_timer stores the full first-timer field set", () => {
+  it("persists how they heard + address alongside the basics", async () => {
+    await tool("capture_first_timer").handler({ name: "John", phone: "0802", howHeard: "friend invited me", address: "Ikeja" }, leaderCtx);
+    const ft = store.inserts.find((i) => i.table === "first_timers");
+    expect(ft?.row).toMatchObject({ how_heard: "friend invited me", address: "Ikeja" });
+  });
 });

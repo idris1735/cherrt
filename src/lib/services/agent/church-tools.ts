@@ -142,6 +142,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         name: { type: "string" },
         phone: { type: "string", description: "Phone number (optional)" },
         invitedBy: { type: "string", description: "Who invited them (optional)" },
+        howHeard: { type: "string", description: "How they heard about the church (optional — stored once)" },
+        address: { type: "string", description: "Where they live (optional — stored once)" },
       },
       required: ["name"],
     },
@@ -168,6 +170,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         name,
         phone: String(args.phone ?? "") || null,
         invited_by: String(args.invitedBy ?? "") || null,
+        how_heard: String(args.howHeard ?? "") || null,
+        address: String(args.address ?? "") || null,
         follow_up_status: "new",
       });
       if (error) return { error: error.message };
@@ -351,6 +355,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         address: { type: "string", description: "Where they live (optional)" },
         email: { type: "string", description: "Email address (optional)" },
         notes: { type: "string", description: "Any extra info (optional)" },
+        occupation: { type: "string", description: "What they do for work (optional — stored once, never asked again)" },
+        emergencyContact: { type: "string", description: "Emergency contact name + number (optional — stored once)" },
       },
       required: [],
     },
@@ -396,6 +402,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         if (typeof args.address === "string") profilePatch.address = args.address;
         if (typeof args.email === "string") profilePatch.email = args.email;
         if (typeof args.notes === "string") profilePatch.notes = args.notes;
+        if (typeof args.occupation === "string") profilePatch.occupation = args.occupation;
+        if (typeof args.emergencyContact === "string") profilePatch.emergency_contact = args.emergencyContact;
         if (Object.keys(profilePatch).length > 0) await db.from("people").update(profilePatch).eq("id", existingPersonId);
         if (membershipRow && role !== membershipRow.role) {
           await db.from("branch_memberships").update({ role }).eq("id", membershipRow.id);
@@ -425,6 +433,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (typeof args.address === "string") profilePatch.address = args.address;
       if (typeof args.email === "string") profilePatch.email = args.email;
       if (typeof args.notes === "string") profilePatch.notes = args.notes;
+      if (typeof args.occupation === "string") profilePatch.occupation = args.occupation;
+      if (typeof args.emergencyContact === "string") profilePatch.emergency_contact = args.emergencyContact;
       if (Object.keys(profilePatch).length > 0) {
         await db.from("people").update(profilePatch).eq("id", personId);
       }

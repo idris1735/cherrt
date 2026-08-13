@@ -91,6 +91,13 @@ describe("join_department", () => {
     const out = (await tool("join_department").handler({ department: "" }, ctx)) as { error?: string };
     expect(out.error).toBeTruthy();
   });
+
+  it("WS2 — stores the volunteer's skills + availability", async () => {
+    store.selectData["ministry_units"] = [{ id: "mu1", name: "Choir" }];
+    await tool("join_department").handler({ department: "choir", skills: "alto, piano", availability: "Sunday mornings" }, ctx);
+    const deptInsert = store.inserts.find((i) => i.table === "department_memberships");
+    expect(deptInsert!.row).toMatchObject({ skills: "alto, piano", availability: "Sunday mornings" });
+  });
 });
 
 describe("read tools", () => {

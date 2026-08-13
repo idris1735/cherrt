@@ -93,7 +93,11 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
       "Apply to join a ministry unit / department (e.g. choir, ushering, media). Creates a pending application linked to your person record.",
     parameters: {
       type: "object",
-      properties: { department: { type: "string", description: "The department/ministry to join" } },
+      properties: {
+        department: { type: "string", description: "The department/ministry to join" },
+        skills: { type: "string", description: "Their skills for this ministry (optional — stored once)" },
+        availability: { type: "string", description: "When they're available to serve (optional — stored once)" },
+      },
       required: ["department"],
     },
     mutates: true,
@@ -130,6 +134,8 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
         ministry_unit_id: unitId,
         unit_name: unitName,
         member_name: ctx.userName ?? "",
+        skills: String(args.skills ?? "") || null,
+        availability: String(args.availability ?? "") || null,
         status: "pending",
       });
       if (error) return { error: error.message };

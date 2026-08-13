@@ -189,4 +189,18 @@ describe("register_child — guardian consent (Slice D)", () => {
     });
     expect(store.inserts.some((i) => i.table === "guardianships")).toBe(true);
   });
+
+  it("WS2 — stores the full child field set including who may collect", async () => {
+    await tool("register_child").handler({
+      childName: "Amara", guardianConsent: true,
+      birthdate: "2020-04-12", allergies: "peanuts", medicalNotes: "inhaler",
+      classroom: "Primary 1", whoMayCollect: "Only Ada Obi and Sam Eze",
+    }, guardianCtx);
+    const profile = store.inserts.find((i) => i.table === "child_profiles");
+    expect(profile?.row).toMatchObject({
+      allergies: "peanuts", medical_notes: "inhaler", classroom: "Primary 1", who_may_collect: "Only Ada Obi and Sam Eze",
+    });
+    const personPatch = store.updates.find((u) => u.table === "people");
+    expect(personPatch?.row).toMatchObject({ birthdate: "2020-04-12" });
+  });
 });

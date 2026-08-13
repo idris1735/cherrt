@@ -192,10 +192,11 @@ export const CHILD_TOOLS: AgentTool[] = [
         childName: { type: "string", description: "Full name of the child (required)" },
         guardianConsent: { type: "boolean", description: "The sender confirms: 'I am this child's parent/guardian and I consent to storing these details' (required)" },
         age: { type: "number", description: "Age in years (optional)" },
-        birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
+        birthdate: { type: "string", description: "YYYY-MM-DD (optional — stored on the child's record)" },
         allergies: { type: "string", description: "Any allergies (optional)" },
         medicalNotes: { type: "string", description: "Medical conditions or notes (optional)" },
         classroom: { type: "string", description: "Classroom or age group (optional)" },
+        whoMayCollect: { type: "string", description: "Who is allowed to pick the child up (names; optional — stored once)" },
       },
       required: ["childName", "guardianConsent"],
     },
@@ -215,7 +216,9 @@ export const CHILD_TOOLS: AgentTool[] = [
         workspaceId: ctx.workspaceId,
         fullName: childName,
       });
-      await db.from("people").update({ is_minor: true }).eq("id", childPersonId);
+      const childPatch: Record<string, unknown> = { is_minor: true };
+      if (typeof args.birthdate === "string") childPatch.birthdate = args.birthdate;
+      await db.from("people").update(childPatch).eq("id", childPersonId);
 
       // Guardian-given consent, recorded on the child person + linked to guardian
       const guardianId = ctx.personId;
@@ -236,6 +239,7 @@ export const CHILD_TOOLS: AgentTool[] = [
         allergies: String(args.allergies ?? "") || null,
         medical_notes: String(args.medicalNotes ?? "") || null,
         classroom: String(args.classroom ?? "") || null,
+        who_may_collect: String(args.whoMayCollect ?? "") || null,
       });
 
       // Link the sender as primary guardian
