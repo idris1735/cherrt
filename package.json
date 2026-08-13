@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "reset-demo": "node scripts/reset-demo.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.48.0",

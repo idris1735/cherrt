@@ -61,7 +61,7 @@ export function OnboardForm({ token }: { token: string }) {
     if (sErr) fieldErrs.selfie = sErr;
     if (cErr) fieldErrs.cac = cErr;
     if (!emailSent) fieldErrs.email_code = "Verify your email — tap “Send code” first.";
-    else if (!/^\d{6}$/.test((v.email_code ?? "").trim())) fieldErrs.email_code = "Enter the 6-digit code from your email.";
+    else if (!/^\d{6}$/.test((v.email_code ?? "").trim())) fieldErrs.email_code = "Enter the 6-digit code from your email or WhatsApp.";
     if (v.consent !== "on") fieldErrs.consent = "Please give consent to continue.";
     setErrs(fieldErrs);
     if (Object.keys(fieldErrs).length) { setBanner("Please fix the highlighted fields."); return; }
@@ -146,7 +146,7 @@ export function OnboardForm({ token }: { token: string }) {
                 </button>
               </div>
               {errs.email && <span className={s.fieldErr}>{errs.email}</span>}
-              {emailSent && !errs.email && <span className={s.sentNote}>Code sent — check your inbox (and spam).</span>}
+              {emailSent && !errs.email && <span className={s.sentNote}>Code sent — check your email and WhatsApp.</span>}
             </label>
             {emailSent && <F name="email_code" label="6-digit code" v={v} errs={errs} set={set} inputMode="numeric" />}
 

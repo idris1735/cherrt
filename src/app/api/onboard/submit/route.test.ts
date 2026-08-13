@@ -20,7 +20,14 @@ function form(fields: Record<string, string>, withFile = true): Request {
 }
 const base = { token: "t", church_legal_name: "Grace", it_number: "IT1", address: "Lagos", applicant_role: "Ada Obi", id_type: "nin", id_number: "12345678901", email: "a@b.co", email_code: "123456", consent: "on" };
 
-beforeEach(() => { vi.clearAllMocks(); (resolveByToken as any).mockResolvedValue({ id: "k1", applicantPhone: "234800" }); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  // clearAllMocks resets calls but NOT implementations — re-establish defaults
+  (resolveByToken as any).mockResolvedValue({ id: "k1", applicantPhone: "234800" });
+  (updateApplication as any).mockResolvedValue(true);
+  (runKycChecks as any).mockResolvedValue({ cac: true, id: true, trustee: "match" });
+  (verifyEmailOtp as any).mockResolvedValue(true);
+});
 
 describe("POST /api/onboard/submit", () => {
   it("verifies + stores + runs checks + sets pending on a good submission", async () => {
@@ -45,5 +52,14 @@ describe("POST /api/onboard/submit", () => {
     const { consent, ...noConsent } = base;
     void consent;
     expect((await POST(form(noConsent))).status).toBe(400);
+  });
+
+  it("P0-3: still queues as pending when runKycChecks THROWS (Mono down)", async () => {
+    (runKycChecks as any).mockRejectedValue(new Error("mono down"));
+    const res = await POST(form(base));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+    // Still reached pending
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ status: "pending" }));
   });
 });

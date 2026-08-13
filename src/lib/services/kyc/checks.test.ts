@@ -39,4 +39,15 @@ describe("runKycChecks", () => {
     expect(out.cac).toBe(false);
     expect(out.id).toBe(false);
   });
+
+  it("P0-3: never rejects when Mono THROWS — records errored results instead", async () => {
+    (monoCacLookup as any).mockRejectedValue(new Error("mono down"));
+    (monoNinLookup as any).mockRejectedValue(new Error("mono down"));
+    const out = await runKycChecks({ id: "k1", itNumber: "IT1", churchLegalName: "Grace Chapel", idType: "nin", idNumber: "12345678901", applicantRole: "Ada Obi" });
+    // resolves (doesn't throw) with neutral results
+    expect(out).toEqual({ cac: false, id: false, trustee: "unknown" });
+    const merged = Object.assign({}, ...store.patches);
+    expect(merged.cac_result).toMatchObject({ error: expect.stringContaining("manually") });
+    expect(merged.id_result).toMatchObject({ error: expect.stringContaining("manually") });
+  });
 });

@@ -67,12 +67,12 @@ export async function startSignupFlow(phoneNumber: string): Promise<string> {
     return "Something went wrong starting your church setup — please try again in a moment.";
   }
   return [
-    "Setting up a church on Chertt takes a quick, secure verification (Nigerian law — we confirm your CAC registration and your ID).",
+    "Welcome to Chertt 🙏 Setting up your church takes a quick, secure verification — we confirm your CAC registration and your ID, so your church is protected.",
     "",
-    "Open this private link to continue — it's just for you:",
+    "🔒 Tap to verify your church securely:",
     `${APP_URL()}/onboard/${app.token}`,
     "",
-    "Once you submit, our team reviews it and I'll message you here the moment you're approved.",
+    "Submit the form and our team will review it. I'll message you here the moment you're approved.",
   ].join("\n");
 }
 

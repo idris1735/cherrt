@@ -39,14 +39,20 @@ export async function notifyLeaders(params: {
     .in("person_id", leaderIds)
     .eq("status", "active");
 
-  // Send each leader a WhatsApp alert (best-effort)
+  // Send each leader a WhatsApp alert (best-effort, logged)
+  const outcomes: Array<{ phone: string; ok: boolean }> = [];
   for (const c of (contacts ?? []) as Array<{ phone_number: string }>) {
     if (c.phone_number) {
       try {
         await sendTextMessage(c.phone_number, message);
+        outcomes.push({ phone: c.phone_number, ok: true });
       } catch {
+        outcomes.push({ phone: c.phone_number, ok: false });
         // never block — notification is a bonus
       }
     }
+  }
+  if (outcomes.some((o) => !o.ok)) {
+    console.warn(`[referral] notifyLeaders partial failure for ${workspaceId}:`, JSON.stringify(outcomes));
   }
 }

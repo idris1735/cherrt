@@ -1,5 +1,5 @@
 import { resolveByToken } from "@/lib/services/kyc/applications";
-import { sendEmailOtp } from "@/lib/services/kyc/email-otp";
+import { sendOnboardingOtp } from "@/lib/services/kyc/email-otp";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,10 @@ export async function POST(req: Request): Promise<Response> {
   }
   const app = await resolveByToken(token);
   if (!app) return Response.json({ ok: false, error: "This link is invalid or has expired." }, { status: 404 });
-  const sent = await sendEmailOtp(email);
-  return Response.json({ ok: sent });
+
+  // P0-1: the code goes to BOTH email and the applicant's WhatsApp — a missing
+  // RESEND_API_KEY can never block onboarding.
+  const phone = typeof app.applicant_phone === "string" ? app.applicant_phone : null;
+  const { ok, channels } = await sendOnboardingOtp(email, phone);
+  return Response.json({ ok, channels });
 }

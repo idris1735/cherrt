@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/services/whatsapp", () => ({
   sendTemplateMessage: vi.fn().mockResolvedValue(undefined),
+  sendTextMessage: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { sendTemplateMessage } from "@/lib/services/whatsapp";
+import { sendTemplateMessage, sendTextMessage } from "@/lib/services/whatsapp";
 import {
   sendNewSignupAlertTemplate,
   sendOrgApprovedTemplate,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/services/whatsapp-templates";
 
 const mockSend = sendTemplateMessage as ReturnType<typeof vi.fn>;
+const mockText = sendTextMessage as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -93,6 +95,31 @@ describe("sendOrgRejectedTemplate", () => {
       "chertt_org_rejected",
       "en",
       ["Grace Chapel", "budget exceeded"],
+    );
+  });
+});
+
+describe("P0-2 — template fallback to plain text", () => {
+  it("falls back to plain text when the approved template is not live", async () => {
+    mockSend.mockRejectedValueOnce(new Error("template not found"));
+
+    await sendOrgApprovedTemplate("2348011111111", "Ruth", "Grace Chapel");
+
+    expect(mockText).toHaveBeenCalledWith(
+      "2348011111111",
+      expect.stringContaining("Grace Chapel"),
+    );
+    expect(mockText.mock.calls[0][1]).toContain("approved");
+  });
+
+  it("falls back to plain text for rejection with the reason", async () => {
+    mockSend.mockRejectedValueOnce(new Error("template not found"));
+
+    await sendOrgRejectedTemplate("2348011111111", "Grace Chapel", "incomplete documents");
+
+    expect(mockText).toHaveBeenCalledWith(
+      "2348011111111",
+      expect.stringContaining("incomplete documents"),
     );
   });
 });

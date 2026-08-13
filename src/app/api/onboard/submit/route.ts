@@ -66,8 +66,21 @@ export async function POST(req: Request): Promise<Response> {
     consent_at: new Date().toISOString(),
   });
 
-  await runKycChecks({ id: app.id, itNumber: s("it_number"), churchLegalName: s("church_legal_name"), idType, idNumber, applicantRole: fullName });
+  // P0-3: the automated checks can NEVER hard-fail the submission. Mono down,
+  // rate-limited, or throwing — the application still lands in `pending` with
+  // whatever results were recorded, and the reviewer verifies manually.
+  try {
+    await runKycChecks({ id: app.id, itNumber: s("it_number"), churchLegalName: s("church_legal_name"), idType, idNumber, applicantRole: fullName });
+  } catch (err) {
+    console.error("[onboard/submit] KYC checks failed — queuing for manual review:", err);
+    await updateApplication(app.id, {
+      cac_result: { error: "auto-checks incomplete — verify manually" },
+      id_result: { error: "auto-checks incomplete — verify manually" },
+      trustee_match: "unknown",
+    }).catch(() => {});
+  }
 
+  // Always reach pending — never 500 on a real submission
   await updateApplication(app.id, { status: "pending" });
   return Response.json({ ok: true });
 }

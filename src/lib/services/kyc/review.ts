@@ -8,7 +8,7 @@ import { startSetupFlow } from "@/lib/services/onboarding-flow";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type PendingRow = { id: string; church_legal_name: string; applicant_phone: string; trustee_match: string | null; created_at: string };
-export type ReviewDetail = Record<string, any> & { selfieUrl: string | null; idPhotoDataUrl: string | null };
+export type ReviewDetail = Record<string, any> & { selfieUrl: string | null; idPhotoDataUrl: string | null; cacCertUrl: string | null };
 
 export async function listPendingApplications(): Promise<PendingRow[]> {
   const db = getSupabaseServerClient();
@@ -31,10 +31,22 @@ export async function getApplicationForReview(id: string): Promise<ReviewDetail 
   if (!db) return null;
   const app = await loadApp(db, id);
   if (!app) return null;
-  const selfieUrl = app.selfie_path ? await signedKycUrl(app.selfie_path) : null;
+  // P0-4: every signed URL is guarded — a missing file is null, never a crash
+  let selfieUrl: string | null = null;
+  let cacCertUrl: string | null = null;
+  try {
+    selfieUrl = app.selfie_path ? await signedKycUrl(app.selfie_path) : null;
+  } catch {
+    selfieUrl = null;
+  }
+  try {
+    cacCertUrl = app.cac_cert_path ? await signedKycUrl(app.cac_cert_path) : null;
+  } catch {
+    cacCertUrl = null;
+  }
   const photo = app.id_result?.photoBase64;
   const idPhotoDataUrl = photo ? `data:image/jpeg;base64,${photo}` : null;
-  return { ...app, selfieUrl, idPhotoDataUrl };
+  return { ...app, selfieUrl, idPhotoDataUrl, cacCertUrl };
 }
 
 // Approve: provision the church (org + workspace), seat the applicant as
