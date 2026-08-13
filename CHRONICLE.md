@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-13 — Consent & Privacy Layer (NDPR) — all 5 slices shipped
+
+**Brief:** `docs/prompts/2026-08-13-consent-privacy-layer.md`. Every path that writes a person/personal record must have a recorded lawful basis; children always guardian-consented; opted-out numbers never messaged; consent is versioned.
+
+- **Slice A — data model + service (commit `06363ee`):** migration `20260813140000_consent_privacy_layer.sql` — `people.consent_at/consent_version/consent_source`, `phone_contacts.opted_out/opted_out_at`, new `data_requests` table (kind: access/deletion/objection, status open/done). `src/lib/services/privacy/consent.ts`: `recordConsent`, `isOptedOut`, `setOptedOut`, `clearOptOut`, `logDataRequest`, `CONSENT_VERSION="2026-08-13-v1"`.
+- **Slice B — opt-out suppression (commit `06363ee`):** `postToGraph` never messages an opted-out number (fail-open if lookup unavailable). STOP handler confirms FIRST then `setOptedOut` + logs a deletion request. Every inbound message clears opt-out. Guest button taps record `whatsapp_first_contact`.
+- **Slice C — lawful basis everywhere (commit `e47cf6b`):** `recordConsent` on prayer_request, first_timer_capture, leader_registered, pastoral_form, department_join; `approveKycApplication` records `onboarding_form` on the provisioned person.
+- **Slice D — guardian consent for children (commit `e47cf6b`):** `register_child` refuses without `guardianConsent: true`, records consent on the child with `guardianPersonId` linked, refuses if sender identity is unknown.
+- **Slice E — transparency + rights (commit `dc8bb89`):** registering/capturing someone ELSE's phone sends them a notice ("Reply privacy… or stop to opt out"). New `/privacy` page (static, design-kit styled) linked from onboarding form + WhatsApp privacy reply. `delete my data` logs a deletion request. Open `data_requests` surface in `/admin` overview with a Done action (`POST /api/admin/data-requests/[id]`, platform-gated).
+
+**463 tests (+16), tsc clean, build compiles.**
+
 ### 2026-08-13 — DEMO-DAY WAR PLAN executed: P0 (6/6) + P1 (5/5) + P2 (2/4)
 
 **Brief:** `docs/prompts/2026-08-13-DEMO-DAY-warplan.md`. Serious client demo today. Executed strictly in tier order.
