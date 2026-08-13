@@ -20,6 +20,11 @@
 
 **532 tests (+37), tsc clean, build compiles.** Owner action: run the TRUNCATE SQL in the Supabase editor (resets everyone to first contact → fresh consent gate, cleared AI memory).
 
+### 2026-08-13 — built-in admin + demo reset script
+
+- `donotreply@chertt.com` is now a **built-in platform admin** in `kyc/admin-auth.ts` (`BUILT_IN_ADMIN_EMAILS`, merged + deduped with `PLATFORM_ADMIN_EMAILS` via `platformAdminAllowlist()`) — it can open the admin dashboard automatically with no env-var change. Settings API now reports the merged list.
+- Manual ops script `supabase/reset-consent-demo.sql` (outside `migrations/`, so `db push` ignores it): nulls everyone's consent stamp → consent gate re-asks on next contact, and clears `whatsapp_sessions` / `whatsapp_processed_messages` / `otp_challenges` / `pending_agent_action` for a clean demo. Run it in the Supabase SQL editor.
+
 ### 2026-08-13 — Kimi dashboard integrated into /admin (reskin + rewire, all steps shipped)
 
 **Brief:** `docs/prompts/2026-08-13-deepseek-integrate-kimi-dashboard.md` + `docs/design/kimi-dashboard.html`. Kimi produced a self-contained HTML design; DeepSeek reskinned the real console to it and rewired every screen to live queries. **Zero Kimi sample data survived** (grep-verified: no `DATA`, names, Unsplash URLs, or hardcoded consent dots in `src/`).

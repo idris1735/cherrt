@@ -14,6 +14,16 @@ describe("platformAdminEmail", () => {
     getUserMock.mockResolvedValue({ data: { user: { email: "Ops@Chertt.com" } }, error: null });
     expect(await platformAdminEmail("tok")).toBe("ops@chertt.com");
   });
+  it("admits the built-in no-reply admin even when not in the env list", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = "";
+    getUserMock.mockResolvedValue({ data: { user: { email: "donotreply@chertt.com" } }, error: null });
+    expect(await platformAdminEmail("tok")).toBe("donotreply@chertt.com");
+  });
+  it("admits the built-in no-reply admin case-insensitively", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = "";
+    getUserMock.mockResolvedValue({ data: { user: { email: "DoNotReply@Chertt.com" } }, error: null });
+    expect(await platformAdminEmail("tok")).toBe("donotreply@chertt.com");
+  });
   it("returns null for a non-allow-listed user", async () => {
     getUserMock.mockResolvedValue({ data: { user: { email: "random@x.com" } }, error: null });
     expect(await platformAdminEmail("tok")).toBeNull();
