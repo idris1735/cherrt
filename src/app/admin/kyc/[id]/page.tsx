@@ -2,9 +2,10 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import s from "@/components/admin/admin-kit.module.css";
 import { adminFetch } from "../../use-admin-fetch";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
+import { ConfirmDialog, PhotoModal } from "@/components/admin/dialogs";
+import { toast } from "@/components/admin/toast";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function authHeader(): Promise<Record<string, string>> {
@@ -13,31 +14,31 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// P0-4: chip derivation survives ANY data shape (null, errored, sandbox)
+// Chip derivation survives ANY data shape (null, errored, sandbox)
 function cacChip(app: any): { text: string; cls: string } {
   const r = app?.cac_result;
-  if (!r || r.error) return { text: r?.error ? "Errored" : "No data", cls: s.badgeRed };
-  if (r.company?.active) return { text: `Found — ${r.company?.approvedName ?? "company"}`, cls: s.badgeGreen };
-  if (r.count > 0) return { text: "Found — inactive", cls: s.badgeAmber };
-  return { text: "Not found", cls: s.badgeRed };
+  if (!r || r.error) return { text: r?.error ? "Errored" : "No data", cls: "badge-danger" };
+  if (r.company?.active) return { text: `Found — ${r.company?.approvedName ?? "company"}`, cls: "badge-success" };
+  if (r.count > 0) return { text: "Found — inactive", cls: "badge-warning" };
+  return { text: "Not found", cls: "badge-danger" };
 }
 function trusteeChip(app: any): { text: string; cls: string } {
   const t = app?.trustee_match ?? "unknown";
-  if (t === "match") return { text: "Match", cls: s.badgeGreen };
-  if (t === "no_match") return { text: "No match", cls: s.badgeRed };
-  return { text: "Unknown", cls: s.badgeNeutral };
+  if (t === "match") return { text: "Match", cls: "badge-success" };
+  if (t === "no_match") return { text: "No match", cls: "badge-danger" };
+  return { text: "Unknown", cls: "badge-muted" };
 }
 function idChip(app: any): { text: string; cls: string } {
   const r = app?.id_result;
-  if (!r || r.error) return { text: r?.error ? "Errored" : "No data", cls: s.badgeRed };
-  if (r.firstname || r.surname) return { text: `Verified — ${[r.firstname, r.surname].filter(Boolean).join(" ")}`, cls: s.badgeGreen };
-  return { text: "Verified", cls: s.badgeGreen };
+  if (!r || r.error) return { text: r?.error ? "Errored" : "No data", cls: "badge-danger" };
+  if (r.firstname || r.surname) return { text: `Verified — ${[r.firstname, r.surname].filter(Boolean).join(" ")}`, cls: "badge-success" };
+  return { text: "Verified", cls: "badge-success" };
 }
 function statusBadge(st: string | undefined) {
-  if (st === "pending") return s.badgeAmber;
-  if (st === "approved") return s.badgeGreen;
-  if (st === "rejected") return s.badgeRed;
-  return s.badgeNeutral;
+  if (st === "pending") return "badge-warning";
+  if (st === "approved") return "badge-success";
+  if (st === "rejected") return "badge-danger";
+  return "badge-muted";
 }
 
 export default function AdminKycDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -47,107 +48,158 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [zoom, setZoom] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<"approve" | "reject" | null>(null);
 
   useEffect(() => { adminFetch<{ application: any }>(`/api/admin/kyc/${id}`).then((r) => { if (!r.data) setMsg("Not authorized or not found."); else setApp(r.data.application); }); }, [id]);
 
   async function act(action: "approve" | "reject") {
     let reason = "";
-    if (action === "reject") { reason = window.prompt("Reason for rejection (sent to the applicant):") ?? ""; if (!reason.trim()) return; }
+    if (action === "reject") {
+      reason = window.prompt("Reason for rejection (sent to the applicant):") ?? "";
+      if (!reason.trim()) return;
+    }
     setBusy(true); setMsg("");
     const res = await fetch(`/api/admin/kyc/${id}`, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeader()) }, body: JSON.stringify({ action, reason }) });
     const j = await res.json(); setBusy(false);
-    if (j.ok) router.push("/admin/kyc"); else setMsg(j.error ?? j.reason ?? "Action failed.");
+    if (j.ok) {
+      toast(`KYC ${action === "approve" ? "approved" : "rejected"} for ${app.church_legal_name ?? "the church"}`, action === "approve" ? "success" : "error");
+      router.push("/admin/kyc");
+    } else setMsg(j.error ?? j.reason ?? "Action failed.");
   }
 
-  if (msg && !app) return <div className={s.errorBox}>{msg}</div>;
-  if (!app) return <><div className={s.skeleton} style={{ height: 200 }} /></>;
+  if (msg && !app) return <div className="page"><div className="error-box">{msg}</div></div>;
+  if (!app) return <div className="page"><div className="skeleton" style={{ height: 200 }} /></div>;
 
   const cac = cacChip(app);
   const trustee = trusteeChip(app);
   const idC = idChip(app);
+  const isPending = app.status === "pending";
 
   return (
-    <>
-      <div className={s.crumbs}>
-        <Link className={s.crumbLink} href="/admin/kyc">KYC</Link><span>/</span><span>{app.church_legal_name ?? "Application"}</span>
-      </div>
-      <h1 className={s.pageTitle} style={{ margin: 0 }}>
-        {app.church_legal_name ?? "Unnamed church"}
-        <span className={`${s.badge} ${statusBadge(app.status)}`} style={{ marginLeft: 10, verticalAlign: "middle" }}>{app.status ?? "draft"}</span>
-      </h1>
-      <p className={s.pageSub}>{app.it_number ? `IT/RC ${app.it_number}` : "No IT/RC number"} · {app.address ?? "—"}</p>
-
-      {/* Verification status chips — the reviewer's first read */}
-      <div className={s.statGrid} style={{ marginBottom: 20 }}>
-        <div className={s.statCard}><div className={s.statLabel}>CAC lookup</div><div style={{ marginTop: 6 }}><span className={`${s.badge} ${cac.cls}`}>{cac.text}</span></div></div>
-        <div className={s.statCard}><div className={s.statLabel}>Trustee match</div><div style={{ marginTop: 6 }}><span className={`${s.badge} ${trustee.cls}`}>{trustee.text}</span></div></div>
-        <div className={s.statCard}><div className={s.statLabel}>ID (NIN/BVN)</div><div style={{ marginTop: 6 }}><span className={`${s.badge} ${idC.cls}`}>{idC.text}</span></div></div>
-      </div>
-
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Applicant</div>
-        <div className={s.card}><div className={s.cardBody}>
-          <div className={s.kvGrid}>
-            <span className={s.kvKey}>Stated role</span><span>{app.applicant_role ?? "—"}</span>
-            <span className={s.kvKey}>Phone</span><span>{app.applicant_phone ?? "—"}</span>
-            <span className={s.kvKey}>Email</span><span>{app.email ?? "—"}{app.email_verified_at ? " ✓" : ""}</span>
-            <span className={s.kvKey}>Denomination</span><span>{app.denomination ?? "—"}</span>
+    <div className="page animate-in">
+      <div className="page-header">
+        <div>
+          <div className="breadcrumbs">
+            <span>Platform</span><span className="sep">/</span>
+            <Link href="/admin/kyc">KYC</Link><span className="sep">/</span><span>{app.church_legal_name ?? "Review"}</span>
           </div>
-        </div></div>
-      </div>
-
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Photos — click to zoom</div>
-        <div className={s.photoRow}>
-          {[
-            { label: "Selfie holding ID", src: app.selfieUrl },
-            { label: "NIN photo (Mono)", src: app.idPhotoDataUrl },
-            { label: "CAC certificate", src: app.cacCertUrl },
-          ].map((p) => (
-            <div className={s.photoCol} key={p.label}>
-              <div className={s.photoLabel}>{p.label}</div>
-              {p.src
-                ? <img src={p.src} alt={p.label} className={s.photoImg} style={{ cursor: "zoom-in" }} onClick={() => setZoom(p.src!)} />
-                : <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", border: "1px dashed var(--line)", borderRadius: "var(--radius-sm)" }}>No image</div>}
-            </div>
-          ))}
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {app.church_legal_name ?? "Unnamed church"}{" "}
+            <span className={`badge ${statusBadge(app.status)}`}>{app.status ?? "draft"}</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link className="btn btn-sm" href="/admin/kyc">Back to Pipeline</Link>
         </div>
       </div>
 
-      {app.cac_result && <div className={s.section}><div className={s.sectionTitle}>CAC lookup raw</div><pre style={{ background: "var(--surface-muted, #fafafa)", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", padding: 12, overflowX: "auto", fontSize: 12, color: "var(--ink)" }}>{JSON.stringify(app.cac_result, null, 2)}</pre></div>}
-      {app.id_result && <div className={s.section}><div className={s.sectionTitle}>ID lookup raw</div><pre style={{ background: "var(--surface-muted, #fafafa)", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)", padding: 12, overflowX: "auto", fontSize: 12, color: "var(--ink)" }}>{JSON.stringify(app.id_result, null, 2)}</pre></div>}
-
-      {msg && <p style={{ color: "#b42020", fontSize: 14, marginTop: 12 }}>{msg}</p>}
-      {app.status === "pending" ? (
-        <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
-          <button disabled={busy} onClick={() => setConfirming(true)} className={`${s.btn} ${s.btnPrimary}`}>✅ Approve &amp; create church</button>
-          <button disabled={busy} onClick={() => act("reject")} className={`${s.btn} ${s.btnDanger}`}>Reject…</button>
-        </div>
-      ) : <p className={s.pageSub} style={{ marginTop: 24 }}>Already {app.status}.</p>}
-
-      {confirming && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
-          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius-lg)", padding: 28, maxWidth: 420, width: "100%" }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 17 }}>Approve this church?</h3>
-            <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 20px" }}>
-              This creates <strong>{app.church_legal_name ?? "the church"}</strong>, seats the applicant as creator, and notifies them on WhatsApp.
-            </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <button disabled={busy} onClick={() => { setConfirming(false); act("approve"); }} className={`${s.btn} ${s.btnPrimary}`} style={{ flex: 1, justifyContent: "center" }}>
-                {busy ? "Approving…" : "Yes, approve"}
-              </button>
-              <button disabled={busy} onClick={() => setConfirming(false)} className={`${s.btn} ${s.btnGhost}`} style={{ flex: 1, justifyContent: "center" }}>Cancel</button>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }} className="charts-grid-2">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card">
+            <div className="card-header"><h3>Submitted Documents</h3><span style={{ fontSize: 12, color: "var(--muted)" }}>Click to zoom</span></div>
+            <div className="card-body">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                {[
+                  { label: "Selfie Photo", src: app.selfieUrl },
+                  { label: "Government ID", src: app.idPhotoDataUrl },
+                  { label: "CAC Certificate", src: app.cacCertUrl },
+                ].map((d) => (
+                  <div key={d.label} style={{ cursor: d.src ? "pointer" : "default" }} onClick={() => d.src && setZoom(d.src)}>
+                    <div style={{ aspectRatio: "1", borderRadius: "var(--radius-sm)", overflow: "hidden", border: "1px solid var(--line)", marginBottom: 8, background: "var(--surface-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {d.src
+                        ? <img src={d.src} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt={d.label} />
+                        : <span style={{ color: "var(--muted)", fontSize: 12 }}>No image</span>}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, textAlign: "center", color: "var(--ink)" }}>{d.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {zoom && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, cursor: "zoom-out" }} onClick={() => setZoom(null)}>
-          <img src={zoom} alt="Zoom" style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 8 }} />
+          <div className="card">
+            <div className="card-header"><h3>Verification Results</h3></div>
+            <div className="card-body">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                {[
+                  { label: "CAC Lookup", chip: cac, ok: app.cac_result?.company?.active || app.cac_result?.count > 0 },
+                  { label: "Trustee Match", chip: trustee, ok: app.trustee_match === "match" },
+                  { label: "ID Verification", chip: idC, ok: !!(app.id_result && !app.id_result.error && (app.id_result.firstname || app.id_result.surname)) },
+                ].map((r) => (
+                  <div key={r.label} style={{ padding: 16, borderRadius: "var(--radius-sm)", border: "1px solid var(--line)", textAlign: "center", background: r.ok ? "var(--success-soft)" : "var(--surface-muted)" }}>
+                    <div style={{ fontSize: 24, marginBottom: 8, color: r.ok ? "var(--success)" : "var(--muted)" }}>{r.ok ? "✓" : "○"}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{r.label}</div>
+                    <div style={{ marginTop: 6 }}><span className={`badge ${r.chip.cls}`}>{r.chip.text}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {app.cac_result && (
+            <div className="card">
+              <div className="card-header"><h3>CAC lookup raw</h3></div>
+              <div className="card-body"><pre style={{ overflowX: "auto", fontSize: 12, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>{JSON.stringify(app.cac_result, null, 2)}</pre></div>
+            </div>
+          )}
+          {app.id_result && (
+            <div className="card">
+              <div className="card-header"><h3>ID lookup raw</h3></div>
+              <div className="card-body"><pre style={{ overflowX: "auto", fontSize: 12, color: "var(--ink)", fontFamily: "var(--font-mono)" }}>{JSON.stringify(app.id_result, null, 2)}</pre></div>
+            </div>
+          )}
         </div>
-      )}
-    </>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", marginBottom: 12 }}>Applicant</div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: "var(--ink)" }}>{app.applicant_role ?? "—"}</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{app.applicant_phone ?? "—"}</div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Email</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.email ?? "—"}{app.email_verified_at ? " ✓" : ""}</div>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Submitted</div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.created_at?.slice(0, 10)}</div>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Status</div>
+              <span className={`badge ${statusBadge(app.status)}`}>{app.status ?? "draft"}</span>
+            </div>
+          </div>
+
+          {isPending && (
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", marginBottom: 12 }}>Actions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button className="btn btn-success w-full" disabled={busy} onClick={() => setConfirming("approve")}>{busy ? "Working…" : "Approve"}</button>
+                <button className="btn btn-danger w-full" disabled={busy} onClick={() => setConfirming("reject")}>Reject</button>
+              </div>
+              {msg && <p style={{ color: "var(--danger)", fontSize: 13, marginTop: 12 }}>{msg}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirming === "approve"}
+        title="Approve KYC"
+        message={`Approve ${app.church_legal_name ?? "this church"}? This creates the church, seats the applicant as creator, and notifies them on WhatsApp.`}
+        confirmLabel="Approve"
+        onConfirm={() => { setConfirming(null); act("approve"); }}
+        onCancel={() => setConfirming(null)}
+      />
+      <ConfirmDialog
+        open={confirming === "reject"}
+        title="Reject KYC"
+        message={`Reject ${app.church_legal_name ?? "this church"}? You'll be asked for a reason sent to the applicant.`}
+        confirmLabel="Reject"
+        onConfirm={() => { setConfirming(null); act("reject"); }}
+        onCancel={() => setConfirming(null)}
+      />
+
+      <PhotoModal src={zoom} onClose={() => setZoom(null)} />
+    </div>
   );
 }
