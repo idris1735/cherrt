@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { store, provisionMock, approvedTplMock, rejectedTplMock, startSetupMock } = vi.hoisted(() => ({
-  store: { app: null as any, updates: [] as any[], workspace: { id: "ws1", slug: "grace", name: "Grace Chapel" }, org: { id: "org1" } },
+  store: { app: null as any, all: null as any, updates: [] as any[], workspace: { id: "ws1", slug: "grace", name: "Grace Chapel" }, org: { id: "org1" } },
   provisionMock: vi.fn().mockResolvedValue(true),
   approvedTplMock: vi.fn().mockResolvedValue(undefined),
   rejectedTplMock: vi.fn().mockResolvedValue(undefined),
@@ -13,6 +13,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
   getSupabaseServerClient: () => ({
     from: (table: string) => ({
       select: () => ({
+        order: () => Promise.resolve({ data: store.all ?? (store.app ? [store.app] : []) }),
         eq: () => ({
           eq: () => ({ order: () => Promise.resolve({ data: store.app ? [store.app] : [] }) }),
           maybeSingle: () => Promise.resolve({ data: store.app }),
@@ -28,7 +29,7 @@ vi.mock("@/lib/services/kyc/storage", () => ({ signedKycUrl: vi.fn().mockResolve
 vi.mock("@/lib/services/identity/provisioning", () => ({ provisionPersonMembership: provisionMock }));
 vi.mock("@/lib/services/whatsapp-templates", () => ({ sendOrgApprovedTemplate: approvedTplMock, sendOrgRejectedTemplate: rejectedTplMock }));
 
-import { getApplicationForReview, approveKycApplication, rejectKycApplication } from "@/lib/services/kyc/review";
+import { getApplicationForReview, approveKycApplication, rejectKycApplication, listAllApplications } from "@/lib/services/kyc/review";
 
 const pendingApp = {
   id: "k1", status: "pending", applicant_phone: "234800", church_legal_name: "Grace Chapel",
@@ -36,7 +37,22 @@ const pendingApp = {
   id_result: { firstname: "Ada", surname: "Obi", photoBase64: "IMG64" }, trustee_match: "match", created_at: "2026-08-09",
 };
 
-beforeEach(() => { store.app = { ...pendingApp }; store.updates = []; vi.clearAllMocks(); });
+beforeEach(() => { store.app = { ...pendingApp }; store.all = null; store.updates = []; vi.clearAllMocks(); });
+
+describe("listAllApplications — pipeline (Slice 5)", () => {
+  it("returns every stage with chip data for at-a-glance results", async () => {
+    store.all = [
+      { ...pendingApp, id: "k1", status: "pending" },
+      { ...pendingApp, id: "k2", status: "approved", cac_result: { company: { active: true } }, id_result: { firstname: "Ada", surname: "Obi" } },
+      { ...pendingApp, id: "k3", status: "draft", cac_result: null, id_result: null, trustee_match: "unknown" },
+    ];
+    const rows = await listAllApplications();
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.status).sort()).toEqual(["approved", "draft", "pending"]);
+    expect(rows.find((r) => r.id === "k3")!.cac_result).toBeNull();
+    expect(rows.find((r) => r.id === "k2")!.trustee_match).toBe("match");
+  });
+});
 
 describe("getApplicationForReview", () => {
   it("returns the row with a signed selfie url and an ID-photo data url", async () => {

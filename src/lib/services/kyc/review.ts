@@ -22,6 +22,17 @@ export async function listPendingApplications(): Promise<PendingRow[]> {
   return (data as PendingRow[]) ?? [];
 }
 
+/** Every application across all stages, with chip data — the KYC pipeline. */
+export async function listAllApplications(): Promise<(PendingRow & { status: string; cac_result: unknown; id_result: unknown; reject_reason: string | null })[]> {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("kyc_applications")
+    .select("id, church_legal_name, applicant_phone, trustee_match, status, cac_result, id_result, reject_reason, created_at")
+    .order("created_at", { ascending: true });
+  return (data as any[]) ?? [];
+}
+
 async function loadApp(db: any, id: string): Promise<any | null> {
   const { data } = await db.from("kyc_applications").select("*").eq("id", id).maybeSingle();
   return data ?? null;
