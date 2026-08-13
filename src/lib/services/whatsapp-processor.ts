@@ -43,6 +43,8 @@ import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/li
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
+import { assessRisk } from "@/lib/services/safety/risk";
+import { flagMessage } from "@/lib/services/safety/flags";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -671,12 +673,34 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // continuing, recorded on the person (Slice B).
   if (buttonId === "guest_member") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    await sendTextMessage(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. Otherwise, tell me what you need — prayer, giving, joining a ministry, or letting them know you visited.");
+    // WS5 — people tap, they don't type: follow the welcome with tappable
+    // next steps instead of "reply X".
+    await sendInteractiveButtons(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. What do you need today?", [
+      { id: "guest_give", title: "Give" },
+      { id: "guest_prayer", title: "Prayer request" },
+      { id: "guest_ministry", title: "Join a ministry" },
+    ]);
+    return;
+  }
+  if (buttonId === "guest_give") {
+    await sendTextMessage(from, "Giving runs through your church's own secure flow. Send your church's code here and I'll connect you so you can give safely. 🙏");
+    return;
+  }
+  if (buttonId === "guest_prayer") {
+    await sendTextMessage(from, "Send your prayer request here — I'll pass it straight to the prayer team. What would you like them to pray about?");
+    return;
+  }
+  if (buttonId === "guest_ministry") {
+    await sendTextMessage(from, "Love that! Tell me which ministry (choir, ushering, media, children, prayer band…) and once you're connected to your church I'll note you down. 🎶🙌");
     return;
   }
   if (buttonId === "guest_child") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    await sendTextMessage(from, "Lovely to have your family 👨‍👩‍👧 To keep children safe, a parent or guardian registers them — never the child. If your church gave you a code, send it here to begin, or ask a church leader to add your child.");
+    // WS5 — tappable next steps for families too.
+    await sendInteractiveButtons(from, "Lovely to have your family 👨‍👩‍👧 To keep children safe, a parent or guardian registers them — never the child.", [
+      { id: "guest_code", title: "Send my code" },
+      { id: "guest_help", title: "Talk to a leader" },
+    ]);
     return;
   }
   // Only a self-identified leader is routed to church setup/management.
@@ -899,6 +923,29 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     } else {
       // Guests must consent to our privacy terms BEFORE anything else.
       await sendConsentGate(from);
+      return;
+    }
+  }
+
+  // ── WS3 risk triage — BEFORE any agent/creator routing, so a scam can
+  // never be acted on and a safeguarding disclosure is never left to chance.
+  // Deterministic; the LLM never decides these.
+  if (trimmed) {
+    const risk = assessRisk(trimmed);
+    if (risk.kind === "safeguarding") {
+      await sendTextMessage(from, "I'm so sorry you're going through this — you are not alone. Please reach someone you trust right now: in Nigeria you can call *112*, or talk to a pastor/leader near you. I've quietly alerted your church leaders so a real person follows up with you very soon. 🙏");
+      await flagMessage({
+        fromPhone: from, personId: personId ?? null, workspaceId: link?.workspaceId ?? null,
+        kind: "safeguarding", reason: risk.reason, excerpt: trimmed,
+      }).catch(() => {});
+      return;
+    }
+    if (risk.kind === "scam") {
+      await sendTextMessage(from, "⚠️ Careful — this looks like a scam. Please don't send money, share any code (especially an OTP), or click that link. Real leaders never ask for your OTP or urgent transfers to a new account. I've flagged it for your church leaders.");
+      await flagMessage({
+        fromPhone: from, personId: personId ?? null, workspaceId: link?.workspaceId ?? null,
+        kind: "scam", reason: risk.reason, excerpt: trimmed,
+      }).catch(() => {});
       return;
     }
   }

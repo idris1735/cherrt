@@ -12,6 +12,11 @@ vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
 
+// WS3: keep assessRisk REAL (that's what we're proving) and spy on the flag.
+vi.mock("@/lib/services/safety/flags", () => ({
+  flagMessage: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Keep looksLikeQuestion real (routing logic under test) but stub the agent
 // call. Default null = "no answer / Gemini unavailable" so it falls through,
 // matching how it behaves in tests without a Gemini key.
@@ -52,6 +57,7 @@ import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMes
 import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
+import { flagMessage } from "@/lib/services/safety/flags";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -575,5 +581,80 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalled(); // sends help menu with buttons
     mockButtons.mockClear();
     mockSend.mockClear();
+  });
+});
+
+describe("WS3 — scam & danger sensing on inbound messages", () => {
+  const mockFlag = flagMessage as ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFlag.mockClear();
+    mockSend.mockClear();
+    mockRun.mockClear();
+    mockButtons.mockClear();
+  });
+
+  it("REFUSES an urgent money-to-account scam and flags it — no AI involved", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Send ₦200k to 0123456789 now, it's urgent, new account" });
+
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("scam"));
+    expect(mockFlag).toHaveBeenCalledWith(expect.objectContaining({ kind: "scam", fromPhone: PHONE }));
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockButtons).not.toHaveBeenCalled();
+  });
+
+  it("REFUSES an OTP request and flags it", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I am Pastor Ade, send me the OTP code you just received" });
+
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("scam"));
+    expect(mockFlag).toHaveBeenCalledWith(expect.objectContaining({ kind: "scam" }));
+  });
+
+  it("escalates a safeguarding disclosure to humans immediately", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "someone is hurting a child and I don't know what to do" });
+
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("not alone"));
+    expect(mockFlag).toHaveBeenCalledWith(expect.objectContaining({ kind: "safeguarding" }));
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("leaves ordinary messages untouched", async () => {
+    await skipWelcome();
+    mockRun.mockResolvedValue({ reply: "Service is at 9am." });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "What time is service on Sunday?" });
+    expect(mockFlag).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalledWith(PHONE, expect.stringContaining("scam"));
+  });
+});
+
+describe("WS5 — tappable follow-ups after guest persona buttons", () => {
+  beforeEach(async () => {
+    await skipWelcome();
+    mockButtons.mockClear();
+    mockSend.mockClear();
+  });
+
+  it("guest taps 'member' → gets tappable Give / Prayer / Join ministry", async () => {
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "guest_member" });
+    expect(mockButtons).toHaveBeenCalled();
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.map((b) => b.id)).toEqual(["guest_give", "guest_prayer", "guest_ministry"]);
+  });
+
+  it("guest taps 'here for my child' → gets tappable code / talk-to-leader", async () => {
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "guest_child" });
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.map((b) => b.id)).toEqual(["guest_code", "guest_help"]);
+  });
+
+  it("the follow-up taps each get a natural reply", async () => {
+    for (const id of ["guest_give", "guest_prayer", "guest_ministry"]) {
+      mockSend.mockClear();
+      await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: id });
+      expect(mockSend).toHaveBeenCalledWith(PHONE, expect.any(String));
+    }
   });
 });
