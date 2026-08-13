@@ -8,6 +8,24 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-13 — Rich, interactive admin dashboard upgrade (all 6 slices shipped)
+
+**Brief:** `docs/prompts/2026-08-13-dashboard-rich-upgrade.md`. Non-negotiable: NO mock data — every chart/KPI/sparkline traces to a real query. `recharts` installed; inline SVG sparklines; everything on `admin-kit.module.css`; all routes allowlist-gated.
+
+**Slice 1 — data layer (commit `0a6132e`, TDD, 18 new tests in `foundation.analytics.test.ts`):** `platformTrends(period)` (day buckets 7d/30d, week buckets 90d/all — fed by organizations/branch_memberships/giving_records), `kycFunnel()`, `verificationBreakdown()` (L2 = onboarding-form consent stamp = Mono-verified people), `givingTrend(period, churchId?)`, `memberTrend(period, churchId?)`, `churchStats(id)`, `activityFeed(limit)` (unified KYC/org/member/first-timer/data-request events with drill links), `adminSearch(q)`, `platformOverview(period, now)` extended with `kpis` (value + delta vs previous window + spark). Routes: `/api/admin/overview?period=` extended; new `GET /api/admin/churches/[id]/stats`; new `GET /api/admin/search`.
+
+**Slice 2 — overview command center (commit `3364295`):** `/admin` rebuilt — KPI row (sparklines + ▲/▼ deltas, click-through), attention panel (pending KYC / data requests / unverified churches), growth (area) + giving (bar) charts, KYC funnel (horizontal bars), verification donut, live activity feed, 7d/30d/90d/all period switcher re-querying everything. `charts.tsx` reads CSS tokens live (light+dark via MutationObserver); admin tokens now remapped under `html[data-chertt-theme="dark"]`.
+
+**Slice 3 — churches (commit `48a0474`):** list with search/filter/7 sortable columns incl. giving + verified % (`listChurches` extended, batched queries); tabbed detail — Overview (stats + giving trend + member growth via `/stats`), Members (searchable), Children, Branches, Pastoral (care rows + form submissions), KYC.
+
+**Slice 4 — people (commit `19a9656`):** directory with name/phone search + verification/membership filters; profile with tabs — Timeline (icons, vertical line), Memberships, Family (guardian-of AND guardians — `getPersonDetail` extended with prayer/data/giving/guardians), Requests (pastoral + prayer + privacy), Giving (records + total). Consent source/version shown.
+
+**Slice 5 — KYC pipeline (commit `a189f9d`):** `listAllApplications()` serves all stages; `/admin/kyc` is a 4-column board (Pending · Needs info · Approved · Rejected) with CAC/trustee/ID result chips per card + reject reasons; review screen kept.
+
+**Slice 6 — interactivity (commit `cc5e765`):** collapsible desktop sidebar + mobile drawer (hamburger in topbar), ⌘K/Ctrl+K command palette jumping to any church/person (debounced `/api/admin/search`), breadcrumbs on all detail pages, `:focus-visible` + `prefers-reduced-motion` respected, responsive grids at 768px, retired dead `admin-nav.tsx` + `admin.module.css`.
+
+**488 tests (+25), tsc clean, build compiles.** Per-visual data provenance (for Claude's review): KPI values/deltas/sparks ← `platformOverview.kpis` ← platformTrends (orgs/memberships/giving tables); growth chart ← `platformTrends`; giving chart ← `givingTrend`; funnel ← `kycFunnel` ← kyc_applications.status; donut ← `verificationBreakdown` ← phone_contacts.verified_at + people.consent_source; feed ← `activityFeed` (kyc_applications/organizations/branch_memberships/first_timers/data_requests); church charts ← `/churches/[id]/stats` (givingTrend + memberTrend scoped via workspaces.organization_id); KYC chips ← cac_result/id_result/trustee_match payloads.
+
 ### 2026-08-13 — Consent & Privacy Layer (NDPR) — all 5 slices shipped
 
 **Brief:** `docs/prompts/2026-08-13-consent-privacy-layer.md`. Every path that writes a person/personal record must have a recorded lawful basis; children always guardian-consented; opted-out numbers never messaged; consent is versioned.
