@@ -9,6 +9,8 @@ import { churchApproved } from "@/lib/services/kyc/tiered-access";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
 import { recordMilestone } from "@/lib/services/church/milestones";
+import { recordConsent } from "@/lib/services/privacy/consent";
+import { sendTextMessage } from "@/lib/services/whatsapp";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -99,6 +101,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         status: "open",
       });
       if (error) return { error: error.message };
+      // Consent: the sender submits their own request — recorded lawful basis
+      if (ctx.personId) recordConsent({ personId: ctx.personId, source: "prayer_request" }).catch(() => {});
       // Notify leaders so this prayer doesn't go unseen
       notifyLeaders({
         workspaceId: ctx.workspaceId,
@@ -134,6 +138,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         fullName: name,
         phone: typeof args.phone === "string" ? args.phone : undefined,
       });
+      // Consent: the visitor (or usher on their behalf) shares their details
+      recordConsent({ personId, source: "first_timer_capture" }).catch(() => {});
 
       const { error } = await db.from("first_timers").insert({
         id: newId(),
@@ -145,6 +151,11 @@ export const CHURCH_TOOLS: AgentTool[] = [
         follow_up_status: "new",
       });
       if (error) return { error: error.message };
+      // Slice E: someone else's phone → transparency notice + rights
+      const phoneRaw = typeof args.phone === "string" ? args.phone.trim() : "";
+      if (phoneRaw && !(ctx.phone && phoneRaw.replace(/\D/g, "") === ctx.phone.replace(/\D/g, ""))) {
+        sendTextMessage(phoneRaw, `Your church added you to Chertt as a first-time guest, ${name}. Reply *privacy* to learn how your data is handled, or *stop* to opt out / be removed.`).catch(() => {});
+      }
       return { ok: true, message: `Welcome ${name}! We've noted your details and someone will reach out.` };
     },
   },
@@ -349,6 +360,9 @@ export const CHURCH_TOOLS: AgentTool[] = [
         phone: typeof args.phone === "string" ? args.phone : undefined,
       });
 
+      // Consent: the leader registering this person is the lawful-basis recorder
+      recordConsent({ personId, source: "leader_registered" }).catch(() => {});
+
       // Update richer profile fields if provided
       const profilePatch: Record<string, unknown> = {};
       if (typeof args.gender === "string") profilePatch.gender = args.gender.toLowerCase();
@@ -365,6 +379,13 @@ export const CHURCH_TOOLS: AgentTool[] = [
         id: newId(), person_id: personId, workspace_id: ctx.workspaceId, role, status: "active",
       });
       if (m.error) return { error: m.error.message };
+
+      // Slice E: if a leader registers someone ELSE with a phone number, that
+      // person gets a transparency notice + their rights (privacy/stop).
+      const phoneRaw = typeof args.phone === "string" ? args.phone.trim() : "";
+      if (phoneRaw && ctx.phone && phoneRaw.replace(/\D/g, "") !== ctx.phone.replace(/\D/g, "")) {
+        sendTextMessage(phoneRaw, `Your church added you to Chertt as *${name}*. Reply *privacy* to learn how your data is handled, or *stop* to opt out / be removed.`).catch(() => {});
+      }
 
       const roleLabel = role === "dept_leader" ? "an usher/leader" : role;
       return { ok: true, message: `✅ Registered *${name}*${role !== "member" ? ` as ${roleLabel}` : ""}.` };
@@ -524,6 +545,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
         fullName: ctx.userName ?? "Member",
         phone: ctx.phone,
       });
+      // Consent: the submitter consents to the pastoral-care intake
+      recordConsent({ personId, source: "pastoral_form" }).catch(() => {});
 
       const { error } = await db.from("pastoral_form_submissions").insert({
         id: newId(),

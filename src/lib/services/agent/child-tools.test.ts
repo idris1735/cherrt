@@ -15,7 +15,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
       const chain: Record<string, unknown> = {
         insert: (row: Record<string, unknown>) => {
           store.inserts.push({ table, row });
-          return Promise.resolve({ error: null });
+          return { select: () => ({ single: () => Promise.resolve({ data: { id: "new-person", ...row }, error: null }) }) };
         },
         update: (row: Record<string, unknown>) => {
           store.updates.push({ table, row });
@@ -23,6 +23,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
         },
         select: () => chain,
         eq: () => chain,
+        in: () => chain,
         order: () => chain,
         limit: () => chain,
         maybeSingle: () => Promise.resolve({ data: store.single[table] ?? null, error: null }),
@@ -36,9 +37,13 @@ vi.mock("@/lib/services/supabase-server", () => ({
 vi.mock("@/lib/services/whatsapp", () => ({
   sendImageMessage: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/lib/services/privacy/consent", () => ({
+  recordConsent: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { CHILD_TOOLS } from "@/lib/services/agent/child-tools";
 import { sendImageMessage } from "@/lib/services/whatsapp";
+import { recordConsent } from "@/lib/services/privacy/consent";
 import type { AgentContext } from "@/lib/services/agent/tools";
 
 const mockImage = sendImageMessage as ReturnType<typeof vi.fn>;
@@ -159,5 +164,29 @@ describe("list_checked_in_children", () => {
 
   it("is gated to the children's team / leaders", () => {
     expect(tool("list_checked_in_children").minRank).toBe(1);
+  });
+});
+
+describe("register_child — guardian consent (Slice D)", () => {
+  const guardianCtx: AgentContext = { workspaceId: "ws1", role: "member", userName: "Ruth", personId: "guardian1" };
+
+  it("REFUSES to create a child without guardianConsent", async () => {
+    const out = (await tool("register_child").handler({ childName: "Amara" }, guardianCtx)) as { error?: string };
+    expect(out.error).toBeTruthy();
+    expect(out.error).toContain("parent or guardian");
+    // nothing stored — no child_profiles, no guardianships
+    expect(store.inserts.some((i) => i.table === "child_profiles")).toBe(false);
+    expect(store.inserts.some((i) => i.table === "guardianships")).toBe(false);
+  });
+
+  it("records guardian-given consent on the child person when consented", async () => {
+    const out = (await tool("register_child").handler({ childName: "Amara", guardianConsent: true }, guardianCtx)) as { ok: boolean };
+    expect(out.ok).toBe(true);
+    expect(recordConsent).toHaveBeenCalledWith({
+      personId: expect.any(String),
+      source: "guardian",
+      guardianPersonId: "guardian1",
+    });
+    expect(store.inserts.some((i) => i.table === "guardianships")).toBe(true);
   });
 });

@@ -8,6 +8,7 @@ import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
+import { recordConsent } from "@/lib/services/privacy/consent";
 
 export const COMMUNITY_TOOLS: AgentTool[] = [
   {
@@ -119,6 +120,8 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
         fullName: ctx.userName ?? "Member",
         phone: ctx.phone,
       });
+      // Consent: the member consents to applying for the department
+      recordConsent({ personId, source: "department_join" }).catch(() => {});
 
       const { error } = await db.from("department_memberships").insert({
         id: randomUUID(),

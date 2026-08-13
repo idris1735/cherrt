@@ -8,6 +8,7 @@ import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { sendImageMessage } from "@/lib/services/whatsapp";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
+import { recordConsent } from "@/lib/services/privacy/consent";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -184,21 +185,26 @@ export const CHILD_TOOLS: AgentTool[] = [
   {
     name: "register_child",
     description:
-      "Register a child in the church. Captures the child's name, age/birthdate, allergies, medical notes, and classroom. The sender is automatically linked as the primary guardian. Use for 'register my daughter Amara, age 6, in the children's class' or 'add my son as a child in the church'.",
+      "Register a child in the church. REQUIRES the sender to confirm they are the child's parent/guardian (guardianConsent: true). Captures the child's name, age/birthdate, allergies, medical notes, and classroom. The sender is automatically linked as the primary guardian. NEVER register a child without the guardian's explicit confirmation.",
     parameters: {
       type: "object",
       properties: {
         childName: { type: "string", description: "Full name of the child (required)" },
+        guardianConsent: { type: "boolean", description: "The sender confirms: 'I am this child's parent/guardian and I consent to storing these details' (required)" },
         age: { type: "number", description: "Age in years (optional)" },
         birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
         allergies: { type: "string", description: "Any allergies (optional)" },
         medicalNotes: { type: "string", description: "Medical conditions or notes (optional)" },
         classroom: { type: "string", description: "Classroom or age group (optional)" },
       },
-      required: ["childName"],
+      required: ["childName", "guardianConsent"],
     },
     mutates: true,
     handler: async (args, ctx) => {
+      // Slice D — a child can NEVER be stored without recorded guardian consent
+      if (args.guardianConsent !== true) {
+        return { error: "For the child's safety, I need a parent or guardian to confirm: “I am this child's parent/guardian and I consent to storing their details.” Please confirm and I'll register them." };
+      }
       const childName = String(args.childName ?? "").trim();
       if (!childName) return { error: "What's the child's name?" };
       const db = getSupabaseServerClient();
@@ -211,6 +217,17 @@ export const CHILD_TOOLS: AgentTool[] = [
       });
       await db.from("people").update({ is_minor: true }).eq("id", childPersonId);
 
+      // Guardian-given consent, recorded on the child person + linked to guardian
+      const guardianId = ctx.personId;
+      if (!guardianId) {
+        return { error: "I couldn't confirm who you are — please retry, and a parent or guardian must confirm consent." };
+      }
+      recordConsent({
+        personId: childPersonId,
+        source: "guardian",
+        guardianPersonId: guardianId,
+      }).catch(() => {});
+
       // Store child-specific profile
       await db.from("child_profiles").insert({
         id: newId(),
@@ -222,18 +239,15 @@ export const CHILD_TOOLS: AgentTool[] = [
       });
 
       // Link the sender as primary guardian
-      const guardianId = ctx.personId;
-      if (guardianId) {
-        await db.from("guardianships").insert({
-          id: newId(),
-          child_person_id: childPersonId,
-          guardian_person_id: guardianId,
-          relationship: "parent",
-          is_primary: true,
-          can_pickup: true,
-          workspace_id: ctx.workspaceId,
-        });
-      }
+      await db.from("guardianships").insert({
+        id: newId(),
+        child_person_id: childPersonId,
+        guardian_person_id: guardianId,
+        relationship: "parent",
+        is_primary: true,
+        can_pickup: true,
+        workspace_id: ctx.workspaceId,
+      });
 
       return { ok: true, message: `✅ Registered *${childName}* in the children's ministry.` };
     },

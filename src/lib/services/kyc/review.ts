@@ -5,6 +5,7 @@ import { foundingAdminRole } from "@/lib/services/identity/role-catalog";
 import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
 import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
 import { startSetupFlow } from "@/lib/services/onboarding-flow";
+import { recordConsent } from "@/lib/services/privacy/consent";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type PendingRow = { id: string; church_legal_name: string; applicant_phone: string; trustee_match: string | null; created_at: string };
@@ -76,10 +77,15 @@ export async function approveKycApplication(id: string, reviewerEmail: string): 
   if (wsErr || !ws) return { ok: false, reason: "workspace_failed" };
 
   const founderName = app.id_result?.firstname ? `${app.id_result.firstname} ${app.id_result.surname ?? ""}`.trim() : (app.applicant_role || name);
-  await provisionPersonMembership({
+  const provisioned = await provisionPersonMembership({
     phoneNumber: app.applicant_phone, fullName: founderName, workspaceId: ws.id,
     workspaceSlug: ws.slug, workspaceName: ws.name, role: foundingAdminRole("church"), organizationId: org?.id,
   });
+  // The applicant consented explicitly on the web form (consent_at stored on the
+  // application) — mirror that lawful basis onto the newly created person.
+  if (provisioned?.personId) {
+    recordConsent({ personId: provisioned.personId, source: "onboarding_form" }).catch(() => {});
+  }
 
   await db.from("kyc_applications").update({
     status: "approved", workspace_id: ws.id, reviewed_by: reviewerEmail, reviewed_at: new Date().toISOString(),
