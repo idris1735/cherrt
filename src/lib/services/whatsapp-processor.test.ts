@@ -81,7 +81,7 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
-    expect(buttons.some((b) => b.title.includes("Set up my church"))).toBe(true);
+    expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
     mockButtons.mockClear();
     mockSend.mockClear();
   });
@@ -94,7 +94,7 @@ describe("processWhatsAppMessage", () => {
     // Guest welcome now uses buttons (not plain text) — "set up my church" is a button title
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, , welcomeButtons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(welcomeButtons.some((b) => b.title.includes("Set up my church"))).toBe(true);
+    expect(welcomeButtons.some((b) => b.title.includes("I lead a church"))).toBe(true);
     // The command is still processed after welcome
     expect(mockRun).toHaveBeenCalledWith(
       "Request ₦85,000 for diesel",
@@ -492,7 +492,7 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
-    expect(buttons.some((b) => b.title.includes("Set up my church"))).toBe(true);
+    expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
   });
 
   it("'menu' opens a rich interactive list (10 items) for a linked member", async () => {

@@ -260,20 +260,18 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 async function sendGuestWelcome(from: string): Promise<void> {
   const text = [
-    "👋 Welcome to *Chertt* — your church's operations, right here on WhatsApp.",
+    "👋 Hi! I'm *Chertt* — I help churches run everything right here on WhatsApp.",
     "",
-    "Giving · prayer requests · first-timers · children's check-in · events · pastoral care — all of it, in one chat.",
-    "",
-    "Tap below to get started 👇",
+    "So I point you the right way — who are you? Tap below, or just tell me in your own words 👇",
   ].join("\n");
   try {
     await sendInteractiveButtons(from, text, [
-      { id: "guest_setup", title: "Set up my church" },
-      { id: "guest_code", title: "I have a church code" },
-      { id: "guest_help", title: "What can you do?" },
+      { id: "guest_member", title: "Member / visiting" },
+      { id: "guest_child", title: "Here for my child" },
+      { id: "guest_leader", title: "I lead a church" },
     ], "Welcome 👋");
   } catch {
-    await sendTextMessage(from, text + "\n\n⛪ *Lead or help run a church?* Reply *set up my church*.\n🙌 *Been given a code by your church?* Just send it here.");
+    await sendTextMessage(from, text + "\n\n🙌 *Attend a church?* Reply *member* (or send the code your church gave you).\n👨‍👩‍👧 *Registering a child?* Reply *child*.\n⛪ *Lead a church?* Reply *lead*.");
   }
 }
 
@@ -621,11 +619,21 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
   // ── Guest navigation buttons (unlinked users) ──
-  if (buttonId === "guest_setup") {
-    if (isSignupTrigger("set up my church")) {
-      const reply = await startSignupFlow(from);
-      await sendTextMessage(from, reply);
-    }
+  // First-contact is about knowing WHO is texting — a member, a family, or a
+  // church leader — so we never push church-setup at someone who isn't a leader
+  // (a child or a visitor should never be told to "set up a church").
+  if (buttonId === "guest_member") {
+    await sendTextMessage(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. Otherwise, tell me what you need — prayer, giving, joining a ministry, or letting them know you visited.");
+    return;
+  }
+  if (buttonId === "guest_child") {
+    await sendTextMessage(from, "Lovely to have your family 👨‍👩‍👧 To keep children safe, a parent or guardian registers them — never the child. If your church gave you a code, send it here to begin, or ask a church leader to add your child.");
+    return;
+  }
+  // Only a self-identified leader is routed to church setup/management.
+  if (buttonId === "guest_leader" || buttonId === "guest_setup") {
+    const reply = await startSignupFlow(from);
+    await sendTextMessage(from, reply + "\n\n(Already lead a church here? Send your admin code instead.)");
     return;
   }
   if (buttonId === "guest_code") {
