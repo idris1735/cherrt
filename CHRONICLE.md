@@ -8,6 +8,26 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-13 — DEMO-DAY WAR PLAN executed: P0 (6/6) + P1 (5/5) + P2 (2/4)
+
+**Brief:** `docs/prompts/2026-08-13-DEMO-DAY-warplan.md`. Serious client demo today. Executed strictly in tier order.
+
+**P0 — the loop cannot break (ALL shipped, commit `35f189a`):**
+- **P0-1 OTP dual-channel:** `sendOnboardingOtp(email, phone)` — code goes to email AND WhatsApp. Missing RESEND_API_KEY can never block onboarding. Test proves WhatsApp delivery with Resend unset.
+- **P0-2 template fallback:** `templateOrText` in whatsapp-templates — every business-initiated message falls back to plain text (delivers inside the 24h window). notifyLeaders logs per-send outcomes.
+- **P0-3 submit can't hard-fail:** `runKycChecks` guards each Mono call (throws → "errored" results); submit route catches anything and ALWAYS reaches `pending`. Tests prove Mono-down still queues.
+- **P0-4 review screen survives any data:** guarded signed URLs + `cacCertUrl`; CAC/trustee/ID status chips; 3-photo compare (selfie/NIN/CAC-cert) with click-to-zoom.
+- **P0-5 opener polish:** warm guest welcome; unmistakable "🔒 Tap to verify your church securely" link.
+- **P0-6:** `npm run reset-demo` — FK-safe multi-pass wipe + kyc bucket.
+
+**P1 — launch look (ALL shipped, commit `3705980`):**
+- P1-7 approve-confirm modal on the KYC review screen. P1-8 WhatsApp copy pass (welcome, tiered refusals). P1-9 console empty states. P1-10 onboarding form: live phone/NIN digit grouping, autofocus, Church→You→Verify chips, submit disabled until complete with missing-list hint. P1-11 branded sign-in.
+
+**P2 stretch (2 of 4, commit `c8787f6`):**
+- P2-14 `npm run seed-demo` — one approved church + members + child + first-timer + milestones + giving (owner-triggered only). P2-15 `whatsapp_send_logs` — failed sends logged, never silent. P2-12/13 (child/member tokenized web forms) deferred — beyond the stretch target.
+
+**447 tests, tsc clean, build compiles, all migrations applied.** Owner actions still required (env): WhatsApp number live, Mono keys, PLATFORM_ADMIN_EMAILS + Supabase login, NEXT_PUBLIC_APP_URL.
+
 ### 2026-08-12 — Phase 2 completion + sign-in fix (Claude review bundle)
 
 **Brief:** `docs/prompts/2026-08-12-signin-fix-and-phase2-finish.md`
