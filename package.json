@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "reset-demo": "node scripts/reset-demo.mjs"
+    "reset-demo": "node scripts/reset-demo.mjs",
+    "seed-demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.48.0",

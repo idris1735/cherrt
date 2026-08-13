@@ -25,8 +25,31 @@ async function postToGraph(payload: unknown): Promise<void> {
   });
   if (!res.ok) {
     const err = await res.text();
+    logSendFailure(payload, `WhatsApp API ${res.status}: ${err}`);
     throw new Error(`WhatsApp API ${res.status}: ${err}`);
   }
+}
+
+// P2-15: best-effort failure log — failures must never be silent. The log row
+// lets the owner spot a broken number/template mid-demo. Never throws.
+function logSendFailure(payload: unknown, error: string): void {
+  void (async () => {
+    try {
+      const { getSupabaseServerClient } = await import("@/lib/services/supabase-server");
+      const db = getSupabaseServerClient();
+      if (!db) return;
+      const p = payload as { to?: string; type?: string };
+      await db.from("whatsapp_send_logs").insert({
+        kind: p.type ?? "unknown",
+        to_phone: p.to ?? null,
+        status: "failed",
+        error: error.slice(0, 500),
+        payload: payload as Record<string, unknown>,
+      });
+    } catch {
+      // logging must never cascade
+    }
+  })();
 }
 
 export async function sendTextMessage(to: string, text: string): Promise<void> {
