@@ -7,9 +7,13 @@ vi.mock("@/lib/services/whatsapp-workspace", () => ({
 vi.mock("@/lib/services/identity/provisioning", () => ({
   listBranchMembers: vi.fn(),
 }));
+vi.mock("@/lib/services/identity/people", () => ({
+  getKnownProfile: vi.fn(),
+}));
 
 import { getGivingSummary, loadWorkspaceContext } from "@/lib/services/whatsapp-workspace";
 import { listBranchMembers } from "@/lib/services/identity/provisioning";
+import { getKnownProfile } from "@/lib/services/identity/people";
 import { READ_TOOLS, getReadTool, type AgentContext } from "@/lib/services/agent/tools";
 
 const ctx: AgentContext = { workspaceId: "branch-a", role: "owner" };
@@ -74,5 +78,24 @@ describe("read tool handlers are workspace-scoped and shape their output", () =>
     const out = (await getReadTool("list_members")!.handler({}, ctx)) as { count: number };
     expect(listBranchMembers).toHaveBeenCalledWith("branch-a");
     expect(out.count).toBe(1);
+  });
+
+  it("lookup_person returns what's already on file so the agent never re-asks", async () => {
+    vi.mocked(listBranchMembers).mockResolvedValueOnce([
+      { personId: "p1", fullName: "Ruth Okafor", role: "member" },
+    ]);
+    vi.mocked(getKnownProfile).mockResolvedValueOnce({
+      fullName: "Ruth Okafor", phone: "0803", churches: [{ id: "o1", name: "Grace", role: "member" }],
+    });
+    const out = (await getReadTool("lookup_person")!.handler({ name: "ruth" }, ctx)) as { found: boolean; profile?: { phone?: string } };
+    expect(out.found).toBe(true);
+    expect(out.profile?.phone).toBe("0803");
+    expect(getKnownProfile).toHaveBeenCalledWith("p1");
+  });
+
+  it("lookup_person reports not-found cleanly", async () => {
+    vi.mocked(listBranchMembers).mockResolvedValueOnce([]);
+    const out = (await getReadTool("lookup_person")!.handler({ name: "nobody" }, ctx)) as { found: boolean };
+    expect(out.found).toBe(false);
   });
 });

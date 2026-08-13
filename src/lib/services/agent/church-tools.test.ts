@@ -19,6 +19,7 @@ function qb(table: string, rows: unknown[]) {
     },
     select: () => q,
     eq: (_k: string, _v: unknown) => q,
+    in: (_k: string, _v: unknown[]) => q,
     order: () => q,
     limit: () => q,
     maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null }),
@@ -52,6 +53,7 @@ import { CHURCH_TOOLS } from "@/lib/services/agent/church-tools";
 import type { AgentContext } from "@/lib/services/agent/tools";
 
 const ctx: AgentContext = { workspaceId: "ws1", role: "member", userName: "Ruth" };
+const leaderCtx: AgentContext = { workspaceId: "ws1", role: "pastor", userName: "Pastor T", phone: "0801" };
 const tool = (name: string) => CHURCH_TOOLS.find((t) => t.name === name)!;
 
 beforeEach(() => {
@@ -205,8 +207,6 @@ describe("church read tools", () => {
 });
 
 describe("Slice E — third-party registration notice", () => {
-  const leaderCtx: AgentContext = { workspaceId: "ws1", role: "pastor", userName: "Pastor T", phone: "0801" };
-
   it("register_member sends the notice when registering someone ELSE's phone", async () => {
     await tool("register_member").handler({ name: "Grace", phone: "0802" }, leaderCtx);
     expect(sms.sent).toHaveLength(1);
@@ -229,5 +229,37 @@ describe("Slice E — third-party registration notice", () => {
     await tool("capture_first_timer").handler({ name: "John", phone: "0802" }, leaderCtx);
     expect(sms.sent).toHaveLength(1);
     expect(sms.sent[0].text).toContain("first-time guest");
+  });
+});
+
+describe("WS1 — register_member never re-asks what's stored", () => {
+  it("re-registering an existing member by name creates NO duplicate membership", async () => {
+    store.selectData["branch_memberships"] = [
+      { person_id: "p1", workspace_id: "ws1", role: "member", status: "active", created_at: "2026-08-01" },
+    ];
+    store.selectData["people"] = [{ id: "p1", full_name: "Grace" }];
+    const out = (await tool("register_member").handler({ name: "Grace" }, leaderCtx)) as { ok: boolean; message: string };
+    expect(out.ok).toBe(true);
+    expect(out.message).toContain("already registered");
+    // No new membership row inserted — the existing one is reused
+    expect(store.inserts.filter((i) => i.table === "branch_memberships")).toHaveLength(0);
+  });
+
+  it("prefills the sender's stored name/phone when they register themselves with no args", async () => {
+    const selfCtx: AgentContext = {
+      workspaceId: "ws1", role: "member", userName: "Grace", phone: "0802", personId: "p1",
+      knownProfile: { fullName: "Grace", phone: "0802", churches: [] },
+    };
+    const out = (await tool("register_member").handler({}, selfCtx)) as { ok: boolean };
+    expect(out.ok).toBe(true);
+    const peopleInsert = store.inserts.find((i) => i.table === "people");
+    expect(peopleInsert?.row).toMatchObject({ full_name: "Grace" });
+    const contactInsert = store.inserts.find((i) => i.table === "phone_contacts");
+    expect(contactInsert?.row).toMatchObject({ phone_number: "0802" });
+  });
+
+  it("still requires a name when neither args nor profile provide one", async () => {
+    const out = (await tool("register_member").handler({}, leaderCtx)) as { error?: string };
+    expect(out.error).toBeTruthy();
   });
 });

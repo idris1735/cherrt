@@ -6,6 +6,62 @@ export type EnsurePersonParams = {
   phone?: string;
 };
 
+/** Everything already stored about a person — the "never ask twice" profile. */
+export type KnownProfile = {
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  gender?: string;
+  birthdate?: string;
+  address?: string;
+  maritalStatus?: string;
+  churches: { id: string; name: string; role: string }[];
+};
+
+/**
+ * Read everything we already hold about a person (identity spine + contacts +
+ * memberships). Injected into the agent so it confirms instead of re-asking,
+ * and into tools so flows prefill stored fields. Returns null when the person
+ * isn't known at all.
+ */
+export async function getKnownProfile(personId: string): Promise<KnownProfile | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const [personRes, contactRes, membershipsRes] = await Promise.all([
+    db.from("people").select("full_name, email, gender, birthdate, address, marital_status").eq("id", personId).maybeSingle(),
+    db.from("phone_contacts").select("phone_number").eq("person_id", personId).eq("status", "active").maybeSingle(),
+    db.from("branch_memberships").select("workspace_id, role").eq("person_id", personId).eq("status", "active").then((r: any) => (r.data ?? []) as any[]),
+  ]);
+  const person = personRes.data as any;
+  const contact = contactRes.data as any;
+  if (!person && !contact) return null;
+  const memberships = membershipsRes as any[];
+  const wsIds = [...new Set(memberships.map((m) => m.workspace_id))];
+  const workspaces = wsIds.length ? (((await db.from("workspaces").select("id, organization_id, name").in("id", wsIds)).data ?? []) as any[]) : [];
+  const orgIds = [...new Set(workspaces.map((w) => w.organization_id).filter(Boolean))];
+  const orgs = orgIds.length ? (((await db.from("organizations").select("id, name").in("id", orgIds)).data ?? []) as any[]) : [];
+  const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
+  const wsById = new Map(workspaces.map((w) => [w.id, w]));
+  return {
+    fullName: person?.full_name || undefined,
+    email: person?.email || undefined,
+    gender: person?.gender || undefined,
+    birthdate: person?.birthdate || undefined,
+    address: person?.address || undefined,
+    maritalStatus: person?.marital_status || undefined,
+    phone: contact?.phone_number || undefined,
+    churches: memberships.map((m) => {
+      const ws = wsById.get(m.workspace_id);
+      const orgId = ws?.organization_id;
+      return {
+        id: orgId ?? "",
+        name: (orgId ? orgNameById.get(orgId) : undefined) ?? ws?.name ?? "Church",
+        role: m.role,
+      };
+    }),
+  };
+}
+
 /**
  * Find-or-create a person row linked to a phone contact.
  * Idempotent per (phone): if the phone already points to a person,

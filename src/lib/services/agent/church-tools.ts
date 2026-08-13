@@ -18,6 +18,26 @@ function newId(): string {
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+function profilePatchKeys(patch: Record<string, unknown>): boolean {
+  return Object.keys(patch).length > 0;
+}
+
+/** WS1 — resolve a person already on this church's roster by name (case-insensitive). */
+async function findPersonByName(db: ReturnType<typeof getSupabaseServerClient>, workspaceId: string, name: string): Promise<string | null> {
+  if (!db) return null;
+  const needle = name.trim().toLowerCase();
+  if (!needle) return null;
+  const { data: memberships } = await db
+    .from("branch_memberships")
+    .select("person_id")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active");
+  const personIds = [...new Set(((memberships ?? []) as any[]).map((m) => m.person_id))];
+  if (!personIds.length) return null;
+  const { data: people } = await db.from("people").select("id, full_name").in("id", personIds);
+  return ((people ?? []) as any[]).find((p) => String(p.full_name ?? "").toLowerCase() === needle)?.id ?? null;
+}
+
 const GIVING_TYPES = ["tithe", "offering", "donation", "pledge"] as const;
 function normalizeGivingType(raw: unknown): (typeof GIVING_TYPES)[number] {
   const t = String(raw ?? "").toLowerCase();
@@ -319,29 +339,35 @@ export const CHURCH_TOOLS: AgentTool[] = [
   {
     name: "register_member",
     description:
-      "Register a new person in the church — give their name, and optionally role, phone, gender, birthdate, address, email, or notes. Use for 'add Sister Grace as an usher', 'register John as a member', or 'add a new member'.",
+      "Register a new person in the church — give their name, and optionally role, phone, gender, birthdate, address, email, or notes. Use for 'add Sister Grace as an usher', 'register John as a member', or 'add a new member'. If they are already on file (check lookup_person or the known profile first), NEVER re-ask for details we hold — reuse the stored record and only take what's new.",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "The person's full name (required)" },
+        name: { type: "string", description: "The person's full name (required unless it's already on file about the sender)" },
         role: { type: "string", description: "Their role: member, usher, finance, secretary, children, pastor, dept_leader, staff (optional; defaults to member)" },
-        phone: { type: "string", description: "WhatsApp number (optional)" },
+        phone: { type: "string", description: "WhatsApp number (optional — skip if already on file)" },
         gender: { type: "string", description: "male or female (optional)" },
         birthdate: { type: "string", description: "YYYY-MM-DD (optional)" },
         address: { type: "string", description: "Where they live (optional)" },
         email: { type: "string", description: "Email address (optional)" },
         notes: { type: "string", description: "Any extra info (optional)" },
       },
-      required: ["name"],
+      required: [],
     },
     minRank: 4, // leaders add people
     mutates: true,
     handler: async (args, ctx) => {
       if (!(await churchApproved(ctx.workspaceId))) return { error: "Your church is still being verified 🛡️ — you'll be able to add members as soon as it's approved." };
-      const name = String(args.name ?? "").trim();
-      if (!name) return { error: "Who should I add? Tell me their name." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+
+      // WS1 — prefill from what we already know: the sender's stored profile
+      // covers self-registration ("register me"), so no fields are re-asked.
+      const profile = ctx.knownProfile;
+      const name = String(args.name ?? profile?.fullName ?? "").trim();
+      if (!name) return { error: "Who should I add? Tell me their name." };
+      const isSelf = !!(profile && name.trim().toLowerCase() === (profile.fullName ?? "").trim().toLowerCase());
+      const phoneRaw = String(args.phone ?? (isSelf ? profile?.phone : "") ?? "").trim();
 
       // Role words → internal slugs
       const roleMap: Record<string, string> = {
@@ -353,11 +379,40 @@ export const CHURCH_TOOLS: AgentTool[] = [
       const asked = String(args.role ?? "").trim().toLowerCase();
       const role = roleMap[asked] ?? "member";
 
+      // WS1 — already registered? Reuse the stored record, apply only what's new.
+      const existingPersonId = await findPersonByName(db, ctx.workspaceId, name);
+      if (existingPersonId) {
+        const existingMembership = await db
+          .from("branch_memberships")
+          .select("id, role")
+          .eq("person_id", existingPersonId)
+          .eq("workspace_id", ctx.workspaceId)
+          .maybeSingle();
+        const membershipRow = (existingMembership.data ?? null) as { id: string; role: string } | null;
+
+        const profilePatch: Record<string, unknown> = {};
+        if (typeof args.gender === "string") profilePatch.gender = args.gender.toLowerCase();
+        if (typeof args.birthdate === "string") profilePatch.birthdate = args.birthdate;
+        if (typeof args.address === "string") profilePatch.address = args.address;
+        if (typeof args.email === "string") profilePatch.email = args.email;
+        if (typeof args.notes === "string") profilePatch.notes = args.notes;
+        if (Object.keys(profilePatch).length > 0) await db.from("people").update(profilePatch).eq("id", existingPersonId);
+        if (membershipRow && role !== membershipRow.role) {
+          await db.from("branch_memberships").update({ role }).eq("id", membershipRow.id);
+        }
+        const roleLabel = role === "dept_leader" ? "an usher/leader" : role;
+        return {
+          ok: true,
+          alreadyKnown: true,
+          message: `✅ ${name} is already registered${role !== "member" ? ` — updated as ${roleLabel}` : ""}${profilePatchKeys(profilePatch) ? " and I saved the new details." : ", so nothing was re-asked."}`,
+        };
+      }
+
       // Use ensurePerson so this member links to the identity spine
       const personId = await ensurePerson({
         workspaceId: ctx.workspaceId,
         fullName: name,
-        phone: typeof args.phone === "string" ? args.phone : undefined,
+        phone: phoneRaw || undefined,
       });
 
       // Consent: the leader registering this person is the lawful-basis recorder
@@ -382,7 +437,6 @@ export const CHURCH_TOOLS: AgentTool[] = [
 
       // Slice E: if a leader registers someone ELSE with a phone number, that
       // person gets a transparency notice + their rights (privacy/stop).
-      const phoneRaw = typeof args.phone === "string" ? args.phone.trim() : "";
       if (phoneRaw && ctx.phone && phoneRaw.replace(/\D/g, "") !== ctx.phone.replace(/\D/g, "")) {
         sendTextMessage(phoneRaw, `Your church added you to Chertt as *${name}*. Reply *privacy* to learn how your data is handled, or *stop* to opt out / be removed.`).catch(() => {});
       }

@@ -5,6 +5,8 @@
 
 import { getGivingSummary, loadWorkspaceContext } from "@/lib/services/whatsapp-workspace";
 import { listBranchMembers } from "@/lib/services/identity/provisioning";
+import { getKnownProfile, type KnownProfile } from "@/lib/services/identity/people";
+import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { Role } from "@/lib/types";
 
 export type AgentContext = {
@@ -18,6 +20,10 @@ export type AgentContext = {
   // history is by id, not name-string. Undefined only when resolved via the
   // legacy phone_links fallback.
   personId?: string;
+  // WS1 — everything already stored about this person. Tools prefill from it
+  // and the persona is told to confirm instead of re-asking. Undefined when
+  // the profile couldn't be loaded (guest / new person).
+  knownProfile?: KnownProfile;
 };
 
 // JSON-schema-shaped parameter declaration, matching Gemini functionDeclarations.
@@ -112,6 +118,37 @@ export const READ_TOOLS: AgentTool[] = [
     handler: async (_args, ctx) => {
       const members = await listBranchMembers(ctx.workspaceId);
       return { count: members.length, members };
+    },
+  },
+  {
+    // WS1 — the agent can check what's already stored before asking, so a
+    // field on file is never re-requested ("Still on 0803…?" beats asking).
+    name: "lookup_person",
+    description: "What we already have on file about one person in this church: their stored name, phone, email, gender, birthdate, address, marital status, and memberships. Use this BEFORE asking for any of those details — if a field is already stored, confirm it instead of asking again.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Their name (or part of it)" },
+        phone: { type: "string", description: "Their phone number (optional)" },
+      },
+    },
+    dataSensitive: true,
+    handler: async (args, ctx) => {
+      const name = String(args.name ?? "").trim().toLowerCase();
+      const phone = String(args.phone ?? "").trim();
+      // Find the person in this workspace: by membership roster first.
+      const members = (await listBranchMembers(ctx.workspaceId)) as ({ person_id?: string; personId?: string; name?: string; fullName?: string; phone?: string }[] | null);
+      const roster = members ?? [];
+      const hits = roster.filter((m) => {
+        const storedName = String(m.fullName ?? m.name ?? "").toLowerCase();
+        const storedPhone = String(m.phone ?? "");
+        return (name && storedName.includes(name)) || (phone && storedPhone.includes(phone));
+      });
+      const personId = hits[0]?.personId ?? hits[0]?.person_id;
+      if (!personId) return { found: false, message: "No one on file here matches that." };
+      const profile = await getKnownProfile(personId);
+      if (!profile) return { found: false, message: "No one on file here matches that." };
+      return { found: true, profile };
     },
   },
 ];

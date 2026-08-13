@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { peopleRows, contactsRows } = vi.hoisted(() => ({
-  peopleRows: [] as { id: string; full_name: string }[],
-  contactsRows: [] as { person_id: string; phone_number: string; status: string; verified_at?: string | null }[],
+const { peopleRows, contactsRows, membershipsRows, workspacesRows, orgsRows } = vi.hoisted(() => ({
+  peopleRows: [] as Record<string, unknown>[],
+  contactsRows: [] as Record<string, unknown>[],
+  membershipsRows: [] as Record<string, unknown>[],
+  workspacesRows: [] as Record<string, unknown>[],
+  orgsRows: [] as Record<string, unknown>[],
 }));
 
 function builder(rows: unknown[], tableName: string) {
@@ -10,6 +13,7 @@ function builder(rows: unknown[], tableName: string) {
   const api: Record<string, unknown> = {
     select: () => api,
     eq: (k: string, v: unknown) => { filtered = filtered.filter((r: any) => r[k] === v); return api; },
+    in: (k: string, vs: unknown[]) => { filtered = filtered.filter((r: any) => (vs as unknown[]).includes(r[k])); return api; },
     maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null }),
     insert: (row: any) => {
       const id = `new-${tableName}-${rows.length + 1}`;
@@ -23,6 +27,7 @@ function builder(rows: unknown[], tableName: string) {
       }
       return { eq: () => Promise.resolve({ error: null }) };
     },
+    then: (res: (v: { data: unknown[] }) => void) => res({ data: filtered }),
   };
   return api;
 }
@@ -32,16 +37,22 @@ vi.mock("@/lib/services/supabase-server", () => ({
     from: (t: string) => {
       if (t === "people") return builder(peopleRows, t);
       if (t === "phone_contacts") return builder(contactsRows, t);
+      if (t === "branch_memberships") return builder(membershipsRows, t);
+      if (t === "workspaces") return builder(workspacesRows, t);
+      if (t === "organizations") return builder(orgsRows, t);
       return builder([], t);
     },
   }),
 }));
 
-import { ensurePerson } from "@/lib/services/identity/people";
+import { ensurePerson, getKnownProfile } from "@/lib/services/identity/people";
 
 beforeEach(() => {
   peopleRows.length = 0;
   contactsRows.length = 0;
+  membershipsRows.length = 0;
+  workspacesRows.length = 0;
+  orgsRows.length = 0;
 });
 
 describe("ensurePerson", () => {
@@ -91,5 +102,45 @@ describe("ensurePerson", () => {
     const contact = contactsRows.find((c) => c.person_id === id);
     expect(contact).toBeDefined();
     expect(contact!.verified_at).toBeFalsy(); // null = unverified
+  });
+});
+
+describe("getKnownProfile — WS1 never-re-ask", () => {
+  beforeEach(() => {
+    peopleRows.push({
+      id: "p1", full_name: "Ada Obi", email: "ada@x.com", gender: "female",
+      birthdate: "1990-05-01", address: "Lagos", marital_status: "married",
+    });
+    contactsRows.push({ person_id: "p1", phone_number: "2348001111111", status: "active", verified_at: "2026-08-01" });
+    membershipsRows.push({ person_id: "p1", workspace_id: "ws1", role: "member", status: "active" });
+    workspacesRows.push({ id: "ws1", organization_id: "o1", name: "Grace HQ" });
+    orgsRows.push({ id: "o1", name: "Grace Chapel" });
+  });
+
+  it("assembles every stored field so the agent never has to ask again", async () => {
+    const p = await getKnownProfile("p1");
+    expect(p).toMatchObject({
+      fullName: "Ada Obi",
+      phone: "2348001111111",
+      email: "ada@x.com",
+      gender: "female",
+      birthdate: "1990-05-01",
+      address: "Lagos",
+      maritalStatus: "married",
+    });
+    expect(p!.churches).toEqual([{ id: "o1", name: "Grace Chapel", role: "member" }]);
+  });
+
+  it("returns null for an unknown person id", async () => {
+    expect(await getKnownProfile("nope")).toBeNull();
+  });
+
+  it("omits fields that are not stored (undefined, not empty strings)", async () => {
+    peopleRows.push({ id: "p2", full_name: "Sam" });
+    contactsRows.push({ person_id: "p2", phone_number: "2342", status: "active" });
+    const p = await getKnownProfile("p2");
+    expect(p!.email).toBeUndefined();
+    expect(p!.gender).toBeUndefined();
+    expect(p!.churches).toEqual([]);
   });
 });

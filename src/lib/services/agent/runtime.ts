@@ -25,7 +25,8 @@ import { ADMIN_MIGRATION_TOOLS, GUEST_MIGRATION_TOOLS } from "@/lib/services/age
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { QR_TOOLS } from "@/lib/services/agent/qr-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
-import { composeSystemPrompt, buildIdentityBlock, GUEST_PERSONA } from "@/lib/services/agent/persona";
+import { getKnownProfile } from "@/lib/services/identity/people";
+import { composeSystemPrompt, buildIdentityBlock, buildKnownProfileBlock, GUEST_PERSONA } from "@/lib/services/agent/persona";
 
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
@@ -259,10 +260,14 @@ export async function runAgentQuery(
   // person, then prepend what we remember so it can follow up warmly. Both
   // read-only and best-effort — never blocks the answer.
   const identity = buildIdentityBlock(ctx.userName, ctx.role, churchName);
+  // WS1 — inject everything already stored about this person so the agent
+  // confirms instead of re-asking, and tools prefill stored fields.
+  const knownProfile = ctx.personId ? await getKnownProfile(ctx.personId).catch(() => null) : null;
+  const knownBlock = buildKnownProfileBlock(knownProfile);
   const memory = await buildMemberContext(ctx).catch(() => "");
-  const systemPrompt = composeSystemPrompt(churchPersona, identity + memory);
+  const systemPrompt = composeSystemPrompt(churchPersona, identity + knownBlock + memory);
 
-  return runAgentLoop({ generate, tools, ctx, systemPrompt, userPrompt, media });
+  return runAgentLoop({ generate, tools, ctx: { ...ctx, knownProfile: knownProfile ?? undefined }, systemPrompt, userPrompt, media });
 }
 
 // The unlinked / guest experience: the church-focused Chertt voice with NO

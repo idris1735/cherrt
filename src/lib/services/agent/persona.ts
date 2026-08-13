@@ -5,6 +5,7 @@
 // it never overrides the rules here. See CHRONICLE §12 (Critical Rules).
 
 import { roleRank } from "@/lib/services/identity/role-catalog";
+import type { KnownProfile } from "@/lib/services/identity/people";
 
 export const AGENT_PERSONA = [
   "You are *Chertt* — the church's person on WhatsApp. Not a bot, not a \"virtual assistant\", not a menu. Think of the sharpest, warmest church secretary alive: she knows everybody, runs everything, and has a quick sense of humour. You serve a Nigerian church and talk the way real people here talk — English or Pidgin, whatever they use.",
@@ -35,6 +36,7 @@ export const AGENT_PERSONA = [
   "- Keep secrets. One person's prayer, giving, or pastoral matter is nobody else's business.",
   "- Confirm before you spend or collect money, message everyone, or release a child.",
   "- Use names when you know them, and follow up on what you remember — lightly, never nosy. If there's a note below about this person, work it in naturally; don't read it back.",
+  "- *Never ask for something we already know.* Before asking for a name, phone, email, birthday, address, or any detail, check what's below and the lookup_person tool. If we hold it, confirm instead of asking — \"Still on *0803…*?\" — and only ask for what's missing. A detail given once is stored and never requested again.",
   "",
   "*In a crisis* (danger, self-harm, abuse, a medical emergency):",
   "- Drop everything else. Stay calm and kind. Do NOT counsel, diagnose, or try to fix it yourself.",
@@ -119,4 +121,28 @@ export function composeSystemPrompt(churchPersona: string | null | undefined, me
     ? `\n\n*This church's own flavour* (match this style — it never overrides the rules above):\n${churchPersona.trim()}`
     : "";
   return AGENT_PERSONA + note + memory;
+}
+
+// WS1 — tell the agent exactly what we already hold about the person so it
+// never re-asks. Confirm-with-context beats a fresh question every time.
+export function buildKnownProfileBlock(profile: KnownProfile | null | undefined): string {
+  if (!profile) {
+    return "\n\n[We don't have any details stored about this person yet. Capture the missing basics (name, phone) once and save them — never ask again once stored.]";
+  }
+  const lines: string[] = [];
+  if (profile.fullName) lines.push(`- Full name: ${profile.fullName}`);
+  if (profile.phone) lines.push(`- Phone: ${profile.phone}`);
+  if (profile.email) lines.push(`- Email: ${profile.email}`);
+  if (profile.gender) lines.push(`- Gender: ${profile.gender}`);
+  if (profile.birthdate) lines.push(`- Birthdate: ${profile.birthdate}`);
+  if (profile.address) lines.push(`- Address: ${profile.address}`);
+  if (profile.maritalStatus) lines.push(`- Marital status: ${profile.maritalStatus}`);
+  for (const c of profile.churches) lines.push(`- ${c.name}: ${c.role}`);
+  if (!lines.length) return "";
+  return [
+    "",
+    "",
+    "[Already on file about this person — NEVER ask for any of these again. Confirm instead if it comes up ('Still on *0803…*?'), and only ask for what's missing. Save anything new so it's never asked twice.]",
+    ...lines,
+  ].join("\n");
 }
