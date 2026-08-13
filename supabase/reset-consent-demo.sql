@@ -21,9 +21,10 @@ update public.people
        consent_source = null;
 
 -- 2. Clear AI chat memory + message dedup + OTP state
+--    (pending_agent_action is a column ON whatsapp_sessions, so the
+--    sessions delete above clears it too)
 delete from public.whatsapp_sessions;
 delete from public.whatsapp_processed_messages;
 delete from public.otp_challenges;
-delete from public.pending_agent_action;
 
 commit;
