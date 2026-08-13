@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { adminFetch } from "../use-admin-fetch";
+import { InfoTip, TIPS } from "@/components/admin/info-tip";
 
 type Person = {
   id: string;
@@ -76,7 +77,7 @@ export default function PeoplePage() {
                     <Link href={`/admin/people/${p.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>{p.name}</Link>
                   </td>
                   <td style={{ fontSize: 12, color: "var(--muted)" }}>{p.phones.map((ph) => ph.phone).join(", ") || "—"}</td>
-                  <td><span className={`badge ${p.verified ? "badge-success" : "badge-muted"}`}>{p.verified ? "L1+" : "L0"}</span></td>
+                  <td><span className={`badge ${p.verified ? "badge-success" : "badge-muted"}`}>{p.verified ? "L1+" : "L0"} <InfoTip text={p.verified ? TIPS.l1 : TIPS.l0} /></span></td>
                   <td style={{ fontSize: 12, color: "var(--muted)" }}>{p.churches.map((c) => c.churchName).join(", ") || "—"}</td>
                   <td>
                     {p.churches.map((c) => <span key={c.workspaceId} className="badge badge-muted" style={{ marginRight: 4 }}>{c.role}</span>)}

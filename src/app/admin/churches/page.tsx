@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { adminFetch } from "../use-admin-fetch";
+import { InfoTip, TIPS } from "@/components/admin/info-tip";
 
 type Church = { id: string; name: string; status: string; branches: number; members: number; givingTotal: number; verifiedPct: number; createdAt: string };
 
@@ -13,9 +14,9 @@ function statusBadge(st: string) {
 }
 
 function verifyBadge(pct: number) {
-  if (pct >= 80) return <span className="badge badge-success">L2 · {pct}%</span>;
-  if (pct > 0) return <span className="badge badge-info">L1 · {pct}%</span>;
-  return <span className="badge badge-muted">L0</span>;
+  if (pct >= 80) return <span className="badge badge-success">L2 · {pct}% <InfoTip text={TIPS.l2} /></span>;
+  if (pct > 0) return <span className="badge badge-info">L1 · {pct}% <InfoTip text={TIPS.l1} /></span>;
+  return <span className="badge badge-muted">L0 <InfoTip text={TIPS.l0} /></span>;
 }
 
 const nf = (n: number) => n.toLocaleString("en-NG");

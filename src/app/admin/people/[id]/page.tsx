@@ -2,6 +2,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { adminFetch } from "../../use-admin-fetch";
+import { InfoTip, TIPS } from "@/components/admin/info-tip";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type PersonDetail = {
@@ -82,7 +83,7 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {person.full_name || "Unknown"}{" "}
-            <span className={`badge ${level === 0 ? "badge-muted" : "badge-success"}`}>{LVL[level]}</span>
+            <span className={`badge ${level === 0 ? "badge-muted" : "badge-success"}`}>{LVL[level]} <InfoTip text={level === 0 ? TIPS.l0 : level === 1 ? TIPS.l1 : TIPS.l2} /></span>
           </h1>
         </div>
         <div className="flex items-center gap-2">

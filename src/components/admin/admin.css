@@ -218,6 +218,13 @@
 .not-authorized { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; gap: 12px; }
 .not-authorized h2 { font-size: 18px; }
 
+/* Info tips (WS4) */
+.info-tip { position: relative; display: inline-flex; }
+.info-tip-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: var(--muted-light); padding: 0 3px; line-height: 1; }
+.info-tip-btn:hover, .info-tip-btn:focus-visible { color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.info-tip-pop { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(4px); background: var(--surface-elevated); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); padding: 8px 12px; font-size: 12px; line-height: 1.45; width: 240px; z-index: 200; opacity: 0; pointer-events: none; transition: opacity var(--transition), transform var(--transition); font-weight: 400; }
+.info-tip-pop.open { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
 /* Responsive */
 @media (max-width: 1024px) {
   .kyc-board { grid-template-columns: repeat(2, 1fr); }

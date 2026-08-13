@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { adminFetch } from "../use-admin-fetch";
+import { InfoTip, TIPS } from "@/components/admin/info-tip";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = { id: string; church_legal_name: string; applicant_phone: string; trustee_match: string | null; status: string; cac_result: any; id_result: any; reject_reason: string | null; created_at: string };
@@ -27,10 +28,10 @@ function trusteeChip(t: string | null): { text: string; cls: string } {
 // rejected. Kimi's "needs_info" is not a real status — collapsed into draft
 // (an incomplete application, i.e. what "needs info" meant). Chosen: four columns.
 const STAGES = [
-  { key: "pending", label: "Pending", color: "var(--warning)" },
-  { key: "draft", label: "Draft", color: "var(--info)" },
-  { key: "approved", label: "Approved", color: "var(--success)" },
-  { key: "rejected", label: "Rejected", color: "var(--danger)" },
+  { key: "pending", label: "Pending", color: "var(--warning)", tip: TIPS.kycPending },
+  { key: "draft", label: "Draft", color: "var(--info)", tip: TIPS.kycDraft },
+  { key: "approved", label: "Approved", color: "var(--success)", tip: TIPS.kycApproved },
+  { key: "rejected", label: "Rejected", color: "var(--danger)", tip: TIPS.kycRejected },
 ] as const;
 
 export default function AdminKycList() {
@@ -69,6 +70,7 @@ export default function AdminKycList() {
               <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: stage.color }} />
                 {stage.label}
+                <InfoTip text={stage.tip} />
               </div>
               <span className="kyc-column-count">{(grouped[stage.key] ?? []).length}</span>
             </div>
@@ -82,9 +84,9 @@ export default function AdminKycList() {
                     <div className="kyc-card-church">{r.church_legal_name || "Unnamed"}</div>
                     <div className="kyc-card-applicant">{r.applicant_phone || "—"}</div>
                     <div className="kyc-card-chips">
-                      <span className={`badge ${cac.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{cac.text}</span>
-                      <span className={`badge ${idc.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{idc.text}</span>
-                      <span className={`badge ${trustee.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{trustee.text}</span>
+                      <span className={`badge ${cac.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{cac.text} <InfoTip text={TIPS.cac} /></span>
+                      <span className={`badge ${idc.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{idc.text} <InfoTip text={TIPS.id} /></span>
+                      <span className={`badge ${trustee.cls}`} style={{ fontSize: 10, padding: "2px 6px" }}>{trustee.text} <InfoTip text={TIPS.trustee} /></span>
                     </div>
                     <div style={{ fontSize: 11, color: "var(--muted-light)", marginTop: 8 }}>Submitted {r.created_at?.slice(0, 10)}</div>
                     {r.status === "rejected" && r.reject_reason && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>“{r.reject_reason}”</div>}
