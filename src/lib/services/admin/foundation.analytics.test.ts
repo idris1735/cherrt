@@ -35,6 +35,7 @@ import {
   getChurchDetail,
   getPersonDetail,
   adminSearch,
+  listDataRequests,
 } from "@/lib/services/admin/foundation";
 
 const NOW = new Date("2026-08-13T12:00:00Z");
@@ -58,9 +59,9 @@ beforeEach(() => {
     { id: "p3", full_name: "Zoe" },
   ];
   tables.phone_contacts = [
-    { person_id: "p1", phone_number: "2341", status: "active", verified_at: "2026-08-01" },
-    { person_id: "p2", phone_number: "2342", status: "active", verified_at: null },
-    { person_id: "p3", phone_number: "2343", status: "active", verified_at: "2026-08-02" },
+    { person_id: "p1", phone_number: "2341", status: "active", verified_at: "2026-08-01", opted_out: false },
+    { person_id: "p2", phone_number: "2342", status: "active", verified_at: null, opted_out: true },
+    { person_id: "p3", phone_number: "2343", status: "active", verified_at: "2026-08-02", opted_out: false },
   ];
   tables.giving_records = [
     { id: "g1", workspace_id: "w1", person_id: "p1", amount: 1000, created_at: "2026-08-10T10:00:00Z" },
@@ -90,6 +91,7 @@ beforeEach(() => {
   ];
   tables.data_requests = [
     { id: "d1", person_id: "p1", kind: "access", status: "open", note: "privacy info", created_at: "2026-08-13T09:00:00Z" },
+    { id: "d2", person_id: "p2", kind: "deletion", status: "done", note: "resolved", created_at: "2026-08-12T09:00:00Z" },
   ];
 });
 
@@ -284,10 +286,16 @@ describe("getPersonDetail — richer tabs (Slice 4)", () => {
     expect(p!.guardians).toHaveLength(1);
     expect(p!.guardians[0]).toMatchObject({ guardianName: "Ada", relationship: "parent", isPrimary: true });
   });
+
+  it("exposes real phones + consent state for the consent panel", async () => {
+    const p = await getPersonDetail("p2");
+    expect(p!.phones).toHaveLength(1);
+    expect(p!.phones[0]).toMatchObject({ phone: "2342", verified: false, optedOut: true });
+    expect(p!.consent).toMatchObject({ optedOut: true, source: null });
+  });
 });
 
-describe("adminSearch — command palette (Slice 6)", () => {
-  it("finds churches and people by name, case-insensitive", async () => {
+describe("adminSearch — command palette (Slice 6)", () => {  it("finds churches and people by name, case-insensitive", async () => {
     const res = await adminSearch("ada");
     expect(res.churches.length).toBe(0);
     expect(res.people.length).toBe(1);
@@ -303,5 +311,18 @@ describe("adminSearch — command palette (Slice 6)", () => {
     const res = await adminSearch("a");
     expect(res.people.length).toBeLessThanOrEqual(6);
     expect(res.churches.length).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("listDataRequests — includeDone (Slice 4d)", () => {
+  it("defaults to open requests only", async () => {
+    const list = await listDataRequests();
+    expect(list).toHaveLength(1);
+    expect(list[0].status).toBe("open");
+  });
+  it("includes done requests when asked", async () => {
+    const list = await listDataRequests(50, true);
+    expect(list).toHaveLength(2);
+    expect(list.find((d) => d.status === "done")!.note).toBe("resolved");
   });
 });

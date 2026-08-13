@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import s from "@/components/admin/admin-kit.module.css";
 import { adminFetch } from "../../use-admin-fetch";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -16,11 +15,15 @@ type PersonDetail = {
   dataRequests?: { id: string; kind: string; status: string; note: string; createdAt: string }[];
   givingRecords?: { id: string; amount: number; givingType: string; service: string; createdAt: string }[];
   givingTotal?: number;
+  phones?: { phone: string; verified: boolean; optedOut: boolean }[];
+  consent?: { source: string | null; version: string | null; at: string | null; optedOut: boolean };
 };
 
 const LVL = ["Unverified", "WhatsApp-verified", "KYC-verified"];
 const TABS = ["Timeline", "Memberships", "Family", "Requests", "Giving"] as const;
 type Tab = (typeof TABS)[number];
+
+const nf = (n: number) => n.toLocaleString("en-NG");
 
 const MILESTONE_ICON: Record<string, string> = {
   salvation: "💒",
@@ -42,9 +45,9 @@ const MILESTONE_LABEL: Record<string, string> = {
 };
 
 function reqBadge(st: string) {
-  if (st === "resolved" || st === "answered" || st === "done") return s.badgeGreen;
-  if (st === "open" || st === "praying") return s.badgeAmber;
-  return s.badgeNeutral;
+  if (st === "resolved" || st === "answered" || st === "done") return "badge-success";
+  if (st === "open" || st === "praying") return "badge-warning";
+  return "badge-muted";
 }
 
 export default function PersonDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,139 +63,205 @@ export default function PersonDetailPage({ params }: { params: Promise<{ id: str
     });
   }, [id]);
 
-  if (msg) return <div className={s.errorBox}>{msg}</div>;
-  if (!p) return <><div className={s.skeleton} style={{ height: 160, marginBottom: 16 }} /><div className={s.skeleton} style={{ height: 16, width: "40%" }} /></>;
+  if (msg) return <div className="page"><div className="error-box">{msg}</div></div>;
+  if (!p) return <div className="page"><div className="skeleton" style={{ height: 160, marginBottom: 16 }} /><div className="skeleton" style={{ height: 16, width: "40%" }} /></div>;
 
+  const person = p.person;
+  const initials = String(person.full_name ?? "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
   const level = p.memberships[0]?.verificationLevel ?? 0;
+  const consent = p.consent ?? { source: null, version: null, at: null, optedOut: false };
+  const phones = p.phones ?? [];
 
   return (
-    <>
-      <div className={s.crumbs}>
-        <Link className={s.crumbLink} href="/admin/people">People</Link><span>/</span><span>{p.person.full_name || "Unknown"}</span>
-      </div>
-      <h1 className={s.pageTitle} style={{ margin: 0 }}>
-        {p.person.full_name || "Unknown"}{" "}
-        <span className={`${s.badge} ${level === 0 ? s.badgeNeutral : s.badgeGreen}`}>{LVL[level]}</span>
-      </h1>
-      <p className={s.pageSub}>
-        {p.memberships.map((m) => m.church).join(" · ") || "Not a member anywhere"}
-        {p.person.consent_source ? ` · consent: ${String(p.person.consent_source).replace(/_/g, " ")}${p.person.consent_version ? ` (${p.person.consent_version})` : ""}` : ""}
-      </p>
-
-      <div className={s.tabs} role="tablist">
-        {TABS.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={`${s.tab} ${tab === t ? s.tabActive : ""}`} onClick={() => setTab(t)}>{t}</button>
-        ))}
+    <div className="page animate-in">
+      <div className="page-header">
+        <div>
+          <div className="breadcrumbs">
+            <span>Platform</span><span className="sep">/</span>
+            <Link href="/admin/people">People</Link><span className="sep">/</span><span>{person.full_name || "Unknown"}</span>
+          </div>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {person.full_name || "Unknown"}{" "}
+            <span className={`badge ${level === 0 ? "badge-muted" : "badge-success"}`}>{LVL[level]}</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link className="btn btn-sm" href="/admin/people">Back</Link>
+        </div>
       </div>
 
-      {tab === "Timeline" && (
-        <div className={s.card}><div className={s.cardBody}>
-          {p.milestones.length === 0 ? (
-            <div className={s.emptyState}>
-              <div className={s.emptyStateTitle}>No milestones yet</div>
-              <div className={s.emptyStateBody}>Milestones appear here when they convert, dedicate a child, or record life events.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 16 }} className="charts-grid-2">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card">
+            <div className="tabs">
+              {TABS.map((t) => <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}</button>)}
             </div>
-          ) : (
-            <div className={s.timeline}>
-              {p.milestones.map((m, i) => (
-                <div className={s.timelineItem} key={i}>
-                  <span className={s.timelineDot} />
-                  <div className={s.timelineTitle}>{MILESTONE_ICON[m.type] ?? "📌"} {MILESTONE_LABEL[m.type] ?? m.type}</div>
-                  <div className={s.timelineDate}>
-                    {m.occurredOn ?? ""}
-                    {m.details?.notes ? ` · ${String(m.details.notes)}` : ""}
+
+            {tab === "Timeline" && (
+              <div style={{ padding: 20 }}>
+                {p.milestones.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-state-title">No milestones yet</div>
+                    <div className="empty-state-body">Milestones appear here when they convert, dedicate a child, or record life events.</div>
+                  </div>
+                ) : (
+                  <div className="timeline">
+                    {p.milestones.map((m, i) => (
+                      <div className="timeline-item" key={i}>
+                        <div className={`timeline-dot ${i === p.milestones.length - 1 ? "active" : ""}`}>{MILESTONE_ICON[m.type] ?? "📌"}</div>
+                        <div className="timeline-content">
+                          <h4>{MILESTONE_LABEL[m.type] ?? m.type}</h4>
+                          {m.details?.notes ? <p>{String(m.details.notes)}</p> : null}
+                          <div className="timeline-date">{m.occurredOn ?? ""}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "Memberships" && (
+              <div style={{ padding: 20 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {p.memberships.map((m, i) => (
+                    <div key={i} style={{ padding: 14, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--ink)" }}>{m.church}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{m.role} · {LVL[m.verificationLevel]} · joined {m.joinedAt?.slice(0, 10)}</div>
+                      </div>
+                      <span className="badge badge-success">Active</span>
+                    </div>
+                  ))}
+                  {p.memberships.length === 0 && <p style={{ color: "var(--muted)" }}>Not a member anywhere.</p>}
+                </div>
+              </div>
+            )}
+
+            {tab === "Family" && (
+              <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <h4 style={{ marginBottom: 8 }}>Guardian of</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {p.guardianOf.map((g, i) => (
+                      <div key={i} style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{g.childName}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{g.relationship}{g.isPrimary ? " · primary" : ""}</div>
+                      </div>
+                    ))}
+                    {p.guardianOf.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No children registered.</p>}
                   </div>
                 </div>
-              ))}
+                <div>
+                  <h4 style={{ marginBottom: 8 }}>Guardians</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(p.guardians ?? []).map((g, i) => (
+                      <div key={i} style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{g.guardianName}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)" }}>{g.relationship}{g.isPrimary ? " · primary" : ""}</div>
+                      </div>
+                    ))}
+                    {(p.guardians ?? []).length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No guardians on file.</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "Requests" && (
+              <div style={{ padding: 20 }}>
+                <h4 style={{ marginBottom: 8 }}>Pastoral requests</h4>
+                <div className="table-wrap" style={{ marginBottom: 16 }}>
+                  <table>
+                    <thead><tr><th>Category</th><th>Status</th><th>Created</th></tr></thead>
+                    <tbody>
+                      {p.pastoralRequests.map((r) => <tr key={r.id}><td>{r.category}</td><td><span className={`badge ${reqBadge(r.status)}`}>{r.status}</span></td><td style={{ fontSize: 12, color: "var(--muted)" }}>{r.createdAt?.slice(0, 10)}</td></tr>)}
+                      {p.pastoralRequests.length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 24 }}>No pastoral requests.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <h4 style={{ marginBottom: 8 }}>Prayer requests</h4>
+                <div className="table-wrap" style={{ marginBottom: 16 }}>
+                  <table>
+                    <thead><tr><th>Request</th><th>Anonymous</th><th>Status</th><th>When</th></tr></thead>
+                    <tbody>
+                      {(p.prayerRequests ?? []).map((r) => <tr key={r.id}><td>{r.request}</td><td>{r.isAnonymous ? "Yes" : "No"}</td><td><span className={`badge ${reqBadge(r.status)}`}>{r.status}</span></td><td style={{ fontSize: 12, color: "var(--muted)" }}>{r.createdAt?.slice(0, 10)}</td></tr>)}
+                      {(p.prayerRequests ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 24 }}>No prayer requests.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <h4 style={{ marginBottom: 8 }}>Privacy requests</h4>
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Kind</th><th>Status</th><th>Note</th><th>When</th></tr></thead>
+                    <tbody>
+                      {(p.dataRequests ?? []).map((r) => <tr key={r.id}><td><span className={`badge ${r.kind === "deletion" ? "badge-danger" : "badge-info"}`}>{r.kind}</span></td><td><span className={`badge ${r.status === "done" ? "badge-success" : "badge-warning"}`}>{r.status}</span></td><td>{r.note || "—"}</td><td style={{ fontSize: 12, color: "var(--muted)" }}>{r.createdAt?.slice(0, 10)}</td></tr>)}
+                      {(p.dataRequests ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 24 }}>No privacy requests.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {tab === "Giving" && (
+              <div style={{ padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
+                  <div style={{ flex: 1, padding: 16, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)", textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Giving</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-1">₦{nf(p.givingTotal ?? 0)}</div>
+                  </div>
+                  <div style={{ flex: 1, padding: 16, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)", textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Records</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)" }} className="tabular mt-1">{(p.givingRecords ?? []).length}</div>
+                  </div>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Service</th></tr></thead>
+                    <tbody>
+                      {(p.givingRecords ?? []).map((g) => <tr key={g.id}><td style={{ fontSize: 12, color: "var(--muted)" }}>{g.createdAt?.slice(0, 10)}</td><td>{g.givingType}</td><td className="tabular" style={{ fontWeight: 600, color: "var(--ink)" }}>₦{nf(g.amount)}</td><td style={{ fontSize: 12, color: "var(--muted)" }}>{g.service || "—"}</td></tr>)}
+                      {(p.givingRecords ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No giving records.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card" style={{ padding: 20, textAlign: "center" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, margin: "0 auto 12px" }}>{initials}</div>
+            <div style={{ fontWeight: 600, fontSize: 16, color: "var(--ink)" }}>{person.full_name}</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{p.memberships[0]?.role ?? "No role"}</div>
+            <div className="mt-3" style={{ textAlign: "left" }}>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}><strong style={{ color: "var(--ink)" }}>Phone:</strong> {phones.map((ph) => ph.phone).join(", ") || "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}><strong style={{ color: "var(--ink)" }}>Email:</strong> {person.email ?? "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}><strong style={{ color: "var(--ink)" }}>DOB:</strong> {person.birthdate ?? "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}><strong style={{ color: "var(--ink)" }}>Gender:</strong> {person.gender ?? "—"}</div>
             </div>
-          )}
-        </div></div>
-      )}
+          </div>
 
-      {tab === "Memberships" && (
-        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-          <thead><tr><th>Church</th><th>Role</th><th>Verification</th><th>Joined</th></tr></thead>
-          <tbody>
-            {p.memberships.map((m, i) => <tr key={i}><td style={{ fontWeight: 500 }}>{m.church}</td><td><span className={`${s.badge} ${s.badgeNeutral}`}>{m.role}</span></td><td>{LVL[m.verificationLevel]}</td><td>{m.joinedAt?.slice(0, 10)}</td></tr>)}
-            {p.memberships.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>Not a member anywhere.</td></tr>}
-          </tbody>
-        </table></div></div>
-      )}
-
-      {tab === "Family" && (
-        <>
-          <div className={s.chartGrid}>
-            <div>
-              <div className={s.sectionTitle}>Guardian of</div>
-              <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-                <thead><tr><th>Child</th><th>Relationship</th><th>Primary</th></tr></thead>
-                <tbody>
-                  {p.guardianOf.map((g, i) => <tr key={i}><td style={{ fontWeight: 500 }}>{g.childName}</td><td>{g.relationship}</td><td>{g.isPrimary ? "✓" : ""}</td></tr>)}
-                  {p.guardianOf.length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No children registered.</td></tr>}
-                </tbody>
-              </table></div></div>
+          {/* Real consent status — source/version/opt-out from the people + phone_contacts rows */}
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", marginBottom: 12 }}>Consent Status</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: consent.source ? "var(--success)" : "var(--muted-light)" }} />
+              <span style={{ fontSize: 13 }}>Lawful basis: {consent.source ? String(consent.source).replace(/_/g, " ") : "none recorded"}</span>
             </div>
-            <div>
-              <div className={s.sectionTitle}>Guardians</div>
-              <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-                <thead><tr><th>Guardian</th><th>Relationship</th><th>Primary</th></tr></thead>
-                <tbody>
-                  {(p.guardians ?? []).map((g, i) => <tr key={i}><td style={{ fontWeight: 500 }}>{g.guardianName}</td><td>{g.relationship}</td><td>{g.isPrimary ? "✓" : ""}</td></tr>)}
-                  {(p.guardians ?? []).length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No guardians on file.</td></tr>}
-                </tbody>
-              </table></div></div>
+            {consent.version && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--success)" }} />
+                <span style={{ fontSize: 13 }}>Consent version: {consent.version}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: consent.optedOut ? "var(--danger)" : "var(--success)" }} />
+              <span style={{ fontSize: 13 }}>WhatsApp: {consent.optedOut ? "Opted out (never messaged)" : "Active"}</span>
             </div>
+            {consent.at && <div style={{ fontSize: 11, color: "var(--muted-light)", marginTop: 8 }}>Consented {consent.at.slice(0, 10)}</div>}
           </div>
-        </>
-      )}
-
-      {tab === "Requests" && (
-        <>
-          <div className={s.section}><div className={s.sectionTitle}>Pastoral requests</div>
-            <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-              <thead><tr><th>Category</th><th>Status</th><th>Created</th></tr></thead>
-              <tbody>
-                {p.pastoralRequests.map((r) => <tr key={r.id}><td>{r.category}</td><td><span className={`${s.badge} ${reqBadge(r.status)}`}>{r.status}</span></td><td>{r.createdAt?.slice(0, 10)}</td></tr>)}
-                {p.pastoralRequests.length === 0 && <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No pastoral requests.</td></tr>}
-              </tbody>
-            </table></div></div>
-          </div>
-          <div className={s.section}><div className={s.sectionTitle}>Prayer requests</div>
-            <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-              <thead><tr><th>Request</th><th>Anonymous</th><th>Status</th><th>When</th></tr></thead>
-              <tbody>
-                {(p.prayerRequests ?? []).map((r) => <tr key={r.id}><td>{r.request}</td><td>{r.isAnonymous ? "Yes" : "No"}</td><td><span className={`${s.badge} ${reqBadge(r.status)}`}>{r.status}</span></td><td>{r.createdAt?.slice(0, 10)}</td></tr>)}
-                {(p.prayerRequests ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No prayer requests.</td></tr>}
-              </tbody>
-            </table></div></div>
-          </div>
-          <div className={s.section}><div className={s.sectionTitle}>Privacy requests</div>
-            <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-              <thead><tr><th>Kind</th><th>Status</th><th>Note</th><th>When</th></tr></thead>
-              <tbody>
-                {(p.dataRequests ?? []).map((r) => <tr key={r.id}><td><span className={`${s.badge} ${r.kind === "deletion" ? s.badgeRed : s.badgeGreen}`}>{r.kind}</span></td><td><span className={`${s.badge} ${r.status === "done" ? s.badgeGreen : s.badgeAmber}`}>{r.status}</span></td><td>{r.note || "—"}</td><td>{r.createdAt?.slice(0, 10)}</td></tr>)}
-                {(p.dataRequests ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No privacy requests.</td></tr>}
-              </tbody>
-            </table></div></div>
-          </div>
-        </>
-      )}
-
-      {tab === "Giving" && (
-        <>
-          <div className={s.kpiGrid}>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Total given</div><div className={s.kpiValue}>₦{(p.givingTotal ?? 0).toLocaleString("en-NG")}</div></div>
-            <div className={s.kpiCard} style={{ cursor: "default" }}><div className={s.kpiLabel}>Records</div><div className={s.kpiValue}>{(p.givingRecords ?? []).length}</div></div>
-          </div>
-          <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
-            <thead><tr><th>Amount</th><th>Type</th><th>Service</th><th>When</th></tr></thead>
-            <tbody>
-              {(p.givingRecords ?? []).map((g) => <tr key={g.id}><td>₦{g.amount.toLocaleString("en-NG")}</td><td><span className={`${s.badge} ${s.badgeNeutral}`}>{g.givingType}</span></td><td>{g.service || "—"}</td><td>{g.createdAt?.slice(0, 10)}</td></tr>)}
-              {(p.givingRecords ?? []).length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No giving records.</td></tr>}
-            </tbody>
-          </table></div></div>
-        </>
-      )}
-    </>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -472,15 +472,15 @@ async function buildChildrenList(db: any, wsIds: string[]) {
   });
 }
 
-export async function listDataRequests() {
+export async function listDataRequests(limit = 50, includeDone = false) {
   const db = getSupabaseServerClient();
   if (!db) return [];
-  const { data } = await db
+  let query = db
     .from("data_requests")
-    .select("id, person_id, kind, status, note, created_at")
-    .eq("status", "open")
-    .order("created_at", { ascending: true })
-    .limit(50);
+    .select("id, person_id, kind, status, note, created_at");
+  if (!includeDone) query = query.eq("status", "open");
+  query = query.order("created_at", { ascending: true }).limit(limit);
+  const { data } = await query;
   const rows = (data ?? []) as any[];
   const personIds = [...new Set(rows.map((r) => r.person_id).filter(Boolean))];
   const people = personIds.length ? (((await db.from("people").select("id, full_name").in("id", personIds)).data ?? []) as any[]) : [];
@@ -501,7 +501,7 @@ export async function getPersonDetail(personId: string) {
   const person = (await db.from("people").select("*").eq("id", personId).maybeSingle()).data as any;
   if (!person) return null;
 
-  const [memberships, guardianships, milestones, pastoralRequests, prayerRequests, dataRequests, givingRecords, childGuardianships] = await Promise.all([
+  const [memberships, guardianships, milestones, pastoralRequests, prayerRequests, dataRequests, givingRecords, childGuardianships, phoneContacts] = await Promise.all([
     (db.from("branch_memberships").select("workspace_id, role, status, created_at").eq("person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
     (db.from("guardianships").select("child_person_id, relationship, is_primary").eq("guardian_person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
     (db.from("person_milestones").select("type, occurred_on, details").eq("person_id", personId).order("occurred_on", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
@@ -510,6 +510,7 @@ export async function getPersonDetail(personId: string) {
     (db.from("data_requests").select("id, kind, status, note, created_at").eq("person_id", personId).order("created_at", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
     (db.from("giving_records").select("id, amount, giving_type, service, created_at").eq("person_id", personId).order("created_at", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
     (db.from("guardianships").select("guardian_person_id, relationship, is_primary").eq("child_person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
+    (db.from("phone_contacts").select("phone_number, verified_at, opted_out, status").eq("person_id", personId).eq("status", "active")).then((r: any) => (r.data ?? []) as any[]),
   ]);
 
   // Resolve memberships → church names + verification levels
@@ -560,6 +561,14 @@ export async function getPersonDetail(personId: string) {
     dataRequests: dataRequests.map((r) => ({ id: r.id, kind: r.kind, status: r.status, note: r.note ?? "", createdAt: r.created_at })),
     givingRecords: givingRecords.map((g) => ({ id: g.id, amount: Number(g.amount) || 0, givingType: g.giving_type, service: g.service, createdAt: g.created_at })),
     givingTotal: givingRecords.reduce((n, g) => n + (Number(g.amount) || 0), 0),
+    // Real phone + consent state — the consent panel reads these, never hardcoded dots
+    phones: phoneContacts.map((c) => ({ phone: c.phone_number, verified: !!c.verified_at, optedOut: !!c.opted_out })),
+    consent: {
+      source: person.consent_source ?? null,
+      version: person.consent_version ?? null,
+      at: person.consent_at ?? null,
+      optedOut: phoneContacts.some((c) => c.opted_out),
+    },
   };
 }
 

@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import s from "@/components/admin/admin-kit.module.css";
 import { adminFetch } from "../use-admin-fetch";
 
 type Person = {
@@ -40,76 +39,60 @@ export default function PeoplePage() {
     return [...v].sort((a, b) => a.name.localeCompare(b.name));
   }, [people, q, level, hasRole]);
 
-  if (err) return <div className={s.errorBox}>🔒 Not authorized.</div>;
-  if (!people) return <><div className={s.skeleton} style={{ height: 200, marginBottom: 16 }} /><div className={s.skeleton} style={{ height: 16, width: "40%" }} /></>;
+  if (err) return <div className="page"><div className="error-box">🔒 Not authorized.</div></div>;
+  if (!people) return <div className="page"><div className="skeleton" style={{ height: 200, marginBottom: 16 }} /><div className="skeleton" style={{ height: 16, width: "40%" }} /></div>;
 
   return (
-    <>
-      <h1 className={s.pageTitle}>People</h1>
-      <p className={s.pageSub}>{people.length} across all churches.</p>
-      <div className={s.toolbar}>
-        <input className={`${s.input} ${s.toolbarSearch}`} aria-label="Search people" placeholder="Search name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className={s.select} aria-label="Filter by verification" value={level} onChange={(e) => setLevel(e.target.value)}>
-          <option value="">All levels</option>
-          <option value="verified">Verified</option>
-          <option value="unverified">Unverified</option>
-        </select>
-        <select className={s.select} aria-label="Filter by membership" value={hasRole} onChange={(e) => setHasRole(e.target.value)}>
-          <option value="">Members & guests</option>
-          <option value="yes">Members only</option>
-          <option value="no">Guests only</option>
-        </select>
-        <span className={s.toolbarSpacer} />
-        <span className={s.feedTime}>{visible.length} shown</span>
+    <div className="page animate-in">
+      <div className="page-header">
+        <div>
+          <div className="breadcrumbs"><span>Platform</span><span className="sep">/</span><span>People</span></div>
+          <h1>People Directory</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="text" className="input" placeholder="Search name or phone…" style={{ width: 220 }} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" />
+          <select className="input select" style={{ width: 140 }} value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Filter by verification">
+            <option value="">All levels</option>
+            <option value="verified">Verified</option>
+            <option value="unverified">Unverified</option>
+          </select>
+          <select className="input select" style={{ width: 150 }} value={hasRole} onChange={(e) => setHasRole(e.target.value)} aria-label="Filter by membership">
+            <option value="">Members & guests</option>
+            <option value="yes">Members only</option>
+            <option value="no">Guests only</option>
+          </select>
+        </div>
       </div>
-      <div className={s.card}>
-        <div className={s.tableWrap}>
-          <table className={s.table}>
+      <div className="card">
+        <div className="table-wrap">
+          <table>
             <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Verified</th>
-                <th>Churches</th>
-                <th>Roles</th>
-              </tr>
+              <tr><th>Name</th><th>Phone</th><th>Verification</th><th>Churches</th><th>Roles</th></tr>
             </thead>
             <tbody>
               {visible.map((p) => (
                 <tr key={p.id}>
-                  <td style={{ fontWeight: 500 }}>
-                    <Link href={`/admin/people/${p.id}`} style={{ color: "var(--ink)", textDecoration: "none", fontWeight: 500 }}>
-                      {p.name}
-                    </Link>
-                  </td>
-                  <td>{p.phones.map((ph) => ph.phone).join(", ") || "—"}</td>
                   <td>
-                    <span className={`${s.badge} ${p.verified ? s.badgeGreen : s.badgeNeutral}`}>
-                      {p.verified ? "L1+" : "L0"}
-                    </span>
+                    <Link href={`/admin/people/${p.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>{p.name}</Link>
                   </td>
-                  <td>{p.churches.map((c) => c.churchName).join(", ") || "—"}</td>
+                  <td style={{ fontSize: 12, color: "var(--muted)" }}>{p.phones.map((ph) => ph.phone).join(", ") || "—"}</td>
+                  <td><span className={`badge ${p.verified ? "badge-success" : "badge-muted"}`}>{p.verified ? "L1+" : "L0"}</span></td>
+                  <td style={{ fontSize: 12, color: "var(--muted)" }}>{p.churches.map((c) => c.churchName).join(", ") || "—"}</td>
                   <td>
-                    {p.churches.map((c) => (
-                      <span key={c.workspaceId} className={`${s.badge} ${s.badgeNeutral}`} style={{ marginRight: 4 }}>
-                        {c.role}
-                      </span>
-                    ))}
-                    {p.churches.length === 0 && "—"}
+                    {p.churches.map((c) => <span key={c.workspaceId} className="badge badge-muted" style={{ marginRight: 4 }}>{c.role}</span>)}
+                    {p.churches.length === 0 && <span style={{ fontSize: 12, color: "var(--muted)" }}>—</span>}
                   </td>
                 </tr>
               ))}
               {visible.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
-                    {people.length === 0 ? "No people yet. They'll appear once someone messages Chertt on WhatsApp." : "No people match your search."}
-                  </td>
-                </tr>
+                <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
+                  {people.length === 0 ? "No people yet. They'll appear once someone messages Chertt on WhatsApp." : "No people match your search."}
+                </td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
-    </>
+    </div>
   );
 }
