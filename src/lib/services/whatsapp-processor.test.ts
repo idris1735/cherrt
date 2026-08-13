@@ -81,27 +81,22 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
-    expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
+    // Consent-first: the very first message is the privacy consent gate.
+    expect(buttons.some((b) => b.title.includes("I agree"))).toBe(true);
     mockButtons.mockClear();
     mockSend.mockClear();
   });
 
-  it("does not discard a real command sent as the first message", async () => {
+  it("shows the consent gate before processing a guest's first message", async () => {
     mockRun.mockResolvedValue({ reply: "Request captured." });
 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request ₦85,000 for diesel" });
 
-    // Guest welcome now uses buttons (not plain text) — "set up my church" is a button title
+    // Consent-first: the gate is shown and nothing is processed until they agree.
     expect(mockButtons).toHaveBeenCalledOnce();
-    const [, , welcomeButtons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(welcomeButtons.some((b) => b.title.includes("I lead a church"))).toBe(true);
-    // The command is still processed after welcome
-    expect(mockRun).toHaveBeenCalledWith(
-      "Request ₦85,000 for diesel",
-      expect.objectContaining({ role: "owner" }),
-      false,
-    );
-    expect(mockSend).toHaveBeenCalledWith(PHONE, "Request captured.");
+    const [, , gate] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(gate.some((b) => b.title.includes("I agree"))).toBe(true);
+    expect(mockRun).not.toHaveBeenCalled();
   });
 
   it("skips duplicate WhatsApp message IDs before side effects", async () => {
@@ -487,11 +482,19 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("an unlinked phone gets the guest welcome with interactive buttons on first contact", async () => {
+  it("an unlinked phone gets the consent gate (tappable) on first contact", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
+    expect(buttons.some((b) => b.title.includes("I agree"))).toBe(true);
+  });
+
+  it("tapping “I agree” on the consent gate opens the who-are-you menu", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", text: "", buttonReplyId: "guest_consent" });
+    expect(mockButtons).toHaveBeenCalledOnce();
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
   });
 

@@ -263,6 +263,28 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 // ─── Welcome Messages ────────────────────────────────────────────────────────
 
+// Consent-first: the very first thing a new number sees is an explicit privacy
+// consent ask. We record data only after they agree. NDPR/NDPA: consent should
+// be a clear affirmative action, not buried fine print.
+async function sendConsentGate(from: string): Promise<void> {
+  const text = [
+    "👋 Welcome to *Chertt* — I help churches run everything on WhatsApp.",
+    "",
+    "First, your privacy: we store the details you share *only* to help your church serve you, we never sell your data, and you can opt out anytime by replying *stop* (Nigeria NDPR).",
+    "",
+    "Do you agree to continue?",
+  ].join("\n");
+  try {
+    await sendInteractiveButtons(from, text, [
+      { id: "guest_consent", title: "✅ I agree" },
+      { id: "guest_privacy", title: "📄 Privacy policy" },
+      { id: "guest_optout", title: "🚫 No thanks" },
+    ], "Your privacy");
+  } catch {
+    await sendTextMessage(from, text + "\n\nReply *agree* to continue, *privacy* to read our policy, or *stop* to opt out.");
+  }
+}
+
 async function sendGuestWelcome(from: string): Promise<void> {
   const text = [
     "👋 Hi! I'm *Chertt* — I help churches run everything right here on WhatsApp.",
@@ -625,6 +647,22 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
+  // ── Consent gate (must agree before anything is stored/used) ──
+  if (buttonId === "guest_consent") {
+    if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    await sendGuestWelcome(from);
+    return;
+  }
+  if (buttonId === "guest_privacy") {
+    await sendTextMessage(from, "Here's exactly how we handle your data: https://chertt.app/privacy\n\nReply *I agree* to continue, or *stop* to opt out.");
+    return;
+  }
+  if (buttonId === "guest_optout") {
+    await sendTextMessage(from, "No problem — I won't store your details or message you again. Reply *hi* anytime if you change your mind. 🙏");
+    await setOptedOut(from).catch(() => {});
+    return;
+  }
+
   // ── Guest navigation buttons (unlinked users) ──
   // First-contact is about knowing WHO is texting — a member, a family, or a
   // church leader — so we never push church-setup at someone who isn't a leader
@@ -855,9 +893,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
-    if (link) await sendWorkspaceWelcome(from, link);
-    else await sendGuestWelcome(from);
-    if (shouldStopAfterWelcome(message, trimmed)) return;
+    if (link) {
+      await sendWorkspaceWelcome(from, link);
+      if (shouldStopAfterWelcome(message, trimmed)) return;
+    } else {
+      // Guests must consent to our privacy terms BEFORE anything else.
+      await sendConsentGate(from);
+      return;
+    }
   }
 
   // ── Platform-admin: new church signup approval/rejection ──
@@ -1020,6 +1063,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) { await sendGuestWelcome(from); return; }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
+  // Typed consent (for guests who type instead of tapping the gate button).
+  if (!link && /^(i\s*)?agree\b.*$|^(yes,?\s*)?i\s*agree$/i.test(trimmed)) {
+    if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    await sendGuestWelcome(from);
+    return;
+  }
   if (/^privacy$/i.test(trimmed)) {
     await logDataRequest({ kind: "access", note: "privacy info requested", personId: personId ?? undefined, workspaceId: link?.workspaceId ?? undefined }).catch(() => {});
     await sendTextMessage(from, "Your details are stored only to help your church serve you — never shared with third parties. Full policy: https://chertt.app/privacy · To have your data removed, reply *stop* or email support@chertt.app.");
