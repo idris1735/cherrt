@@ -81,6 +81,10 @@ const HELP_RE = /^(?:help|help me|i need help|need help|pls help|please help|can
 // Anything that means "just show me the buttons" — routed to the tappable menu
 // so a member never has to type a command out.
 const MENU_RE = /^(?:menu|the menu|menu\s*(?:please|abeg|biko)?|show(?:\s*me)?\s*(?:the\s*)?menu|where(?:'?s| is)\s*(?:the\s*)?menu|show me around|options?|start over|come again\??|what can (?:you|u|chertt|i) do)$/i;
+// Guest navigational / exploratory intents (NOT anchored — people phrase these
+// loosely). Anything that means "show me my options" gets the tappable
+// who-are-you buttons instead of a wall of text — people tap, they don't type.
+const GUEST_LOST_RE = /\b(menu|options?|get\s*started|start over|how (?:does |do |is |'?s )?(?:this|it|chertt)\s*works?|see how (?:this|it|chertt)\s*works?|what can (?:you|u|chertt)\s*do|show me around|do (?:you|u) have (?:a |an |any )?menu|any menu)\b/i;
 
 function extractName(text: string): string | null {
   const m = text.trim().match(NAME_INTRO_RE);
@@ -1011,6 +1015,9 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // ── Menu / lost — any linked member gets the tappable menu, no typing a
   // command out. Placed before HELP_RE so the richer list wins. ──
   if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from); return; }
+  // Guests get the tappable who-are-you buttons for any menu / "how does this
+  // work" / options intent — never a "we don't have a menu" text reply.
+  if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) { await sendGuestWelcome(from); return; }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^privacy$/i.test(trimmed)) {

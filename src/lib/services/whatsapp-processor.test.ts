@@ -495,6 +495,17 @@ describe("processWhatsAppMessage", () => {
     expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
   });
 
+  it("an already-welcomed GUEST asking for a menu gets tappable buttons, not the AI", async () => {
+    await skipWelcome();
+    for (const msg of ["Do you have any menu?", "how does this work", "options"]) {
+      mockButtons.mockClear();
+      await processWhatsAppMessage({ from: PHONE, type: "text", text: msg });
+      expect(mockButtons).toHaveBeenCalledOnce();
+      const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+      expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
+    }
+  });
+
   it("'menu' opens a rich interactive list (10 items) for a linked member", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
