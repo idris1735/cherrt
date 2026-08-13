@@ -43,8 +43,14 @@ export async function POST(req: Request): Promise<Response> {
     if (field.size > MAX_FILE_BYTES) return null; // client already guards; skip oversized rather than fail the whole submit
     const ext = field.type === "application/pdf" ? "pdf" : "jpg";
     const path = `${app.id}/${prefix}-${Date.now()}.${ext}`;
-    await uploadKycFile(path, new Uint8Array(await field.arrayBuffer()), field.type || "image/jpeg");
-    return path;
+    try {
+      await uploadKycFile(path, new Uint8Array(await field.arrayBuffer()), field.type || "image/jpeg");
+      return path;
+    } catch (err) {
+      // P0-3: a failed upload must never sink the whole submission — queue without it.
+      console.error(`[onboard/submit] ${prefix} upload failed — continuing:`, err);
+      return null;
+    }
   };
   const selfiePath = await store(fd.get("selfie") as File | null, "selfie");
   const cacCertPath = await store(fd.get("cac_cert") as File | null, "cac");
