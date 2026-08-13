@@ -34,7 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         {/*
           Inline theme script — runs synchronously before any paint.
           Reads saved theme from localStorage (or prefers-color-scheme) and
-          sets data-chertt-theme on <html> so CSS vars + background-color are
+          sets data-theme on <html> so CSS vars + background-color are
           correct immediately. This is a static string — no XSS risk.
         */}
         {/* biome-ignore lint: intentional inline script for theme FOUC prevention */}
@@ -43,7 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           // nosemgrep: react-dangerouslysetinnerhtml
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('chertt-theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-chertt-theme',t);}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('chertt-theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();",
           }}
         />
       </head>

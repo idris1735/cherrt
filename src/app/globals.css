@@ -15,12 +15,33 @@
   --radius-md: 12px;
   --radius-sm: 10px;
   --page-width: 1320px;
+  /* Kimi dashboard tokens — extended palette for the admin console */
+  --surface-elevated: #ffffff;
+  --muted-light: #a3a3a3;
+  --line-strong: #d4d4d4;
+  --accent-hover: #e67500;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #ca8a04;
+  --warning-soft: #fef9c3;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --info: #2563eb;
+  --info-soft: #dbeafe;
+  --font: -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", Monaco, "Cascadia Code", monospace;
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 64px;
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 /* ─── Theme at HTML level (set by inline script before first paint) ─── */
-/* Prevents FOUC: the inline <script> in layout sets data-chertt-theme on   */
+/* Prevents FOUC: the inline <script> in layout sets data-theme on        */
 /* <html> synchronously, so these vars + background are correct immediately. */
-html[data-chertt-theme="dark"] {
+html[data-theme="dark"] {
   --ch-bg: oklch(0.17 0.01 40);
   --ch-surface: oklch(0.2 0.01 40);
   --ch-surface-soft: oklch(0.25 0.01 40);
@@ -28,20 +49,35 @@ html[data-chertt-theme="dark"] {
   --ch-text: oklch(0.95 0.01 50);
   --ch-muted: oklch(0.72 0.01 50);
   --ch-accent: oklch(0.67 0.2 45);
-  /* Admin kit tokens — keep the console theme-aware too */
-  --bg: oklch(0.17 0.01 40);
-  --surface: oklch(0.2 0.01 40);
-  --surface-muted: oklch(0.25 0.01 40);
-  --ink: oklch(0.95 0.01 50);
-  --muted: oklch(0.72 0.01 50);
-  --line: oklch(0.37 0.01 40 / 0.45);
-  --accent: oklch(0.67 0.2 45);
-  --accent-soft: oklch(0.3 0.05 45);
-  background-color: oklch(0.17 0.01 40);
+  /* Admin kit tokens — Kimi's dark palette */
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-muted: #1a1a1a;
+  --surface-elevated: #1f1f1f;
+  --ink: #f5f5f5;
+  --muted: #a3a3a3;
+  --muted-light: #737373;
+  --line: #262626;
+  --line-strong: #404040;
+  --accent: #fb923c;
+  --accent-soft: #2a1a0a;
+  --accent-hover: #f97316;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --success: #22c55e;
+  --success-soft: #14532d;
+  --warning: #eab308;
+  --warning-soft: #713f12;
+  --danger: #ef4444;
+  --danger-soft: #7f1d1d;
+  --info: #3b82f6;
+  --info-soft: #1e3a5f;
+  background-color: #0a0a0a;
   color: oklch(0.95 0.01 50);
 }
 
-html[data-chertt-theme="light"] {
+html[data-theme="light"] {
   --ch-bg: oklch(0.97 0.01 70);
   --ch-surface: oklch(1 0 0);
   --ch-surface-soft: oklch(0.94 0.01 70);
@@ -51,6 +87,32 @@ html[data-chertt-theme="light"] {
   --ch-accent: oklch(0.62 0.2 45);
   background-color: oklch(0.97 0.01 70);
   color: oklch(0.25 0.01 45);
+}
+
+/* OS-level fallback when no explicit theme is set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-muted: #1a1a1a;
+    --surface-elevated: #1f1f1f;
+    --ink: #f5f5f5;
+    --muted: #a3a3a3;
+    --muted-light: #737373;
+    --line: #262626;
+    --line-strong: #404040;
+    --accent: #fb923c;
+    --accent-soft: #2a1a0a;
+    --accent-hover: #f97316;
+    --success: #22c55e;
+    --success-soft: #14532d;
+    --warning: #eab308;
+    --warning-soft: #713f12;
+    --danger: #ef4444;
+    --danger-soft: #7f1d1d;
+    --info: #3b82f6;
+    --info-soft: #1e3a5f;
+  }
 }
 
 /* ─── Page preloader ─────────────────────────────────────────────── */
@@ -9338,61 +9400,61 @@ main {
 }
 
 /* ─── Dark mode overrides for workspace shell surfaces ──────── */
-[data-chertt-theme="dark"] .tk-card {
+[data-theme="dark"] .tk-card {
   background: var(--ch-surface);
   border-color: var(--ch-border);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
-[data-chertt-theme="dark"] .tk-detail-stat {
+[data-theme="dark"] .tk-detail-stat {
   background: var(--ch-surface-soft);
   border-color: var(--ch-border);
 }
 
-[data-chertt-theme="dark"] .tk-detail-stat span {
+[data-theme="dark"] .tk-detail-stat span {
   color: var(--ch-muted);
 }
 
-[data-chertt-theme="dark"] .tk-detail-stat strong {
+[data-theme="dark"] .tk-detail-stat strong {
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .tk-status-badge {
+[data-theme="dark"] .tk-status-badge {
   background: var(--ch-surface-soft);
   color: var(--ch-muted);
 }
 
-[data-chertt-theme="dark"] .tk-inline-link {
+[data-theme="dark"] .tk-inline-link {
   background: var(--ch-surface-soft);
   border-color: var(--ch-border);
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .tk-inline-link:hover {
+[data-theme="dark"] .tk-inline-link:hover {
   background: var(--ch-surface);
   border-color: var(--ch-accent);
   color: var(--ch-accent);
 }
 
-[data-chertt-theme="dark"] .tk-eyebrow {
+[data-theme="dark"] .tk-eyebrow {
   color: var(--ch-muted);
 }
 
-[data-chertt-theme="dark"] .tk-card-title {
+[data-theme="dark"] .tk-card-title {
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .tk-page-title {
+[data-theme="dark"] .tk-page-title {
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .button--ghost {
+[data-theme="dark"] .button--ghost {
   background: var(--ch-surface-soft);
   border-color: var(--ch-border);
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .button--ghost:hover {
+[data-theme="dark"] .button--ghost:hover {
   background: var(--ch-surface);
   border-color: var(--ch-accent);
   color: var(--ch-accent);
@@ -9571,31 +9633,31 @@ main {
 }
 
 /* Dark mode */
-[data-chertt-theme="dark"] .ch-stat-strip,
-[data-chertt-theme="dark"] .ch-list {
+[data-theme="dark"] .ch-stat-strip,
+[data-theme="dark"] .ch-list {
   background: var(--ch-surface);
   border-color: var(--ch-border);
 }
 
-[data-chertt-theme="dark"] .ch-stat-strip__item,
-[data-chertt-theme="dark"] .ch-list-row {
+[data-theme="dark"] .ch-stat-strip__item,
+[data-theme="dark"] .ch-list-row {
   border-color: var(--ch-border);
 }
 
-[data-chertt-theme="dark"] .ch-stat-strip__item strong,
-[data-chertt-theme="dark"] .ch-list-row__main strong,
-[data-chertt-theme="dark"] .ch-page-title {
+[data-theme="dark"] .ch-stat-strip__item strong,
+[data-theme="dark"] .ch-list-row__main strong,
+[data-theme="dark"] .ch-page-title {
   color: var(--ch-text);
 }
 
-[data-chertt-theme="dark"] .ch-page-sub,
-[data-chertt-theme="dark"] .ch-stat-strip__item span,
-[data-chertt-theme="dark"] .ch-list-row__main span,
-[data-chertt-theme="dark"] .ch-list-row__count {
+[data-theme="dark"] .ch-page-sub,
+[data-theme="dark"] .ch-stat-strip__item span,
+[data-theme="dark"] .ch-list-row__main span,
+[data-theme="dark"] .ch-list-row__count {
   color: var(--ch-muted);
 }
 
-[data-chertt-theme="dark"] .ch-list-row__count {
+[data-theme="dark"] .ch-list-row__count {
   background: var(--ch-surface-soft);
 }
 

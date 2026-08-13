@@ -32,7 +32,7 @@ function useThemeTokens() {
     };
     read();
     const mo = new MutationObserver(read);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-chertt-theme"] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => mo.disconnect();
   }, []);
   return tokens;
