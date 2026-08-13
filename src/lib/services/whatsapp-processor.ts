@@ -263,6 +263,8 @@ async function sendGuestWelcome(from: string): Promise<void> {
     "👋 Hi! I'm *Chertt* — I help churches run everything right here on WhatsApp.",
     "",
     "So I point you the right way — who are you? Tap below, or just tell me in your own words 👇",
+    "",
+    "_By continuing, you agree we store your details to help your church serve you. Type *privacy* to read how, or *stop* to opt out._",
   ].join("\n");
   try {
     await sendInteractiveButtons(from, text, [
@@ -1002,7 +1004,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^privacy$/i.test(trimmed)) {
-    await sendTextMessage(from, "Your messages are stored only to power this conversation and are never shared with third parties. Workspace actions are visible to your workspace admins. To request data deletion, contact support@chertt.app.");
+    await sendTextMessage(from, "Your details are stored only to help your church serve you — never shared with third parties. Church actions are visible to your church's admins (NDPR). To read the full policy or have your data removed, email support@chertt.app.");
+    return;
+  }
+  if (/^stop$/i.test(trimmed)) {
+    await sendTextMessage(from, "No problem — I won't reach out again. To have your data removed entirely, email support@chertt.app. Reply *hi* anytime to start over.");
     return;
   }
   // ── Confirm / cancel a pending agent action ──
