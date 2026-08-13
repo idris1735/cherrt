@@ -345,16 +345,40 @@ export async function platformOverview(period: TrendPeriod = "30d", now: Date = 
 export async function listChurches() {
   const db = getSupabaseServerClient();
   if (!db) return [];
-  const orgs = ((await db.from("organizations").select("id, name, status, created_at").order("created_at", { ascending: false })).data ?? []) as any[];
-  const workspaces = ((await db.from("workspaces").select("id, organization_id")).data ?? []) as any[];
-  const memberships = ((await db.from("branch_memberships").select("workspace_id, status").eq("status", "active")).data ?? []) as any[];
+  const [orgsRes, wsRes, memRes, givingRes, contactsRes] = await Promise.all([
+    db.from("organizations").select("id, name, status, created_at").order("created_at", { ascending: false }),
+    db.from("workspaces").select("id, organization_id"),
+    db.from("branch_memberships").select("workspace_id, person_id, status").eq("status", "active"),
+    db.from("giving_records").select("workspace_id, amount"),
+    db.from("phone_contacts").select("person_id, verified_at").eq("status", "active"),
+  ]);
+  const orgs = (orgsRes.data ?? []) as any[];
+  const workspaces = (wsRes.data ?? []) as any[];
+  const memberships = (memRes.data ?? []) as any[];
+  const giving = (givingRes.data ?? []) as any[];
+  const verifiedIds = new Set(((contactsRes.data ?? []) as any[]).filter((c) => c.verified_at).map((c) => c.person_id));
   const wsByOrg = new Map<string, string[]>();
   for (const w of workspaces) { if (!w.organization_id) continue; const a = wsByOrg.get(w.organization_id) ?? []; a.push(w.id); wsByOrg.set(w.organization_id, a); }
-  const memByWs = new Map<string, number>();
-  for (const m of memberships) memByWs.set(m.workspace_id, (memByWs.get(m.workspace_id) ?? 0) + 1);
+  const memByWs = new Map<string, { total: number; personIds: string[] }>();
+  for (const m of memberships) {
+    const cur = memByWs.get(m.workspace_id) ?? { total: 0, personIds: [] };
+    cur.total += 1;
+    cur.personIds.push(m.person_id);
+    memByWs.set(m.workspace_id, cur);
+  }
+  const givingByWs = new Map<string, number>();
+  for (const g of giving) givingByWs.set(g.workspace_id, (givingByWs.get(g.workspace_id) ?? 0) + (Number(g.amount) || 0));
   return orgs.map((o) => {
     const wsIds = wsByOrg.get(o.id) ?? [];
-    return { id: o.id, name: o.name, status: o.status, branches: wsIds.length, members: wsIds.reduce((n, id) => n + (memByWs.get(id) ?? 0), 0), createdAt: o.created_at };
+    const members = wsIds.reduce((n, id) => n + (memByWs.get(id)?.total ?? 0), 0);
+    const personIds = wsIds.flatMap((id) => memByWs.get(id)?.personIds ?? []);
+    const verified = personIds.filter((pid) => verifiedIds.has(pid)).length;
+    return {
+      id: o.id, name: o.name, status: o.status, branches: wsIds.length, members,
+      givingTotal: wsIds.reduce((n, id) => n + (givingByWs.get(id) ?? 0), 0),
+      verifiedPct: members ? Math.round((verified / members) * 100) : 0,
+      createdAt: o.created_at,
+    };
   });
 }
 
@@ -394,7 +418,7 @@ export async function getChurchDetail(id: string) {
 
   // Pastoral requests summary
   const pastoralRows = wsIds.length
-    ? (((await db.from("pastoral_care_requests").select("status").in("workspace_id", wsIds)).data ?? []) as any[])
+    ? (((await db.from("pastoral_care_requests").select("id, requester_name, category, details, status, created_at").in("workspace_id", wsIds)).data ?? []) as any[])
     : [];
   const pastoralRequests = {
     total: pastoralRows.length,
@@ -403,8 +427,19 @@ export async function getChurchDetail(id: string) {
     resolved: pastoralRows.filter((r) => r.status === "resolved").length,
   };
 
+  // Pastoral form submissions (dedication/naming/pre-marital intakes)
+  const formSubmissions = wsIds.length
+    ? (((await db.from("pastoral_form_submissions").select("id, form_type, status, created_at").in("workspace_id", wsIds)).data ?? []) as any[])
+    : [];
+
   const kycRow = (await db.from("kyc_applications").select("id, status").eq("workspace_id", wsIds[0] ?? "___none___").maybeSingle()).data as any;
-  return { org, workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, city: w.city ?? null })), members, children, pastoralRequests, kyc: kycRow ? { id: kycRow.id, status: kycRow.status } : null };
+  return {
+    org, workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, city: w.city ?? null })), members, children,
+    pastoralRequests,
+    pastoralCareRows: pastoralRows.map((r) => ({ id: r.id, requesterName: r.requester_name ?? "", category: r.category ?? "general", details: r.details ?? "", status: r.status, createdAt: r.created_at })),
+    formSubmissions: formSubmissions.map((s) => ({ id: s.id, formType: s.form_type, status: s.status, createdAt: s.created_at })),
+    kyc: kycRow ? { id: kycRow.id, status: kycRow.status } : null,
+  };
 }
 
 /** Resolve children for a set of workspace IDs — name, guardian, class, allergies. */
@@ -466,11 +501,15 @@ export async function getPersonDetail(personId: string) {
   const person = (await db.from("people").select("*").eq("id", personId).maybeSingle()).data as any;
   if (!person) return null;
 
-  const [memberships, guardianships, milestones, pastoralRequests] = await Promise.all([
+  const [memberships, guardianships, milestones, pastoralRequests, prayerRequests, dataRequests, givingRecords, childGuardianships] = await Promise.all([
     (db.from("branch_memberships").select("workspace_id, role, status, created_at").eq("person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
     (db.from("guardianships").select("child_person_id, relationship, is_primary").eq("guardian_person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
     (db.from("person_milestones").select("type, occurred_on, details").eq("person_id", personId).order("occurred_on", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
     (db.from("pastoral_care_requests").select("id, category, details, status, created_at").eq("person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
+    (db.from("prayer_requests").select("id, request, is_anonymous, status, created_at").eq("person_id", personId).order("created_at", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
+    (db.from("data_requests").select("id, kind, status, note, created_at").eq("person_id", personId).order("created_at", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
+    (db.from("giving_records").select("id, amount, giving_type, service, created_at").eq("person_id", personId).order("created_at", { ascending: false })).then((r: any) => (r.data ?? []) as any[]),
+    (db.from("guardianships").select("guardian_person_id, relationship, is_primary").eq("child_person_id", personId)).then((r: any) => (r.data ?? []) as any[]),
   ]);
 
   // Resolve memberships → church names + verification levels
@@ -500,12 +539,27 @@ export async function getPersonDetail(personId: string) {
     isPrimary: !!g.is_primary,
   }));
 
+  // Resolve who guards THIS person (family tab, when the person is a child)
+  const guardianIds = [...new Set(childGuardianships.map((g) => g.guardian_person_id))];
+  const guardianPeople = guardianIds.length ? (((await db.from("people").select("id, full_name").in("id", guardianIds)).data ?? []) as any[]) : [];
+  const guardianNameById = new Map(guardianPeople.map((p) => [p.id, p.full_name]));
+  const guardians = childGuardianships.map((g) => ({
+    guardianName: guardianNameById.get(g.guardian_person_id) ?? "Unknown",
+    relationship: g.relationship,
+    isPrimary: !!g.is_primary,
+  }));
+
   return {
     person,
     memberships: resolvedMemberships,
     guardianOf,
+    guardians,
     milestones: milestones.map((m) => ({ type: m.type, occurredOn: m.occurred_on, details: m.details ?? {} })),
     pastoralRequests: pastoralRequests.map((r) => ({ id: r.id, category: r.category, details: r.details ?? "", status: r.status, createdAt: r.created_at })),
+    prayerRequests: prayerRequests.map((r) => ({ id: r.id, request: r.request, isAnonymous: !!r.is_anonymous, status: r.status, createdAt: r.created_at })),
+    dataRequests: dataRequests.map((r) => ({ id: r.id, kind: r.kind, status: r.status, note: r.note ?? "", createdAt: r.created_at })),
+    givingRecords: givingRecords.map((g) => ({ id: g.id, amount: Number(g.amount) || 0, givingType: g.giving_type, service: g.service, createdAt: g.created_at })),
+    givingTotal: givingRecords.reduce((n, g) => n + (Number(g.amount) || 0), 0),
   };
 }
 
@@ -556,4 +610,22 @@ export async function listPeople() {
       }),
     };
   });
+}
+
+/** Command-palette search: top churches + people by name (case-insensitive). */
+export async function adminSearch(q: string): Promise<{ churches: { id: string; name: string; href: string }[]; people: { id: string; name: string; href: string }[] }> {
+  const db = getSupabaseServerClient();
+  const empty = { churches: [], people: [] };
+  const t = q.trim().toLowerCase();
+  if (!db || !t) return empty;
+  const [orgsRes, peopleRes] = await Promise.all([
+    db.from("organizations").select("id, name"),
+    db.from("people").select("id, full_name"),
+  ]);
+  const orgs = (orgsRes.data ?? []) as any[];
+  const people = (peopleRes.data ?? []) as any[];
+  return {
+    churches: orgs.filter((o) => String(o.name ?? "").toLowerCase().includes(t)).slice(0, 6).map((o) => ({ id: o.id, name: o.name, href: `/admin/churches/${o.id}` })),
+    people: people.filter((p) => String(p.full_name ?? "").toLowerCase().includes(t)).slice(0, 6).map((p) => ({ id: p.id, name: p.full_name, href: `/admin/people/${p.id}` })),
+  };
 }

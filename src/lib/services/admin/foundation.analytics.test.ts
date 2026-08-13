@@ -10,6 +10,7 @@ function builder(rows: any[]) {
     select: () => api,
     eq: (k: string, v: any) => { filtered = filtered.filter((r) => r[k] === v); return api; },
     in: (k: string, vs: any[]) => { filtered = filtered.filter((r) => vs.includes(r[k])); return api; },
+    not: (k: string, _op: string, v: any) => { filtered = filtered.filter((r) => r[k] !== v); return api; },
     order: () => api,
     limit: (n: number) => { filtered = filtered.slice(0, n); return Promise.resolve({ data: filtered }); },
     maybeSingle: () => Promise.resolve({ data: filtered[0] ?? null }),
@@ -30,6 +31,10 @@ import {
   activityFeed,
   platformOverview,
   memberTrend,
+  listChurches,
+  getChurchDetail,
+  getPersonDetail,
+  adminSearch,
 } from "@/lib/services/admin/foundation";
 
 const NOW = new Date("2026-08-13T12:00:00Z");
@@ -58,9 +63,9 @@ beforeEach(() => {
     { person_id: "p3", phone_number: "2343", status: "active", verified_at: "2026-08-02" },
   ];
   tables.giving_records = [
-    { id: "g1", workspace_id: "w1", amount: 1000, created_at: "2026-08-10T10:00:00Z" },
-    { id: "g2", workspace_id: "w1", amount: 500, created_at: "2026-08-12T10:00:00Z" },
-    { id: "g3", workspace_id: "w2", amount: 200, created_at: "2026-08-13T10:00:00Z" },
+    { id: "g1", workspace_id: "w1", person_id: "p1", amount: 1000, created_at: "2026-08-10T10:00:00Z" },
+    { id: "g2", workspace_id: "w1", person_id: null, amount: 500, created_at: "2026-08-12T10:00:00Z" },
+    { id: "g3", workspace_id: "w2", person_id: null, amount: 200, created_at: "2026-08-13T10:00:00Z" },
   ];
   tables.kyc_applications = [
     { id: "k1", church_legal_name: "Grace", status: "approved", created_at: "2026-08-01T10:00:00Z", reviewed_at: "2026-08-02T10:00:00Z" },
@@ -69,10 +74,19 @@ beforeEach(() => {
     { id: "k4", church_legal_name: "Rejected", status: "rejected", created_at: "2026-08-03T10:00:00Z", reviewed_at: "2026-08-04T10:00:00Z" },
   ];
   tables.child_profiles = [{ id: "c1", person_id: "p3", workspace_id: "w1" }];
+  tables.guardianships = [
+    { id: "gs1", child_person_id: "p3", guardian_person_id: "p1", relationship: "parent", is_primary: true, workspace_id: "w1" },
+  ];
+  tables.prayer_requests = [
+    { id: "q1", workspace_id: "w1", person_id: "p1", requester_name: "Ada", request: "healing", is_anonymous: false, status: "open", created_at: "2026-08-09T10:00:00Z" },
+  ];
   tables.first_timers = [{ id: "f1", workspace_id: "w1", name: "John", created_at: "2026-08-09T10:00:00Z" }];
   tables.pastoral_care_requests = [
-    { id: "pr1", workspace_id: "w1", status: "open", created_at: "2026-08-09T10:00:00Z" },
-    { id: "pr2", workspace_id: "w1", status: "resolved", created_at: "2026-08-08T10:00:00Z" },
+    { id: "pr1", workspace_id: "w1", person_id: "p1", requester_name: "Ada", category: "marriage", status: "open", details: null, created_at: "2026-08-09T10:00:00Z" },
+    { id: "pr2", workspace_id: "w1", person_id: "p2", requester_name: "Sam", category: "health", status: "resolved", details: "prayer", created_at: "2026-08-08T10:00:00Z" },
+  ];
+  tables.pastoral_form_submissions = [
+    { id: "s1", workspace_id: "w1", form_type: "baby_dedication", status: "submitted", created_at: "2026-08-09T10:00:00Z" },
   ];
   tables.data_requests = [
     { id: "d1", person_id: "p1", kind: "access", status: "open", note: "privacy info", created_at: "2026-08-13T09:00:00Z" },
@@ -227,5 +241,67 @@ describe("platformOverview kpis (extended)", () => {
     const o = await platformOverview("all", NOW);
     expect(o.kpis.churches.delta).toBe(0);
     expect(o.kpis.members.delta).toBe(0);
+  });
+});
+
+describe("listChurches — rich columns (Slice 3)", () => {
+  it("carries giving total and verified % per church", async () => {
+    const list = await listChurches();
+    const grace = list.find((c) => c.id === "o1")!;
+    expect(grace.givingTotal).toBe(1500);
+    expect(grace.verifiedPct).toBe(50);
+    const hope = list.find((c) => c.id === "o2")!;
+    expect(hope.givingTotal).toBe(200);
+    expect(hope.verifiedPct).toBe(0);
+  });
+});
+
+describe("getChurchDetail — pastoral tab (Slice 3)", () => {
+  it("exposes pastoral care rows and form submissions", async () => {
+    const d = await getChurchDetail("o1");
+    expect(d).not.toBeNull();
+    expect(d!.pastoralCareRows).toHaveLength(2);
+    expect(d!.pastoralCareRows[0]).toMatchObject({ category: "marriage", status: "open" });
+    expect(d!.formSubmissions).toHaveLength(1);
+    expect(d!.formSubmissions[0]).toMatchObject({ formType: "baby_dedication", status: "submitted" });
+  });
+});
+
+describe("getPersonDetail — richer tabs (Slice 4)", () => {
+  it("exposes prayer requests, data requests, giving, and guardians", async () => {
+    const p = await getPersonDetail("p1");
+    expect(p).not.toBeNull();
+    expect(p!.prayerRequests).toHaveLength(1);
+    expect(p!.prayerRequests[0]).toMatchObject({ request: "healing", status: "open" });
+    expect(p!.dataRequests).toHaveLength(1);
+    expect(p!.dataRequests[0]).toMatchObject({ kind: "access" });
+    expect(p!.givingRecords).toHaveLength(1);
+    expect(p!.givingTotal).toBe(1000);
+  });
+
+  it("resolves the child's guardians in the family tab", async () => {
+    const p = await getPersonDetail("p3");
+    expect(p!.guardians).toHaveLength(1);
+    expect(p!.guardians[0]).toMatchObject({ guardianName: "Ada", relationship: "parent", isPrimary: true });
+  });
+});
+
+describe("adminSearch — command palette (Slice 6)", () => {
+  it("finds churches and people by name, case-insensitive", async () => {
+    const res = await adminSearch("ada");
+    expect(res.churches.length).toBe(0);
+    expect(res.people.length).toBe(1);
+    expect(res.people[0]).toMatchObject({ name: "Ada", href: "/admin/people/p1" });
+
+    const res2 = await adminSearch("gra");
+    expect(res2.churches.length).toBe(1);
+    expect(res2.churches[0]).toMatchObject({ name: "Grace", href: "/admin/churches/o1" });
+  });
+
+  it("caps results and ignores empty queries", async () => {
+    expect(await adminSearch("  ")).toEqual({ churches: [], people: [] });
+    const res = await adminSearch("a");
+    expect(res.people.length).toBeLessThanOrEqual(6);
+    expect(res.churches.length).toBeLessThanOrEqual(6);
   });
 });
