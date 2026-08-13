@@ -8,6 +8,21 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-13 — Kimi dashboard integrated into /admin (reskin + rewire, all steps shipped)
+
+**Brief:** `docs/prompts/2026-08-13-deepseek-integrate-kimi-dashboard.md` + `docs/design/kimi-dashboard.html`. Kimi produced a self-contained HTML design; DeepSeek reskinned the real console to it and rewired every screen to live queries. **Zero Kimi sample data survived** (grep-verified: no `DATA`, names, Unsplash URLs, or hardcoded consent dots in `src/`).
+
+- **Step 0** (`d6e0867`): design saved to `docs/design/kimi-dashboard.html`.
+- **Step 1 — theme** (`3fb5871`): Kimi's full token set added to `globals.css` (`--surface-elevated`, `--muted-light`, `--line-strong`, `--accent-hover`, success/warning/danger/info ± soft, `--font-mono`, sidebar/topbar/transition tokens, shadows); **theme standardized on `html[data-theme]`** (toggle + FOUC preloader + charts observer + all public-page dark selectors migrated, `prefers-color-scheme` fallback kept). No second theme system remains.
+- **Step 2 — CSS kit** (`a1b4100`): Kimi's styles ported to a global `src/components/admin/admin.css` (element selectors scoped under `.app` so public pages are untouched; tokens referenced, no raw hex); retired `admin-kit.module.css`.
+- **Step 3 — shell** (`a1b4100`): Sidebar (grouped nav + pending-KYC badge + real email initials), Topbar (⌘K trigger, bell with real pending count, theme toggle, avatar menu → sign out), command palette → debounced `/api/admin/search`, toast host + confirm dialog + photo-zoom modal as React components. Identity = real Supabase session email.
+- **Step 4a — overview + churches** (`efde7c0`): Command Center with 5 KPI cards (value + real delta vs previous window + real sparkline series), growth/giving recharts, funnel, donut, attention panel, activity feed (real `activityFeed`), period switcher. Churches list (search/sort/filter) + tabbed detail with per-church recharts.
+- **Step 4b — people** (`58bc005`): directory reskinned; profile right rail now shows **REAL consent state** — lawful basis (`consent_source`), version, and opt-out (`phone_contacts.opted_out`) via extended `getPersonDetail` (new `phones` + `consent` fields, TDD'd).
+- **Step 4c — KYC** (`9adde81`): pipeline board with the **real four statuses** (Pending · Draft · Approved · Rejected — `needs_info` isn't a real status, collapsed into draft); chips from real `cac_result`/`id_result`/`trustee_match`; review screen with real signed-URL documents (no Unsplash), Kimi confirm dialogs + toasts, Approve/Reject POST unchanged.
+- **Step 4d — data requests + settings** (`c8ae076`): new `/admin/data-requests` (real kinds access/deletion/objection; "Mark done" → real POST) + `/admin/settings` (read-only real `PLATFORM_ADMIN_EMAILS` allowlist + theme toggle); new gated routes `GET /api/admin/data-requests` (`?all=1` includes done) and `GET /api/admin/settings` (TDD'd).
+
+**495 tests (+7), tsc clean, build compiles.**
+
 ### 2026-08-13 — Rich, interactive admin dashboard upgrade (all 6 slices shipped)
 
 **Brief:** `docs/prompts/2026-08-13-dashboard-rich-upgrade.md`. Non-negotiable: NO mock data — every chart/KPI/sparkline traces to a real query. `recharts` installed; inline SVG sparklines; everything on `admin-kit.module.css`; all routes allowlist-gated.
