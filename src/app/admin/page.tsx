@@ -11,6 +11,8 @@ type Overview = {
   recentChurches: { id: string; name: string; status: string; createdAt: string }[];
 };
 
+type DataRequest = { id: string; kind: string; status: string; note: string; personName: string; createdAt: string };
+
 function statusBadge(status: string) {
   if (status === "active" || status === "approved") return s.badgeGreen;
   if (status === "rejected") return s.badgeRed;
@@ -24,10 +26,12 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
 
 export default function AdminOverview() {
   const [o, setO] = useState<Overview | null>(null);
+  const [dataRequests, setDataRequests] = useState<DataRequest[]>([]);
   const [err, setErr] = useState(false);
   useEffect(() => {
-    adminFetch<{ overview: Overview }>("/api/admin/overview").then((r) => {
-      if (r.status === 401) setErr(true); else setO(r.data?.overview ?? null);
+    adminFetch<{ overview: Overview; dataRequests?: DataRequest[] }>("/api/admin/overview").then((r) => {
+      if (r.status === 401) setErr(true);
+      else { setO(r.data?.overview ?? null); setDataRequests(r.data?.dataRequests ?? []); }
     });
   }, []);
 
@@ -43,6 +47,27 @@ export default function AdminOverview() {
         <Stat label="Pending KYC" value={o.pendingKyc} hint="awaiting review" />
         <Stat label="Members" value={o.members} hint="active memberships" />
         <Stat label="Verified people" value={o.people.verified} hint={`${o.people.unverified} unverified`} />
+      </div>
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Privacy: open data requests</div>
+        <div className={s.card}><div className={s.tableWrap}><table className={s.table}>
+          <thead><tr><th>Type</th><th>Person</th><th>Note</th><th>When</th><th /></tr></thead>
+          <tbody>
+            {dataRequests.map((d) => <tr key={d.id}>
+              <td><span className={`${s.badge} ${d.kind === "deletion" ? s.badgeRed : d.kind === "access" ? s.badgeGreen : s.badgeAmber}`}>{d.kind}</span></td>
+              <td>{d.personName}</td>
+              <td>{d.note}</td>
+              <td>{d.createdAt?.slice(0, 10)}</td>
+              <td style={{ textAlign: "right" }}>
+                <button className={s.btnSmall} onClick={async () => {
+                  const r = await adminFetch<{ ok: boolean }>(`/api/admin/data-requests/${d.id}`, { method: "POST" });
+                  if (r.data?.ok) setDataRequests((xs) => xs.filter((x) => x.id !== d.id));
+                }}>Done</button>
+              </td>
+            </tr>)}
+            {dataRequests.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>No open requests. 🎉</td></tr>}
+          </tbody>
+        </table></div></div>
       </div>
       <div className={s.section}>
         <div className={s.sectionTitle}>Recent KYC applications</div>

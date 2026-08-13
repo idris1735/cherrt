@@ -22,7 +22,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
 }));
 vi.mock("@/lib/services/identity/verification", () => ({ verificationLevel: vi.fn().mockResolvedValue(1) }));
 
-import { platformOverview, listChurches, getChurchDetail, listPeople, getPersonDetail } from "@/lib/services/admin/foundation";
+import { platformOverview, listChurches, getChurchDetail, listPeople, getPersonDetail, listDataRequests } from "@/lib/services/admin/foundation";
 
 beforeEach(() => {
   tables.organizations = [
@@ -48,6 +48,10 @@ beforeEach(() => {
   tables.guardianships = [{ id: "g1", child_person_id: "p3", guardian_person_id: "p1", relationship: "parent", is_primary: true, workspace_id: "w1" }];
   tables.person_milestones = [{ id: "pm1", person_id: "p1", workspace_id: "w1", type: "joined_membership", occurred_on: "2026-08-01", details: {} }];
   tables.pastoral_care_requests = [{ id: "pr1", workspace_id: "w1", person_id: "p1", category: "marriage", status: "open" }];
+  tables.data_requests = [
+    { id: "d1", person_id: "p1", kind: "deletion", status: "open", note: "opt-out via STOP", created_at: "2026-08-13" },
+    { id: "d2", person_id: null, kind: "access", status: "done", note: "resolved", created_at: "2026-08-12" },
+  ];
 });
 
 describe("platformOverview", () => {
@@ -132,5 +136,13 @@ describe("getPersonDetail", () => {
   });
   it("returns null for an unknown person", async () => {
     expect(await getPersonDetail("nope")).toBeNull();
+  });
+});
+
+describe("listDataRequests", () => {
+  it("returns only open requests with resolved person names", async () => {
+    const list = await listDataRequests();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: "d1", kind: "deletion", personName: "Ada Obi", note: "opt-out via STOP" });
   });
 });

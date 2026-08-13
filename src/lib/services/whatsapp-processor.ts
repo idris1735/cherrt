@@ -42,6 +42,7 @@ import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { recordToolAudit } from "@/lib/services/agent/audit";
+import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -615,7 +616,7 @@ async function buildOrgWideReport(
   return buildOrgOverviewReport(perBranch);
 }
 
-async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
+async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
   if (await handleHelpButton(from, buttonId)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
@@ -624,16 +625,21 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // First-contact is about knowing WHO is texting — a member, a family, or a
   // church leader — so we never push church-setup at someone who isn't a leader
   // (a child or a visitor should never be told to "set up a church").
+  // Tapping any persona button is the first substantive action → consent by
+  // continuing, recorded on the person (Slice B).
   if (buttonId === "guest_member") {
+    if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
     await sendTextMessage(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. Otherwise, tell me what you need — prayer, giving, joining a ministry, or letting them know you visited.");
     return;
   }
   if (buttonId === "guest_child") {
+    if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
     await sendTextMessage(from, "Lovely to have your family 👨‍👩‍👧 To keep children safe, a parent or guardian registers them — never the child. If your church gave you a code, send it here to begin, or ask a church leader to add your child.");
     return;
   }
   // Only a self-identified leader is routed to church setup/management.
   if (buttonId === "guest_leader" || buttonId === "guest_setup") {
+    if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
     const reply = await startSignupFlow(from);
     await sendTextMessage(from, reply + "\n\n(Already lead a church here? Send your admin code instead.)");
     return;
@@ -834,6 +840,10 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // proves control of the number. Best-effort; never blocks handling.
   await ensureVerifiedPerson(from).catch(() => null);
 
+  // Re-engagement clears opt-out: any message from an opted-out number is the
+  // person opting back in (Slice B). Best-effort.
+  await clearOptOut(from).catch(() => null);
+
   const session = await getSession(from);
   const { allLinks, link: resolvedLink, personId } = await resolveActiveLinks(from, session.activeWorkspaceId);
   let link = resolvedLink;
@@ -994,7 +1004,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
-  if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link); return; }
+  if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link, personId); return; }
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
 
@@ -1004,11 +1014,21 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   if (/^privacy$/i.test(trimmed)) {
-    await sendTextMessage(from, "Your details are stored only to help your church serve you — never shared with third parties. Church actions are visible to your church's admins (NDPR). To read the full policy or have your data removed, email support@chertt.app.");
+    await logDataRequest({ kind: "access", note: "privacy info requested", personId: personId ?? undefined, workspaceId: link?.workspaceId ?? undefined }).catch(() => {});
+    await sendTextMessage(from, "Your details are stored only to help your church serve you — never shared with third parties. Full policy: https://chertt.app/privacy · To have your data removed, reply *stop* or email support@chertt.app.");
     return;
   }
-  if (/^stop$/i.test(trimmed)) {
-    await sendTextMessage(from, "No problem — I won't reach out again. To have your data removed entirely, email support@chertt.app. Reply *hi* anytime to start over.");
+  if (/^(stop|unsubscribe|remove me)$/i.test(trimmed)) {
+    // Confirm FIRST (while the number is still messageable), THEN record the
+    // opt-out — after which all future outbound sends are suppressed.
+    await sendTextMessage(from, "No problem — I won't reach out again, and I've noted your request. To have your data removed entirely, reply *delete my data* or email support@chertt.app. Full policy: https://chertt.app/privacy");
+    await setOptedOut(from).catch(() => {});
+    await logDataRequest({ kind: "deletion", note: `opt-out via STOP from ${from}`, personId: personId ?? undefined, workspaceId: link?.workspaceId ?? undefined }).catch(() => {});
+    return;
+  }
+  if (/^delete my data$/i.test(trimmed)) {
+    await sendTextMessage(from, "I've noted your request — the church team will remove your details. Full policy: https://chertt.app/privacy");
+    await logDataRequest({ kind: "deletion", note: `delete-my-data request from ${from}`, personId: personId ?? undefined, workspaceId: link?.workspaceId ?? undefined }).catch(() => {});
     return;
   }
   // ── Confirm / cancel a pending agent action ──

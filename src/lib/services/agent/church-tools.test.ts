@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Fake Supabase client: records inserts/updates, and returns configurable select data.
-const { store } = vi.hoisted(() => ({
+const { store, sms } = vi.hoisted(() => ({
   store: {
     inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
     selectData: {} as Record<string, unknown[]>,
     updates: [] as Array<{ table: string; patch: Record<string, unknown> }>,
   },
+  sms: { sent: [] as Array<{ to: string; text: string }> },
 }));
 
 function qb(table: string, rows: unknown[]) {
@@ -40,6 +41,9 @@ vi.mock("@/lib/services/supabase-server", () => ({
     from(table: string) { return qb(table, store.selectData[table] ?? []); },
   }),
 }));
+vi.mock("@/lib/services/whatsapp", () => ({
+  sendTextMessage: (to: string, text: string) => { sms.sent.push({ to, text }); return Promise.resolve(); },
+}));
 vi.mock("@/lib/services/church/referral", () => ({
   notifyLeaders: vi.fn().mockResolvedValue(undefined),
 }));
@@ -54,6 +58,7 @@ beforeEach(() => {
   store.inserts.length = 0;
   store.selectData = {};
   store.updates.length = 0;
+  sms.sent.length = 0;
 });
 
 describe("capture_prayer_request", () => {
@@ -196,5 +201,33 @@ describe("church read tools", () => {
     store.selectData["first_timers"] = [{ name: "John", phone: "0803", invited_by: "Ada", follow_up_status: "new" }];
     const out = (await tool("list_first_timers").handler({}, ctx)) as { count: number };
     expect(out.count).toBe(1);
+  });
+});
+
+describe("Slice E — third-party registration notice", () => {
+  const leaderCtx: AgentContext = { workspaceId: "ws1", role: "pastor", userName: "Pastor T", phone: "0801" };
+
+  it("register_member sends the notice when registering someone ELSE's phone", async () => {
+    await tool("register_member").handler({ name: "Grace", phone: "0802" }, leaderCtx);
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0].to).toBe("0802");
+    expect(sms.sent[0].text).toContain("privacy");
+    expect(sms.sent[0].text).toContain("stop");
+  });
+
+  it("register_member does NOT notice the sender when they register their own phone", async () => {
+    await tool("register_member").handler({ name: "Pastor T", phone: "0801" }, leaderCtx);
+    expect(sms.sent).toHaveLength(0);
+  });
+
+  it("register_member without a phone sends no notice", async () => {
+    await tool("register_member").handler({ name: "Grace" }, leaderCtx);
+    expect(sms.sent).toHaveLength(0);
+  });
+
+  it("capture_first_timer sends the notice when the usher captures someone else", async () => {
+    await tool("capture_first_timer").handler({ name: "John", phone: "0802" }, leaderCtx);
+    expect(sms.sent).toHaveLength(1);
+    expect(sms.sent[0].text).toContain("first-time guest");
   });
 });

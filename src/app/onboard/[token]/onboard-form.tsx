@@ -198,7 +198,7 @@ export function OnboardForm({ token }: { token: string }) {
 
             <label className={s.consent}>
               <input name="consent" type="checkbox" checked={v.consent === "on"} onChange={(e) => setV((p) => ({ ...p, consent: e.target.checked ? "on" : "" }))} />
-              <span>I confirm these details are true and consent to Chertt verifying my identity and my church&apos;s CAC registration (NDPR).</span>
+              <span>I confirm these details are true and consent to Chertt verifying my identity and my church&apos;s CAC registration (NDPR). <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>Privacy policy</a></span>
             </label>
             {errs.consent && <span className={s.fieldErr}>{errs.consent}</span>}
           </div>

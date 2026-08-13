@@ -124,6 +124,29 @@ async function buildChildrenList(db: any, wsIds: string[]) {
   });
 }
 
+export async function listDataRequests() {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+  const { data } = await db
+    .from("data_requests")
+    .select("id, person_id, kind, status, note, created_at")
+    .eq("status", "open")
+    .order("created_at", { ascending: true })
+    .limit(50);
+  const rows = (data ?? []) as any[];
+  const personIds = [...new Set(rows.map((r) => r.person_id).filter(Boolean))];
+  const people = personIds.length ? (((await db.from("people").select("id, full_name").in("id", personIds)).data ?? []) as any[]) : [];
+  const nameById = new Map(people.map((p) => [p.id, p.full_name]));
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    note: r.note ?? "",
+    personName: r.person_id ? nameById.get(r.person_id) ?? "Unknown" : "Unknown",
+    createdAt: r.created_at,
+  }));
+}
+
 export async function getPersonDetail(personId: string) {
   const db = getSupabaseServerClient();
   if (!db) return null;

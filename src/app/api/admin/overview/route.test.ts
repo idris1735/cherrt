@@ -4,6 +4,7 @@ const { adminMock } = vi.hoisted(() => ({ adminMock: vi.fn() }));
 vi.mock("@/lib/services/kyc/admin-auth", () => ({ platformAdminEmail: adminMock }));
 vi.mock("@/lib/services/admin/foundation", () => ({
   platformOverview: vi.fn().mockResolvedValue({ churches: { total: 3 } }),
+  listDataRequests: vi.fn().mockResolvedValue([]),
   listChurches: vi.fn(),
   getChurchDetail: vi.fn(),
 }));
