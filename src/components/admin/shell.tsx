@@ -6,15 +6,17 @@ import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import { Sidebar } from "@/components/admin/sidebar";
 import { TopBar } from "@/components/admin/topbar";
 import { CommandPalette, useCommandPalette } from "@/components/admin/command-palette";
-import s from "./admin-kit.module.css";
+import { ToastHost } from "@/components/admin/toast";
+import "./admin.css";
 
-/** Wraps every admin dashboard page. Provides the sidebar + topbar shell. */
+/** Wraps every admin dashboard page — Kimi design shell, real session identity. */
 export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingKyc, setPendingKyc] = useState<number | null>(null);
   const { open: paletteOpen, setOpen: setPaletteOpen } = useCommandPalette();
 
   useEffect(() => {
@@ -30,16 +32,42 @@ export function AdminShell({ children }: { children: ReactNode }) {
     });
   }, [router]);
 
+  // Real pending-KYC badge count for the sidebar + bell — fed by the overview endpoint.
+  useEffect(() => {
+    if (!email) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      if (!token) return;
+      try {
+        const res = await fetch("/api/admin/overview?period=7d", { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const j = await res.json();
+          if (typeof j?.overview?.pendingKyc === "number") setPendingKyc(j.overview.pendingKyc);
+        }
+      } catch {
+        // badge is best-effort
+      }
+    });
+  }, [email]);
+
+  useEffect(() => {
+    const onCollapse = () => setCollapsed((v) => !v);
+    window.addEventListener("chertt:sidebar-collapse", onCollapse);
+    return () => window.removeEventListener("chertt:sidebar-collapse", onCollapse);
+  }, []);
+
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   if (!ready) {
     return (
-      <div className={s.adminShell}>
-        <div className={s.adminMain}>
-          <div className={s.adminContent}>
-            <div className={s.skeleton} style={{ height: 200, marginBottom: 16 }} />
-            <div className={s.skeleton} style={{ height: 16, width: "60%", marginBottom: 8 }} />
-            <div className={s.skeleton} style={{ height: 16, width: "40%" }} />
+      <div className="app">
+        <div className="content">
+          <div className="page">
+            <div className="skeleton" style={{ height: 200, marginBottom: 16 }} />
+            <div className="skeleton" style={{ height: 16, width: "60%", marginBottom: 8 }} />
+            <div className="skeleton" style={{ height: 16, width: "40%" }} />
           </div>
         </div>
       </div>
@@ -48,14 +76,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   if (!email) {
     return (
-      <div className={s.adminShell}>
-        <div className={s.adminMain}>
-          <div className={s.adminContent}>
-            <div className={s.authBlock}>
-              <div className={s.authBlockIcon}>🔒</div>
-              <div className={s.authBlockTitle}>Sign in required</div>
-              <div className={s.authBlockBody}>You need to sign in to access the admin dashboard.</div>
-              <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => { router.push("/auth/sign-in"); router.refresh(); }}>
+      <div className="app">
+        <div className="content">
+          <div className="page">
+            <div className="not-authorized">
+              <div style={{ fontSize: 40, opacity: 0.3 }}>🔒</div>
+              <h2>Sign in required</h2>
+              <p>You need to sign in to access the admin dashboard.</p>
+              <button className="btn btn-primary" onClick={() => { router.push("/auth/sign-in"); router.refresh(); }}>
                 Sign in
               </button>
             </div>
@@ -66,13 +94,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className={s.adminShell}>
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} collapsed={collapsed} />
-      <div className={`${s.adminMain} ${collapsed ? s.adminMainCollapsed : ""}`}>
-        <TopBar onMenuToggle={() => setSidebarOpen((v) => !v)} onPaletteOpen={() => setPaletteOpen(true)} onCollapse={() => setCollapsed((v) => !v)} />
-        <div className={s.adminContent}>{children}</div>
+    <div className="app">
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} collapsed={collapsed} pendingKyc={pendingKyc ?? 0} email={email} />
+      <div className="content">
+        <TopBar onMenuToggle={() => setSidebarOpen((v) => !v)} onPaletteOpen={() => setPaletteOpen(true)} pendingKyc={pendingKyc ?? 0} />
+        {children}
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ToastHost />
     </div>
   );
 }
