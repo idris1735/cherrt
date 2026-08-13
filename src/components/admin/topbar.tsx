@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import s from "./admin-kit.module.css";
 
-export function TopBar({ onMenuToggle }: { onMenuToggle?: () => void }) {
+export function TopBar({ onMenuToggle, onPaletteOpen, onCollapse }: { onMenuToggle?: () => void; onPaletteOpen?: () => void; onCollapse?: () => void }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -40,17 +40,24 @@ export function TopBar({ onMenuToggle }: { onMenuToggle?: () => void }) {
     <header className={s.topbar}>
       <div className={s.topbarLeft}>
         <button
-          className={`${s.btn} ${s.btnGhost} ${s.btnSm}`}
+          className={`${s.btn} ${s.btnGhost} ${s.btnSm} ${s.menuBtn}`}
           onClick={onMenuToggle}
           aria-label="Toggle menu"
-          style={{ display: "none" }}
-          data-mobile-menu
         >
           ☰
+        </button>
+        <button className={`${s.btn} ${s.btnGhost} ${s.btnSm} ${s.collapseBtn}`} onClick={onCollapse} aria-label="Collapse sidebar">
+          ⟨
         </button>
         <span className={s.topbarTitle}>Admin</span>
       </div>
       <div className={s.topbarRight}>
+        <button className={`${s.btn} ${s.btnGhost} ${s.btnSm}`} onClick={onPaletteOpen} aria-label="Search (Ctrl+K)">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            🔍 Jump to…
+            <span className={s.kbd}>⌘K</span>
+          </span>
+        </button>
         <button className={s.themeBtn} onClick={toggleTheme} aria-label="Toggle theme">
           {theme === "light" ? (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a6 6 0 000 12 6 6 0 006-6 4.5 4.5 0 01-6-6z" /></svg>

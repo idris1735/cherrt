@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
 import { Sidebar } from "@/components/admin/sidebar";
 import { TopBar } from "@/components/admin/topbar";
+import { CommandPalette, useCommandPalette } from "@/components/admin/command-palette";
 import s from "./admin-kit.module.css";
 
 /** Wraps every admin dashboard page. Provides the sidebar + topbar shell. */
@@ -13,6 +14,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const { open: paletteOpen, setOpen: setPaletteOpen } = useCommandPalette();
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -64,11 +67,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={s.adminShell}>
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className={s.adminMain}>
-        <TopBar onMenuToggle={() => setSidebarOpen((v) => !v)} />
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} collapsed={collapsed} />
+      <div className={`${s.adminMain} ${collapsed ? s.adminMainCollapsed : ""}`}>
+        <TopBar onMenuToggle={() => setSidebarOpen((v) => !v)} onPaletteOpen={() => setPaletteOpen(true)} onCollapse={() => setCollapsed((v) => !v)} />
         <div className={s.adminContent}>{children}</div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

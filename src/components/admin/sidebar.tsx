@@ -38,15 +38,15 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+export function Sidebar({ open, onClose, collapsed }: { open?: boolean; onClose?: () => void; collapsed?: boolean }) {
   const pathname = usePathname();
 
   return (
     <>
-      <aside className={`${s.sidebar} ${open ? s.open : ""}`}>
+      <aside className={`${s.sidebar} ${open ? s.open : ""} ${collapsed ? s.collapsed : ""}`}>
         <div className={s.sidebarBrand}>
           <span className={s.sidebarBrandDot} />
-          Chertt
+          <span className={s.sidebarBrandText}>Chertt</span>
         </div>
         <nav className={s.sidebarNav}>
           {NAV_ITEMS.map((item) => {
@@ -57,9 +57,11 @@ export function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => voi
                 href={item.href}
                 className={`${s.sidebarLink} ${active ? s.sidebarLinkActive : ""}`}
                 onClick={onClose}
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
               >
                 {item.icon}
-                {item.label}
+                <span className={s.sidebarLinkLabel}>{item.label}</span>
               </Link>
             );
           })}

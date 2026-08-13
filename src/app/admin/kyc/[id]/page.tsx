@@ -69,8 +69,10 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <Link href="/admin/kyc" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 13 }}>← KYC</Link>
-      <h1 className={s.pageTitle} style={{ marginTop: 8 }}>
+      <div className={s.crumbs}>
+        <Link className={s.crumbLink} href="/admin/kyc">KYC</Link><span>/</span><span>{app.church_legal_name ?? "Application"}</span>
+      </div>
+      <h1 className={s.pageTitle} style={{ margin: 0 }}>
         {app.church_legal_name ?? "Unnamed church"}
         <span className={`${s.badge} ${statusBadge(app.status)}`} style={{ marginLeft: 10, verticalAlign: "middle" }}>{app.status ?? "draft"}</span>
       </h1>

@@ -24,8 +24,9 @@
   display: flex;
   flex-direction: column;
   z-index: 20;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, width 0.2s ease;
 }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .sidebarBrand {
   display: flex;
   align-items: center;
@@ -70,6 +71,24 @@
 .sidebarLinkActive { background: var(--accent-soft, #fff4e8); color: var(--accent); font-weight: 600; }
 .sidebarLinkIcon { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.65; }
 .sidebarLinkActive .sidebarLinkIcon { opacity: 1; }
+/* Collapsible sidebar (desktop) */
+.collapsed { width: 64px; }
+.collapsed .sidebarBrand { padding: 0; justify-content: center; }
+.collapsed .sidebarBrandText,
+.collapsed .sidebarLinkLabel,
+.collapsed .sidebarFooter { display: none; }
+.collapsed .sidebarLink { justify-content: center; padding: 8px 0; }
+.adminMainCollapsed { margin-left: 64px; }
+.collapseBtn { display: inline-flex; }
+@media (max-width: 768px) {
+  .collapseBtn { display: none; }
+  .collapsed { width: 240px; }
+  .collapsed .sidebarBrandText,
+  .collapsed .sidebarLinkLabel,
+  .collapsed .sidebarFooter { display: initial; }
+  .collapsed .sidebarLink { justify-content: flex-start; padding: 8px 12px; }
+  .adminMainCollapsed { margin-left: 0; }
+}
 .sidebarFooter {
   padding: 12px 20px;
   border-top: 1px solid var(--line);
