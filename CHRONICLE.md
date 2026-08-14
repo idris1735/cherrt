@@ -10,7 +10,7 @@
 
 ### 2026-08-14 — Governed data + AI guardrails (WS-A → WS-D → WS-B → WS-C)
 
-**Brief:** `docs/prompts/2026-08-14-chat-attachments-governed-data-ai-guardrails.md` (Claude's direction: governed flexibility, not a blank cheque). **591 tests / 80 files green.** Migrations applied: `20260814100000_chat_attachments`, `20260814110000_join_code_index`, `20260814120000_person_attributes`.
+**Brief:** `docs/prompts/2026-08-14-chat-attachments-governed-data-ai-guardrails.md` (Claude's direction: governed flexibility, not a blank cheque). **591 tests / 80 files green.** Migrations applied: `20260814120000_chat_attachments`, `20260814130000_pickup_safety_join_code`, `20260814140000_person_attributes`.
 
 - **WS-A — chat attachments persist** (`d562cff`): media sent in chat no longer vanishes — downloaded from Meta, uploaded to a private `chat-attachments` bucket, row in `chat_attachments` (RLS deny-all). Voice notes keep audio AND transcript. `save_attachment` confirms what's *actually* stored (never a phantom save); `list_attachments` is leaders-only. Best-effort — never blocks the reply. Tested: store path, phantom-save refusal.
 - **WS-D — pickup + join-code safety** (`673b9e3`): `lookup_child_pickup`/`release_child` throttle wrong attempts (5 in 10 min → lock, logged). **Release is guardian-gated, not code-gated**: requester's WhatsApp must match a registered guardian with `can_pickup=true` — correct code from a non-guardian is REFUSED (tested explicitly). `workspaces.join_code` is now a stored, indexed column (backfilled from the derived code, so live codes keep working); lookup is an indexed query.
