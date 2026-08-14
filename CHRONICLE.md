@@ -8,6 +8,17 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-14 — Governed data + AI guardrails (WS-A → WS-D → WS-B → WS-C)
+
+**Brief:** `docs/prompts/2026-08-14-chat-attachments-governed-data-ai-guardrails.md` (Claude's direction: governed flexibility, not a blank cheque). **591 tests / 80 files green.** Migrations applied: `20260814100000_chat_attachments`, `20260814110000_join_code_index`, `20260814120000_person_attributes`.
+
+- **WS-A — chat attachments persist** (`d562cff`): media sent in chat no longer vanishes — downloaded from Meta, uploaded to a private `chat-attachments` bucket, row in `chat_attachments` (RLS deny-all). Voice notes keep audio AND transcript. `save_attachment` confirms what's *actually* stored (never a phantom save); `list_attachments` is leaders-only. Best-effort — never blocks the reply. Tested: store path, phantom-save refusal.
+- **WS-D — pickup + join-code safety** (`673b9e3`): `lookup_child_pickup`/`release_child` throttle wrong attempts (5 in 10 min → lock, logged). **Release is guardian-gated, not code-gated**: requester's WhatsApp must match a registered guardian with `can_pickup=true` — correct code from a non-guardian is REFUSED (tested explicitly). `workspaces.join_code` is now a stored, indexed column (backfilled from the derived code, so live codes keep working); lookup is an indexed query.
+- **WS-B — governed attributes bag** (`3316af1`): `person_attributes` table (RLS deny-all) + `set_person_attribute`/`get_person_attributes`. **HARD GUARDRAIL**: `SPECIAL_CATEGORIES` classifier (health/religion/ethnicity/politics/sexual orientation/biometrics) — `setAttribute` REFUSES a special fact unless `consentedSpecial === true`, then tags it `category: 'special'` (tested explicitly). Core fields stay in real typed columns; attributes are the long tail only. Persona updated.
+- **WS-C — AI-power boundaries codified** (`d83162d`): `guardrails.test.ts` locks all four rails — (1) no tool name/description can ever create/alter/drop schema; (2) money (`give_now`), broadcast (`create_announcement`), child release, and special-writes are ALL `requiresConfirmation`; (3) the loop is hard-capped (`DEFAULT_MAX_STEPS` exported, bail text "please try rephrasing") — no unbounded self-prompting; (4) persona says so ("Never create or change database tables"). Confirmation is the existing pending-action flow (propose → preview → user YES).
+
+**For Claude's audit:** WS-D — `release_child` returns "I can only release this child to their registered guardian…" when the pickup code is right but the requester has no `can_pickup` guardianship; throttling locks after 5 wrong attempts. WS-B — `setAttribute` with a health fact and no `consentedSpecial` returns the refusal and writes nothing.
+
 ### 2026-08-14 — Email channel fixed for real: Hostinger SMTP primary
 
 - **Root cause:** Resend account was in testing mode (only the account-owner address could receive) → email codes never reached applicants. Also found the Resend SDK *returns* errors instead of throwing, so the app reported "email sent" when Resend rejected it (`47d2b0a` fix).
