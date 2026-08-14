@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { adminMock } = vi.hoisted(() => ({ adminMock: vi.fn() }));
-vi.mock("@/lib/services/kyc/admin-auth", () => ({ platformAdminEmail: adminMock }));
+vi.mock("@/lib/services/kyc/admin-auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/kyc/admin-auth")>();
+  return { ...actual, platformAdminEmail: adminMock };
+});
 vi.mock("@/lib/services/admin/foundation", () => ({
   listDataRequests: vi.fn().mockResolvedValue([{ id: "d1", kind: "deletion", status: "open" }]),
 }));
@@ -39,7 +42,10 @@ describe("GET /api/admin/settings", () => {
     process.env.PLATFORM_ADMIN_EMAILS = "ops@chertt.com,admin@chertt.ng";
     const res = await getSettings(req("Bearer good"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ allowlist: ["ops@chertt.com", "admin@chertt.ng"], superAdmin: "ops@chertt.com" });
+    expect(await res.json()).toEqual({
+      allowlist: ["ops@chertt.com", "admin@chertt.ng", "donotreply@chertt.com"],
+      superAdmin: "ops@chertt.com",
+    });
     delete process.env.PLATFORM_ADMIN_EMAILS;
   });
 });
