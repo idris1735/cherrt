@@ -1,7 +1,8 @@
 import { resolveByToken, updateApplication, runKycChecks } from "@/lib/services/kyc/applications";
 import { verifyEmailOtp } from "@/lib/services/kyc/email-otp";
 import { uploadKycFile } from "@/lib/services/kyc/storage";
-import { isValidId, isValidEmail, isValidPhone, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
+import { sendTextMessage } from "@/lib/services/whatsapp";
+import { isValidId, isValidEmail, isValidPhone, isValidFullName, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,14 @@ export async function POST(req: Request): Promise<Response> {
   const idNumber = s("id_number");
   const email = s("email");
   const churchPhone = s("church_phone");
+  const fullNameRaw = s("full_name");
+  const positionRaw = s("position");
   const fields: Record<string, string> = {};
-  if (idNumber && !isValidId(idType, idNumber)) fields.id_number = `${idType.toUpperCase()} must be 11 digits.`;
+  if (idNumber && !isValidId(idType, idNumber)) fields.id_number = `${idType.toUpperCase()} must be exactly 11 digits.`;
   if (email && !isValidEmail(email)) fields.email = "Enter a valid email address.";
   if (churchPhone && !isValidPhone(churchPhone)) fields.church_phone = "Enter a valid Nigerian phone number.";
+  if (fullNameRaw && !isValidFullName(fullNameRaw)) fields.full_name = "Enter your first and last name, as on your ID.";
+  if (positionRaw === "Other" && !s("position_other")) fields.position = "Tell us your position.";
   if (Object.keys(fields).length) return Response.json({ ok: false, error: "Please fix the highlighted fields.", fields }, { status: 400 });
 
   if (!(await verifyEmailOtp(email, s("email_code")))) {
@@ -34,8 +39,8 @@ export async function POST(req: Request): Promise<Response> {
 
   // Structured name: full name is the trustee-match input (stronger anti-hijack
   // than a crammed "name, role" string). Fall back to the legacy single field.
-  const fullName = s("full_name") || s("applicant_role");
-  const position = s("position");
+  const fullName = fullNameRaw || s("applicant_role");
+  const position = positionRaw === "Other" ? (s("position_other") || "Other") : positionRaw;
   const applicantRole = fullName ? `${fullName}${position ? `, ${position}` : ""}` : s("applicant_role");
 
   const store = async (field: File | null, prefix: string) => {
@@ -88,5 +93,20 @@ export async function POST(req: Request): Promise<Response> {
 
   // Always reach pending — never 500 on a real submission
   await updateApplication(app.id, { status: "pending" });
+
+  // Number legitimacy ping: the application thanks the church on WhatsApp.
+  // A fake/offline number fails here, and the failure is recorded in
+  // whatsapp_send_logs (with the statuses webhook confirming delivery).
+  if (churchPhone) {
+    try {
+      await sendTextMessage(
+        normalizePhone(churchPhone),
+        "✅ Chertt received your church's application. Our team verifies it — usually within a day — and will message this number.",
+      );
+    } catch {
+      console.warn("[onboard/submit] church phone unreachable on WhatsApp — logged for review:", churchPhone);
+    }
+  }
+
   return Response.json({ ok: true });
 }

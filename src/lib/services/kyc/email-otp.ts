@@ -30,7 +30,7 @@ export async function sendEmailOtp(email: string): Promise<boolean> {
         subject: "Your Chertt verification code",
         html: `<p>Your Chertt code is <b>${code}</b>. It expires in 10 minutes. Never share it.</p>`,
       });
-    } catch { /* code is stored; caller can resend */ }
+    } catch (err) { console.error("[email-otp] Resend send failed:", err instanceof Error ? err.message : err); }
   }
   return true;
 }
@@ -53,9 +53,10 @@ export async function sendOnboardingOtp(email: string, phone: string | null): Pr
 
   const channels: string[] = [];
 
-  // Email channel (best-effort — a missing key is not fatal)
   const apiKey = process.env.RESEND_API_KEY;
-  if (apiKey) {
+  if (!apiKey) {
+    console.warn("[email-otp] RESEND_API_KEY is not set — the email channel is unavailable (WhatsApp channel still delivers).");
+  } else {
     try {
       await new Resend(apiKey).emails.send({
         from: process.env.RESEND_FROM ?? "Chertt <onboarding@resend.dev>",
@@ -64,7 +65,10 @@ export async function sendOnboardingOtp(email: string, phone: string | null): Pr
         html: `<p>Your Chertt code is <b>${code}</b>. It expires in 10 minutes. Never share it.</p>`,
       });
       channels.push("email");
-    } catch { /* WhatsApp channel below still delivers */ }
+    } catch (err) {
+      // Not silent — the owner can read the exact failure in Vercel logs.
+      console.error("[email-otp] Resend send failed:", err instanceof Error ? err.message : err);
+    }
   }
 
   // WhatsApp channel — the demo's guaranteed delivery path

@@ -46,3 +46,5 @@ claudetask.txt
 flow.html
 probs.txt
 insights/
+
+.env*

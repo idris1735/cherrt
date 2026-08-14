@@ -3,7 +3,17 @@ import { useState, useRef, useEffect } from "react";
 import s from "./onboard.module.css";
 import { validateOnboard, fileError, normalizePhone, isValidEmail, type FieldErrors } from "@/lib/onboard-validation";
 
-const POSITIONS = ["Senior Pastor", "Pastor", "Trustee", "Church Secretary", "Administrator", "Other"];
+const POSITIONS = [
+  "Senior Pastor", "Pastor", "Assistant Pastor", "Minister", "Church Secretary", "Administrator",
+  "Trustee", "Finance Officer", "IT / Technical", "Media / Sound", "Choir / Music", "Deacon",
+  "Deaconess", "Ushering", "Sunday School Teacher", "Other",
+];
+
+const DENOMINATIONS = [
+  "RCCG (Redeemed Christian Church of God)", "Catholic", "Anglican", "Methodist", "Baptist",
+  "Pentecostal", "Assemblies of God", "Foursquare", "Apostolic", "Deeper Life", "Living Faith (Winners)",
+  "Mountain of Fire (MFM)", "Christ Apostolic Church (CAC)", "Non-denominational", "Independent",
+];
 
 type Vals = Record<string, string>;
 
@@ -28,6 +38,7 @@ export function OnboardForm({ token }: { token: string }) {
   const [cacCert, setCacCert] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string>("");
   const [emailSent, setEmailSent] = useState(false);
+  const [channels, setChannels] = useState<string[]>([]);
   const [resendIn, setResendIn] = useState(0);
   const [busy, setBusy] = useState<"" | "code" | "submit">("");
   const [banner, setBanner] = useState("");
@@ -55,6 +66,7 @@ export function OnboardForm({ token }: { token: string }) {
   if (!(v.address ?? "").trim()) missing.push("address");
   if (!(v.full_name ?? "").trim()) missing.push("your full name");
   if (!(v.position ?? "").trim()) missing.push("your position");
+  else if (v.position === "Other" && !(v.position_other ?? "").trim()) missing.push("what your position is");
   if (!(v.id_number ?? "").trim()) missing.push("your ID number");
   if (!isValidEmail(v.email ?? "")) missing.push("your email");
   if (!emailSent) missing.push("email verification");
@@ -81,10 +93,19 @@ export function OnboardForm({ token }: { token: string }) {
     try {
       const res = await fetch("/api/onboard/email-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, email: v.email }) });
       const j = await res.json();
-      if (j.ok) { setEmailSent(true); setResendIn(60); } else setBanner(j.error ?? "Couldn't send the code.");
+      if (j.ok) { setEmailSent(true); setChannels(j.channels ?? []); setResendIn(60); } else setBanner(j.error ?? "Couldn't send the code.");
     } catch { setBanner("Network error — please try again."); }
     setBusy("");
   }
+
+  const idDigits = (v.id_number ?? "").replace(/\D/g, "");
+  const idValid = /^\d{11}$/.test(idDigits);
+  const idNote = idDigits.length === 0
+    ? "11 digits"
+    : idValid
+      ? "✓ 11 digits — looks right. We'll verify it against the national ID registry during review."
+      : `${idDigits.length}/11 digits`;
+  const posOther = v.position === "Other";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +123,7 @@ export function OnboardForm({ token }: { token: string }) {
     setBusy("submit"); setBanner("");
     const fd = new FormData();
     fd.set("token", token);
-    ["church_legal_name", "it_number", "address", "denomination", "full_name", "position", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    ["church_legal_name", "it_number", "address", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
     fd.set("id_number", (v.id_number ?? "").replace(/\s/g, "")); // strip display grouping
     fd.set("church_phone", normalizePhone((v.church_phone ?? "").replace(/\s/g, "")));
     fd.set("consent", "on");
@@ -154,7 +175,13 @@ export function OnboardForm({ token }: { token: string }) {
             <F name="it_number" label="CAC IT / RC number" hint="The RC/IT number printed on your CAC certificate" v={v} errs={errs} set={set} />
             <F name="address" label="Church address" v={v} errs={errs} set={set} />
             <F name="church_phone" label="Church phone" hint="e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
-            <F name="denomination" label="Denomination (optional)" v={v} errs={errs} set={set} optional />
+            <label className={s.field}>Denomination (optional)
+              <span className={s.hint}>Your church family — e.g. RCCG, Catholic, Anglican. Pick from the list or type your own.</span>
+              <input name="denomination" list="denominations" className={s.input} value={v.denomination ?? ""} onChange={set("denomination")} />
+              <datalist id="denominations">
+                {DENOMINATIONS.map((d) => <option key={d} value={d} />)}
+              </datalist>
+            </label>
           </div>
         </div>
 
@@ -163,11 +190,16 @@ export function OnboardForm({ token }: { token: string }) {
           <div className={s.form}>
             <F name="full_name" label="Your full name" hint="Must match the name on your ID" v={v} errs={errs} set={set} />
             <label className={s.field}>Your position
+              <span className={s.hint}>Your role in this church — for the review team, not your title on paper.</span>
               <select name="position" className={`${s.select} ${errs.position ? s.inputBad : ""}`} value={v.position ?? ""} onChange={set("position")}>
                 <option value="">Select…</option>
                 {POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
+              {posOther && (
+                <input name="position_other" placeholder="e.g. Protocol Officer, Welfare Coordinator" className={`${s.input} ${errs.position_other ? s.inputBad : ""}`} value={v.position_other ?? ""} onChange={set("position_other")} style={{ marginTop: 6 }} />
+              )}
               {errs.position && <span className={s.fieldErr}>{errs.position}</span>}
+              {posOther && errs.position_other && <span className={s.fieldErr}>{errs.position_other}</span>}
             </label>
             <label className={s.field}>ID type
               <select name="id_type" className={s.select} value={v.id_type ?? "nin"} onChange={set("id_type")}>
@@ -175,6 +207,7 @@ export function OnboardForm({ token }: { token: string }) {
               </select>
             </label>
             <F name="id_number" label={`${(v.id_type || "nin").toUpperCase()} number`} hint="11 digits" v={v} errs={errs} set={set} inputMode="numeric" />
+            {!errs.id_number && <span className={s.hint} style={{ marginTop: -6, color: idValid ? "var(--success, #16a34a)" : undefined }}>{idNote}</span>}
           </div>
         </div>
 
@@ -189,7 +222,13 @@ export function OnboardForm({ token }: { token: string }) {
                 </button>
               </div>
               {errs.email && <span className={s.fieldErr}>{errs.email}</span>}
-              {emailSent && !errs.email && <span className={s.sentNote}>Code sent — check your email and WhatsApp.</span>}
+              {emailSent && !errs.email && (
+                <span className={s.sentNote}>
+                  {channels.length === 0 && "Code generated — resend if it doesn't arrive."}
+                  {channels.length > 0 && `Code sent via ${channels.map((c) => c === "email" ? "email" : "WhatsApp").join(" and ")}.`}
+                  {channels.length > 0 && !channels.includes("email") && " Email delivery is unavailable right now — use the WhatsApp code."}
+                </span>
+              )}
             </label>
             {emailSent && <F name="email_code" label="6-digit code" v={v} errs={errs} set={set} inputMode="numeric" />}
 

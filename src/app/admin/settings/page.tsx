@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const [superAdmin, setSuperAdmin] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [health, setHealth] = useState<{ resend: { configured: boolean; domains: string[]; note: string }; mono: { configured: boolean; probe: string }; whatsapp: { configured: boolean; note: string } } | null>(null);
 
   useEffect(() => {
     adminFetch<{ allowlist: string[]; superAdmin: string | null }>("/api/admin/settings").then((r) => {
@@ -17,6 +18,9 @@ export default function SettingsPage() {
         setSuperAdmin(r.data?.superAdmin ?? null);
       }
     });
+    adminFetch<{ resend: { configured: boolean; domains: string[]; note: string }; mono: { configured: boolean; probe: string }; whatsapp: { configured: boolean; note: string } }>("/api/admin/kyc-health")
+      .then((r) => { if (r.status === 200 && r.data) setHealth(r.data); })
+      .catch(() => {});
     const saved = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
     if (saved) setTheme(saved);
   }, []);
@@ -67,6 +71,38 @@ export default function SettingsPage() {
               </div>
               <button className="btn btn-sm" onClick={() => { toggleTheme(); toast(theme === "light" ? "Dark mode enabled" : "Light mode enabled"); }}>Toggle</button>
             </div>
+          </div>
+        </div>
+        <div className="card" style={{ gridColumn: "1 / -1" }}>
+          <div className="card-header"><h3>Third-party connections</h3></div>
+          <div className="card-body">
+            <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Checked live from the production runtime — no secret values are shown.</p>
+            {!health && <div className="skeleton" style={{ height: 80 }} />}
+            {health && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <span className={`badge ${health.resend.configured && health.resend.domains.length > 0 ? "badge-success" : "badge-warning"}`}>
+                    {health.resend.configured && health.resend.domains.length > 0 ? "OK" : "CHECK"}
+                  </span>
+                  <b>Resend (email codes)</b>
+                  <span style={{ color: "var(--muted)", fontSize: 12 }}>{health.resend.domains.length > 0 ? `Verified: ${health.resend.domains.join(", ")}` : health.resend.note}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <span className={`badge ${health.mono.configured && health.mono.probe.includes("OK") ? "badge-success" : "badge-warning"}`}>
+                    {health.mono.configured && health.mono.probe.includes("OK") ? "OK" : "CHECK"}
+                  </span>
+                  <b>Mono (CAC / NIN lookups)</b>
+                  <span style={{ color: "var(--muted)", fontSize: 12 }}>{health.mono.probe}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                  <span className={`badge ${health.whatsapp.configured ? "badge-success" : "badge-warning"}`}>
+                    {health.whatsapp.configured ? "OK" : "CHECK"}
+                  </span>
+                  <b>WhatsApp Cloud API</b>
+                  <span style={{ color: "var(--muted)", fontSize: 12 }}>{health.whatsapp.note}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

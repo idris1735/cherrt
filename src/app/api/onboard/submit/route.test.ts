@@ -7,6 +7,8 @@ vi.mock("@/lib/services/kyc/applications", () => ({
 }));
 vi.mock("@/lib/services/kyc/email-otp", () => ({ verifyEmailOtp: vi.fn().mockResolvedValue(true) }));
 vi.mock("@/lib/services/kyc/storage", () => ({ uploadKycFile: vi.fn().mockResolvedValue(true) }));
+const { whatsappMock } = vi.hoisted(() => ({ whatsappMock: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/services/whatsapp", () => ({ sendTextMessage: whatsappMock }));
 
 import { POST } from "@/app/api/onboard/submit/route";
 import { resolveByToken, updateApplication, runKycChecks } from "@/lib/services/kyc/applications";
@@ -61,5 +63,41 @@ describe("POST /api/onboard/submit", () => {
     expect(await res.json()).toMatchObject({ ok: true });
     // Still reached pending
     expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ status: "pending" }));
+  });
+
+  it("pings the church phone on WhatsApp to prove the number is real", async () => {
+    const res = await POST(form({ ...base, church_phone: "0803 123 4567" }));
+    expect(res.status).toBe(200);
+    expect(whatsappMock).toHaveBeenCalledWith("+2348031234567", expect.stringContaining("Chertt received"));
+  });
+
+  it("never fails the submission when the church phone ping fails", async () => {
+    whatsappMock.mockRejectedValueOnce(new Error("unreachable"));
+    const res = await POST(form({ ...base, church_phone: "0803 123 4567" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true });
+  });
+
+  it("rejects 'Other' position without a position_other value", async () => {
+    const res = await POST(form({ ...base, full_name: "Ada Obi", position: "Other" }));
+    expect(res.status).toBe(400);
+    const j = await res.json();
+    expect(j.fields.position).toContain("Tell us your position");
+  });
+
+  it("stores a custom position when Other is chosen", async () => {
+    const res = await POST(form({ ...base, full_name: "Ada Obi", position: "Other", position_other: "Welfare Coordinator" }));
+    expect(res.status).toBe(200);
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({
+      applicant_role: "Ada Obi, Welfare Coordinator",
+      applicant_position: "Welfare Coordinator",
+    }));
+  });
+
+  it("rejects a single-word applicant name", async () => {
+    const res = await POST(form({ ...base, full_name: "Ada" }));
+    expect(res.status).toBe(400);
+    const j = await res.json();
+    expect(j.fields.full_name).toContain("first and last name");
   });
 });
