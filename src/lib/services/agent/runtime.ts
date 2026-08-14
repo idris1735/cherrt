@@ -33,7 +33,7 @@ import { composeSystemPrompt, buildIdentityBlock, buildKnownProfileBlock, GUEST_
 // The full tool set the query agent is offered: read tools, safe action tools,
 // church-operations tools, children's check-in, community "belonging" tools
 // (events, departments), life-journey intakes, and announcements.
-const AGENT_TOOLS: AgentTool[] = [
+export const AGENT_TOOLS: AgentTool[] = [
   ...READ_TOOLS,
   ...ACTION_TOOLS,
   ...CHURCH_TOOLS,
@@ -66,7 +66,9 @@ export type AgentOutcome =
   | { kind: "text"; text: string }
   | { kind: "pending"; toolName: string; args: Record<string, unknown>; preview: string };
 
-const DEFAULT_MAX_STEPS = 5;
+// Hard step cap per turn — no unbounded self-prompting (WS-C). The loop bails
+// gracefully with a rephrase hint when the model keeps calling tools.
+export const DEFAULT_MAX_STEPS = 5;
 
 // Look up any agent tool (read or action) by name — used by the processor to
 // execute a confirmed pending action.

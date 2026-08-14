@@ -51,9 +51,11 @@ describe("critical per-tool gating (locks the security decisions)", () => {
     expect(rankOf("list_life_journeys")).toBe(4);
   });
 
-  it("restricts child pickup/release to volunteers/leaders but lets parents check in", () => {
+  it("restricts pickup lookup to volunteers/leaders; release is guardian-gated, not rank-gated (WS-D)", () => {
     expect(rankOf("lookup_child_pickup")).toBe(1);
-    expect(rankOf("release_child")).toBe(1);
+    // WS-D: anyone can ATTEMPT release — the handler itself refuses everyone
+    // except a registered guardian with can_pickup=true. Rank is not the gate.
+    expect(rankOf("release_child")).toBeUndefined();
     expect(rankOf("check_in_child")).toBeUndefined();
   });
 

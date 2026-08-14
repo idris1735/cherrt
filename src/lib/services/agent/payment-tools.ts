@@ -60,6 +60,8 @@ export const PAYMENT_TOOLS: AgentTool[] = [
       required: ["amount"],
     },
     mutates: true, // a member giving their own money — no minRank
+    requiresConfirmation: true, // WS-C: collecting money is always confirmed
+    preview: (args) => `🙏 Start a ₦${String(args.amount ?? "")} giving payment?`,
     handler: async (args, ctx) => {
       const amount = Number(args.amount);
       if (!Number.isFinite(amount) || amount <= 0) return { error: "How much would you like to give?" };
