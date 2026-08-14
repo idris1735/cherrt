@@ -8,6 +8,13 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-14 — Email channel fixed for real: Hostinger SMTP primary
+
+- **Root cause:** Resend account was in testing mode (only the account-owner address could receive) → email codes never reached applicants. Also found the Resend SDK *returns* errors instead of throwing, so the app reported "email sent" when Resend rejected it (`47d2b0a` fix).
+- **Fix (`f2cad8b`):** `email-otp.ts` now has a delivery chain — **SMTP (Hostinger `donotreply@chertt.com`) → Resend → WhatsApp** — with honest channel reporting. Live-verified: SMTP delivered a real email from `donotreply@chertt.com` (SPF already authorizes Hostinger), WhatsApp codes + church-phone ping `sent→delivered` logged, Mono NIN returned real identity data in production, full onboarding submit returned `ok:true` with `position_other` stored.
+- **Production to-do (owner):** add `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=donotreply@chertt.com`, `SMTP_PASS=…`, `SMTP_FROM="Chertt <donotreply@chertt.com>"` in Vercel → redeploy. Optional later: verify `chertt.com` in Resend for the fallback channel.
+- **Note:** owner has in-progress auth rework (untracked `src/app/auth/{create-account,modules,onboarding}`, `simple-sign-up-form.tsx`) importing a missing `@/lib/services/profile` — local tsc/build fail until that module exists; production unaffected.
+
 ### 2026-08-14 — Onboarding forms: validation, positions, third-party health
 
 - **Email code mystery solved:** production `RESEND_API_KEY` pulls as empty locally (Vercel encryption-at-rest) and the Resend failure path was *silent* — so the WhatsApp channel always carried the demo and emails never visibly failed. `email-otp.ts` now logs missing-key warnings + full Resend errors, and the form shows exactly which channels got the code ("Email delivery is unavailable — use the WhatsApp code."). New live **Third-party connections** card in `/admin/settings` via `/api/admin/kyc-health` (platform-gated): probes Resend (verified domains), Mono (CAC probe), WhatsApp (line info) from the production runtime.
