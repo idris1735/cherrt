@@ -24,12 +24,15 @@ export async function sendEmailOtp(email: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (apiKey) {
     try {
-      await new Resend(apiKey).emails.send({
+      // NB: the Resend SDK RETURNS errors instead of throwing — a resolved
+      // promise with `error` set means the email did NOT go out.
+      const { error: sendErr } = await new Resend(apiKey).emails.send({
         from: process.env.RESEND_FROM ?? "Chertt <onboarding@resend.dev>",
         to: email,
         subject: "Your Chertt verification code",
         html: `<p>Your Chertt code is <b>${code}</b>. It expires in 10 minutes. Never share it.</p>`,
       });
+      if (sendErr) console.error("[email-otp] Resend rejected the send:", sendErr.message);
     } catch (err) { console.error("[email-otp] Resend send failed:", err instanceof Error ? err.message : err); }
   }
   return true;
@@ -58,13 +61,19 @@ export async function sendOnboardingOtp(email: string, phone: string | null): Pr
     console.warn("[email-otp] RESEND_API_KEY is not set — the email channel is unavailable (WhatsApp channel still delivers).");
   } else {
     try {
-      await new Resend(apiKey).emails.send({
+      // NB: the Resend SDK RETURNS errors instead of throwing — only count
+      // the email channel as delivered when there is NO error.
+      const { error: sendErr } = await new Resend(apiKey).emails.send({
         from: process.env.RESEND_FROM ?? "Chertt <onboarding@resend.dev>",
         to: email,
         subject: "Your Chertt verification code",
         html: `<p>Your Chertt code is <b>${code}</b>. It expires in 10 minutes. Never share it.</p>`,
       });
-      channels.push("email");
+      if (sendErr) {
+        console.error("[email-otp] Resend rejected the send:", sendErr.message);
+      } else {
+        channels.push("email");
+      }
     } catch (err) {
       // Not silent — the owner can read the exact failure in Vercel logs.
       console.error("[email-otp] Resend send failed:", err instanceof Error ? err.message : err);

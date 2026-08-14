@@ -59,6 +59,14 @@ describe("sendOnboardingOtp — P0-1 resilience", () => {
     expect(whatsappMock).toHaveBeenCalledOnce();
   });
 
+  it("reports email as NOT sent when the Resend SDK returns an error", async () => {
+    sendMock.mockResolvedValueOnce({ data: null, error: { message: "The domain is not verified" } });
+    const { ok, channels } = await sendOnboardingOtp("pastor@grace.org", "2348001111111");
+    expect(ok).toBe(true);
+    expect(channels).toEqual(["whatsapp"]); // honest channels — email was rejected
+    expect(whatsappMock).toHaveBeenCalledOnce();
+  });
+
   it("returns not-ok only when both channels fail", async () => {
     delete process.env.RESEND_API_KEY;
     whatsappMock.mockRejectedValueOnce(new Error("whatsapp down"));
