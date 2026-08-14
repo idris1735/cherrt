@@ -25,6 +25,7 @@ import { ADMIN_MIGRATION_TOOLS, GUEST_MIGRATION_TOOLS } from "@/lib/services/age
 import { SETTINGS_TOOLS } from "@/lib/services/agent/settings-tools";
 import { QR_TOOLS } from "@/lib/services/agent/qr-tools";
 import { ATTACHMENT_TOOLS } from "@/lib/services/agent/attachment-tools";
+import { ATTRIBUTE_TOOLS } from "@/lib/services/agent/attribute-tools";
 import { buildMemberContext } from "@/lib/services/agent/member-context";
 import { getKnownProfile } from "@/lib/services/identity/people";
 import { composeSystemPrompt, buildIdentityBlock, buildKnownProfileBlock, GUEST_PERSONA } from "@/lib/services/agent/persona";
@@ -50,6 +51,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...SETTINGS_TOOLS,
   ...QR_TOOLS,
   ...ATTACHMENT_TOOLS,
+  ...ATTRIBUTE_TOOLS,
 ];
 
 export type ToolCall = { name: string; args: Record<string, unknown> };
