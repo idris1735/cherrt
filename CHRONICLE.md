@@ -8,6 +8,15 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-14 — Onboarding forms: validation, positions, third-party health
+
+- **Email code mystery solved:** production `RESEND_API_KEY` pulls as empty locally (Vercel encryption-at-rest) and the Resend failure path was *silent* — so the WhatsApp channel always carried the demo and emails never visibly failed. `email-otp.ts` now logs missing-key warnings + full Resend errors, and the form shows exactly which channels got the code ("Email delivery is unavailable — use the WhatsApp code."). New live **Third-party connections** card in `/admin/settings` via `/api/admin/kyc-health` (platform-gated): probes Resend (verified domains), Mono (CAC probe), WhatsApp (line info) from the production runtime.
+- **Validation:** NIN/BVN exactly 11 digits with live `9/11 digits` → `✓` feedback; applicant name must be first + last (trustee-match needs it); CAC IT/RC pattern; all re-checked server-side (never trust the browser).
+- **Positions:** 16 options; choosing **Other** reveals a text box (required), stored as the real position (`applicant_position`, e.g. "Welfare Coordinator").
+- **Denomination:** explained + common Nigerian denominations as a datalist (RCCG, Catholic, Anglican, Winners, MFM…).
+- **Legit-number check:** on submit, Chertt pings the church's WhatsApp number ("✅ Chertt received your application…"); an unreachable number logs to `whatsapp_send_logs` (webhook statuses confirm delivery) and can never block the submission.
+- **543 tests / 74 files, tsc clean, build compiles.**
+
 ### 2026-08-14 — Phase 1&2 checklist verified + kids-smartness + full-suite audit
 
 - **Q1 — is the AI smart about kids?** Wiring was already live: `register_child` (child-tools.ts) is in the member-agent toolset (`CHILD_TOOLS` in runtime.ts `AGENT_TOOLS`), hard-gated on guardian consent (`guardianConsent: true` required; refuses without it; records consent `source: guardian`; links sender as primary guardian via guardianships). Claude added the persona line (`b80e570`): notice parenthood in passing, offer to register children *in that same chat* (names/ages/allergies), one after another; point young people to youth; never take a child's details from a child.
