@@ -485,12 +485,22 @@ function codeFromOrgId(id: string): string {
 export { normalizePhoneNumber } from "@/lib/services/phone";
 
 // Same derivation, applied to a workspace id -- a member-facing join code,
-// distinct from the org-approval code above. No dedicated column needed:
-// the code is always re-derivable from the id, so lookup is by scanning
-// workspaces and matching the derived code (fine at this volume, same
-// tradeoff as findPendingOrganizationByCode).
+// distinct from the org-approval code above. WS-D: the live source of truth is
+// now the stored unique `join_code` column (indexed); this derivation remains
+// as the backfill/fallback when the column hasn't been applied yet.
 export function codeFromWorkspaceId(id: string): string {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+// The stored join code for a workspace, falling back to the derived code.
+export async function getWorkspaceJoinCode(id: string): Promise<string> {
+  const db = getSupabaseServerClient();
+  if (db) {
+    const { data } = await db.from("workspaces").select("join_code").eq("id", id).maybeSingle();
+    const stored = (data as { join_code?: string | null } | null)?.join_code;
+    if (stored) return stored;
+  }
+  return codeFromWorkspaceId(id);
 }
 
 export async function findWorkspaceByJoinCode(code: string): Promise<{ id: string; slug: string; name: string } | null> {
@@ -498,12 +508,13 @@ export async function findWorkspaceByJoinCode(code: string): Promise<{ id: strin
   if (!db) return null;
 
   const normalized = code.trim().toUpperCase();
-  // Fetches all workspaces and matches the derived code in JS -- same
-  // tradeoff as findPendingOrganizationByCode: fine at low tenant counts,
-  // would need a real indexed code column if this ever needs to scale.
-  const { data } = await db.from("workspaces").select("id, slug, name");
-  const match = (data ?? []).find((row) => codeFromWorkspaceId(row.id) === normalized);
-  return match ?? null;
+  // WS-D: indexed equality lookup on the stored join_code column.
+  const { data } = await db
+    .from("workspaces")
+    .select("id, slug, name")
+    .eq("join_code", normalized)
+    .maybeSingle();
+  return (data as { id: string; slug: string; name: string } | null) ?? null;
 }
 
 export async function createPendingOrganization(fields: {

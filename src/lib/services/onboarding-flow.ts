@@ -12,6 +12,7 @@ import {
   saveGivingCategories,
   saveMinistryUnits,
   codeFromWorkspaceId,
+  getWorkspaceJoinCode,
   type PendingOrganization,
 } from "@/lib/services/whatsapp-workspace";
 import { sendNewSignupAlertTemplate } from "@/lib/services/whatsapp-templates";
@@ -234,7 +235,8 @@ export async function startSetupFlow(phoneNumber: string, organizationId: string
 async function finishSetup(phoneNumber: string, collected: SetupCollected): Promise<string> {
   await updateSession(phoneNumber, { onboarding: undefined });
 
-  const joinCode = codeFromWorkspaceId(collected.workspaceId);
+  // WS-D: the stored, indexed join code (derived fallback before migration).
+  const joinCode = await getWorkspaceJoinCode(collected.workspaceId);
   const branchLines = collected.branches.map(
     (b) => `• ${b.name} — its admin joins with "ADMIN ${codeFromWorkspaceId(b.workspaceId)}"`,
   );

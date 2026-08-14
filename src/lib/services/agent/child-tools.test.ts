@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Fake Supabase supporting insert, chained select→maybeSingle, and update.
-const { store } = vi.hoisted(() => ({
+const { store, resolvePhoneMock } = vi.hoisted(() => ({
   store: {
     inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
     updates: [] as Array<{ table: string; row: Record<string, unknown> }>,
+    deletes: [] as Array<{ table: string }>,
     single: {} as Record<string, unknown | null>,
     list: {} as Record<string, unknown[]>,
   },
+  resolvePhoneMock: vi.fn(),
 }));
+vi.mock("@/lib/services/identity/provisioning", () => ({ resolvePersonIdByPhone: resolvePhoneMock }));
 vi.mock("@/lib/services/supabase-server", () => ({
   getSupabaseServerClient: () => ({
     from(table: string) {
@@ -19,6 +22,10 @@ vi.mock("@/lib/services/supabase-server", () => ({
         },
         update: (row: Record<string, unknown>) => {
           store.updates.push({ table, row });
+          return chain;
+        },
+        delete: () => {
+          store.deletes.push({ table });
           return chain;
         },
         select: () => chain,
@@ -53,9 +60,11 @@ const tool = (name: string) => CHILD_TOOLS.find((t) => t.name === name)!;
 beforeEach(() => {
   store.inserts.length = 0;
   store.updates.length = 0;
+  store.deletes.length = 0;
   store.single = {};
   store.list = {};
   mockImage.mockClear();
+  resolvePhoneMock.mockReset();
 });
 
 describe("check_in_child", () => {
@@ -120,25 +129,79 @@ describe("lookup_child_pickup", () => {
   });
 });
 
-describe("release_child", () => {
+describe("release_child — WS-D guardian-bound release", () => {
   it("is confirmation-gated with a code-specific preview", () => {
     const t = tool("release_child");
     expect(t.requiresConfirmation).toBe(true);
     expect(t.preview?.({ pickupCode: "4821" })).toContain("4821");
   });
 
-  it("marks an existing checked-in child as picked up", async () => {
-    store.single["child_checkins"] = { id: "c1", child_name: "Timmy" };
-    const out = (await tool("release_child").handler({ pickupCode: "4821", pickedUpBy: "Ruth" }, ctx)) as { ok: boolean };
+  it("releases ONLY to the child's registered guardian with pickup permission", async () => {
+    store.single["child_checkins"] = { id: "c1", child_name: "Timmy", child_person_id: "k1", guardian_person_id: null };
+    store.single["guardianships"] = { id: "gs1" }; // requester is a can_pickup guardian of k1
+    const out = (await tool("release_child").handler({ pickupCode: "4821", pickedUpBy: "Ruth" }, { ...ctx, personId: "g1" })) as { ok: boolean };
     expect(out.ok).toBe(true);
-    expect(store.updates[0]).toMatchObject({ table: "child_checkins", row: { status: "picked_up", picked_up_by: "Ruth" } });
+    expect(store.updates[0]).toMatchObject({ table: "child_checkins", row: { status: "picked_up", picked_up_by: "Ruth", child_person_id: "k1", guardian_person_id: "g1" } });
+  });
+
+  it("REFUSES a non-guardian even with the CORRECT pickup code", async () => {
+    store.single["child_checkins"] = { id: "c1", child_name: "Timmy", child_person_id: "k1", guardian_person_id: null };
+    store.single["guardianships"] = null; // requester is not a guardian of k1
+    resolvePhoneMock.mockResolvedValue("g8");
+    const out = (await tool("release_child").handler({ pickupCode: "4821" }, { ...ctx, phone: "234999" })) as { error?: string };
+    expect(out.error).toContain("registered guardian");
+    expect(store.updates).toHaveLength(0);
+  });
+
+  it("matches the child by name inside the requester's guardianships when the check-in isn't linked", async () => {
+    store.single["child_checkins"] = { id: "c1", child_name: "Timmy", child_person_id: null, guardian_person_id: null };
+    store.list["guardianships"] = [{ child_person_id: "k1" }];
+    store.list["people"] = [{ id: "k1", full_name: "Timmy" }];
+    store.single["guardianships"] = { id: "gs1" };
+    const out = (await tool("release_child").handler({ pickupCode: "4821" }, { ...ctx, personId: "g1" })) as { ok: boolean };
+    expect(out.ok).toBe(true);
+    expect(store.updates[0].row).toMatchObject({ status: "picked_up", child_person_id: "k1" });
   });
 
   it("refuses when no checked-in child matches the code", async () => {
     store.single["child_checkins"] = null;
-    const out = (await tool("release_child").handler({ pickupCode: "0000" }, ctx)) as { error?: string };
+    const out = (await tool("release_child").handler({ pickupCode: "0000" }, { ...ctx, personId: "g1" })) as { error?: string };
     expect(out.error).toBeTruthy();
     expect(store.updates).toHaveLength(0);
+  });
+});
+
+describe("pickup-code throttling — WS-D", () => {
+  it("locks lookup after 5 wrong attempts inside 10 minutes", async () => {
+    store.single["pickup_attempts"] = { id: "pa1", wrong_count: 5, window_started_at: new Date().toISOString(), locked_until: null };
+    const out = (await tool("lookup_child_pickup").handler({ pickupCode: "4821" }, { ...ctx, phone: "234999" })) as { error?: string };
+    expect(out.error).toContain("Too many wrong pickup attempts");
+  });
+
+  it("records a wrong attempt when the code doesn't resolve", async () => {
+    store.single["child_checkins"] = null;
+    store.single["pickup_attempts"] = null;
+    const out = (await tool("lookup_child_pickup").handler({ pickupCode: "0000" }, { ...ctx, phone: "234999" })) as { found: boolean };
+    expect(out.found).toBe(false);
+    expect(store.inserts.some((i) => i.table === "pickup_attempts" && i.row.wrong_count === 1)).toBe(true);
+  });
+
+  it("locks release the same way", async () => {
+    store.single["pickup_attempts"] = { id: "pa1", wrong_count: 5, window_started_at: new Date().toISOString(), locked_until: null };
+    const out = (await tool("release_child").handler({ pickupCode: "4821" }, { ...ctx, phone: "234999" })) as { error?: string };
+    expect(out.error).toContain("Too many wrong pickup attempts");
+    // no child was released — only the lock itself was written
+    expect(store.updates.some((u) => u.table === "child_checkins")).toBe(false);
+    expect(store.updates.some((u) => u.table === "pickup_attempts" && u.row.locked_until)).toBe(true);
+  });
+});
+
+describe("check_in_child — WS-D identity linking", () => {
+  it("links the check-in to the registered guardian and child person", async () => {
+    store.list["guardianships"] = [{ child_person_id: "k1" }];
+    store.list["people"] = [{ id: "k1", full_name: "Timmy" }];
+    await tool("check_in_child").handler({ childName: "Timmy" }, { ...ctx, personId: "g1" });
+    expect(store.inserts[0]).toMatchObject({ table: "child_checkins", row: { child_person_id: "k1", guardian_person_id: "g1" } });
   });
 });
 

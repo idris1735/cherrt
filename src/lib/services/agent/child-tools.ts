@@ -9,6 +9,7 @@ import { sendImageMessage } from "@/lib/services/whatsapp";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { recordConsent } from "@/lib/services/privacy/consent";
+import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -29,6 +30,80 @@ function newId(): string {
 // verified WhatsApp identity.)
 function pickupCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+// ── WS-D pickup safety ─────────────────────────────────────────────────────
+// A 6-digit code is guessable: throttle wrong attempts and bind release to a
+// REGISTERED guardian with can_pickup = true. The code is a convenience — the
+// guardian match is the gate.
+const PICKUP_MAX_WRONG = 5;
+const PICKUP_WINDOW_MS = 10 * 60 * 1000;
+const PICKUP_LOCK_MS = 15 * 60 * 1000;
+
+type Db = NonNullable<ReturnType<typeof getSupabaseServerClient>>;
+
+async function pickupThrottleMessage(db: Db, workspaceId: string, phone: string, kind: "lookup" | "release"): Promise<string | null> {
+  const { data } = await db
+    .from("pickup_attempts")
+    .select("id, wrong_count, window_started_at, locked_until")
+    .eq("workspace_id", workspaceId)
+    .eq("phone_number", phone)
+    .eq("kind", kind)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as { id: string; wrong_count: number; window_started_at: string; locked_until: string | null };
+  if (row.locked_until && new Date(row.locked_until).getTime() > Date.now()) {
+    return "Too many wrong pickup attempts — this is locked for a while. A leader can verify in person.";
+  }
+  if (new Date(row.window_started_at).getTime() + PICKUP_WINDOW_MS < Date.now()) {
+    await db.from("pickup_attempts").delete().eq("id", row.id);
+    return null;
+  }
+  if (row.wrong_count >= PICKUP_MAX_WRONG) {
+    await db.from("pickup_attempts").update({ locked_until: new Date(Date.now() + PICKUP_LOCK_MS).toISOString() }).eq("id", row.id);
+    return "Too many wrong pickup attempts — locked for 15 minutes. A leader can verify in person.";
+  }
+  return null;
+}
+
+async function recordWrongPickupAttempt(db: Db, workspaceId: string, phone: string, kind: "lookup" | "release"): Promise<void> {
+  const { data } = await db
+    .from("pickup_attempts")
+    .select("id, wrong_count, window_started_at")
+    .eq("workspace_id", workspaceId)
+    .eq("phone_number", phone)
+    .eq("kind", kind)
+    .maybeSingle();
+  const now = new Date();
+  if (!data) {
+    await db.from("pickup_attempts").insert({ workspace_id: workspaceId, phone_number: phone, kind, wrong_count: 1, window_started_at: now.toISOString() });
+    return;
+  }
+  const row = data as { id: string; wrong_count: number; window_started_at: string };
+  const stale = new Date(row.window_started_at).getTime() + PICKUP_WINDOW_MS < now.getTime();
+  await db
+    .from("pickup_attempts")
+    .update({ wrong_count: stale ? 1 : row.wrong_count + 1, window_started_at: stale ? now.toISOString() : row.window_started_at })
+    .eq("id", row.id);
+}
+
+async function clearPickupAttempts(db: Db, workspaceId: string, phone: string, kind: "lookup" | "release"): Promise<void> {
+  await db.from("pickup_attempts").delete().eq("workspace_id", workspaceId).eq("phone_number", phone).eq("kind", kind);
+}
+
+// Which child person does this registered guardian (can_pickup) match by name?
+async function findGuardianChild(db: Db, guardianPersonId: string, childName: string): Promise<string | null> {
+  const { data: gRows } = await db
+    .from("guardianships")
+    .select("child_person_id")
+    .eq("guardian_person_id", guardianPersonId)
+    .eq("can_pickup", true);
+  const childIds = ((gRows ?? []) as Array<{ child_person_id?: string }>).map((r) => r.child_person_id).filter(Boolean) as string[];
+  if (childIds.length === 0) return null;
+  const { data: people } = await db.from("people").select("id, full_name").in("id", childIds);
+  const target = childName.trim().toLowerCase();
+  const match = ((people ?? []) as Array<{ id: string; full_name?: string }>).find((p) => (p.full_name ?? "").trim().toLowerCase() === target);
+  return match?.id ?? null;
 }
 
 export const CHILD_TOOLS: AgentTool[] = [
@@ -54,6 +129,10 @@ export const CHILD_TOOLS: AgentTool[] = [
       if (!db) return { error: "storage unavailable" };
       const ageNum = Number(args.age);
       const code = pickupCode();
+      // WS-D: link the check-in to identity when the sender is registered, so
+      // release can later bind to the real guardian (can_pickup), not the code.
+      const guardianPersonId = ctx.personId ?? null;
+      const childPersonId = guardianPersonId ? await findGuardianChild(db, guardianPersonId, childName) : null;
       const { error } = await db.from("child_checkins").insert({
         id: newId(),
         workspace_id: ctx.workspaceId,
@@ -62,6 +141,8 @@ export const CHILD_TOOLS: AgentTool[] = [
         allergies: String(args.allergies ?? "") || null,
         guardian_name: String(args.guardianName ?? "") || ctx.userName || "",
         guardian_phone: null,
+        child_person_id: childPersonId,
+        guardian_person_id: guardianPersonId,
         pickup_code: code,
         status: "checked_in",
       });
@@ -100,6 +181,11 @@ export const CHILD_TOOLS: AgentTool[] = [
       if (!code) return { error: "Need the pickup code." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+      // WS-D: throttle brute-forcing of the 6-digit code.
+      if (ctx.phone) {
+        const lockMsg = await pickupThrottleMessage(db, ctx.workspaceId, ctx.phone, "lookup");
+        if (lockMsg) return { error: lockMsg };
+      }
       const { data } = await db
         .from("child_checkins")
         .select("child_name, age, allergies, guardian_name")
@@ -107,7 +193,11 @@ export const CHILD_TOOLS: AgentTool[] = [
         .eq("pickup_code", code)
         .eq("status", "checked_in")
         .maybeSingle();
-      if (!data) return { found: false };
+      if (!data) {
+        if (ctx.phone) await recordWrongPickupAttempt(db, ctx.workspaceId, ctx.phone, "lookup");
+        return { found: false };
+      }
+      if (ctx.phone) await clearPickupAttempts(db, ctx.workspaceId, ctx.phone, "lookup");
       const row = data as { child_name?: string; age?: number; allergies?: string; guardian_name?: string };
       return {
         found: true,
@@ -123,7 +213,7 @@ export const CHILD_TOOLS: AgentTool[] = [
   {
     name: "release_child",
     description:
-      "Mark a child as picked up. Only after verifying the guardian matches. This is safety-critical, so it is confirmed before it runs.",
+      "Mark a child as picked up. ONLY the child's registered guardian (with pickup permission) can release them — the pickup code alone is never enough. This is safety-critical, so it is confirmed before it runs.",
     parameters: {
       type: "object",
       properties: {
@@ -133,30 +223,68 @@ export const CHILD_TOOLS: AgentTool[] = [
       required: ["pickupCode"],
     },
     requiresConfirmation: true,
-    minRank: 1, // children's-church volunteers / leaders only may release a child
     mutates: true,
     preview: (args) =>
-      `👶 Release the child with pickup code *${String(args.pickupCode ?? "")}*? Confirm the guardian's details match first.`,
+      `👶 Release the child with pickup code *${String(args.pickupCode ?? "")}*? Only their registered guardian may release them.`,
     handler: async (args, ctx) => {
       const code = String(args.pickupCode ?? "").trim();
       if (!code) return { error: "Need the pickup code." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+      // WS-D: throttle brute-forcing.
+      if (ctx.phone) {
+        const lockMsg = await pickupThrottleMessage(db, ctx.workspaceId, ctx.phone, "release");
+        if (lockMsg) return { error: lockMsg };
+      }
       const { data } = await db
         .from("child_checkins")
-        .select("id, child_name")
+        .select("id, child_name, child_person_id, guardian_person_id")
         .eq("workspace_id", ctx.workspaceId)
         .eq("pickup_code", code)
         .eq("status", "checked_in")
         .maybeSingle();
-      if (!data) return { error: "No checked-in child with that code — they may already be picked up." };
-      const row = data as { id: string; child_name?: string };
+      if (!data) {
+        if (ctx.phone) await recordWrongPickupAttempt(db, ctx.workspaceId, ctx.phone, "release");
+        return { error: "No checked-in child with that code — they may already be picked up." };
+      }
+      const row = data as { id: string; child_name?: string; child_person_id?: string | null; guardian_person_id?: string | null };
+
+      // WS-D: the guardian match is the gate, the code is a convenience.
+      const requesterId = ctx.personId ?? (ctx.phone ? await resolvePersonIdByPhone(ctx.phone) : null);
+      if (!requesterId) {
+        return { error: "I couldn't verify you as this child's registered guardian. A children's-church leader can verify in person." };
+      }
+      let childPersonId: string | null = row.child_person_id ?? null;
+      if (!childPersonId) {
+        childPersonId = await findGuardianChild(db, requesterId, row.child_name ?? "");
+      }
+      if (!childPersonId) {
+        return { error: "I can only release this child to their registered guardian (with pickup permission). A leader can verify in person." };
+      }
+      const { data: guardianship } = await db
+        .from("guardianships")
+        .select("id")
+        .eq("child_person_id", childPersonId)
+        .eq("guardian_person_id", requesterId)
+        .eq("can_pickup", true)
+        .maybeSingle();
+      if (!guardianship) {
+        return { error: "I can only release this child to their registered guardian (with pickup permission). A leader can verify in person." };
+      }
+
       const { error } = await db
         .from("child_checkins")
-        .update({ status: "picked_up", picked_up_by: String(args.pickedUpBy ?? "") || ctx.userName || "", picked_up_at: new Date().toISOString() })
+        .update({
+          status: "picked_up",
+          child_person_id: childPersonId,
+          guardian_person_id: requesterId,
+          picked_up_by: String(args.pickedUpBy ?? "") || ctx.userName || "",
+          picked_up_at: new Date().toISOString(),
+        })
         .eq("id", row.id);
       if (error) return { error: error.message };
-      return { ok: true, message: `✅ ${row.child_name ?? "The child"} has been released. Pickup recorded.` };
+      if (ctx.phone) await clearPickupAttempts(db, ctx.workspaceId, ctx.phone, "release");
+      return { ok: true, message: `✅ ${row.child_name ?? "The child"} has been released to their registered guardian. Pickup recorded.` };
     },
   },
   {
