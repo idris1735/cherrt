@@ -8,6 +8,14 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-14 — Phase 1&2 checklist verified + kids-smartness + full-suite audit
+
+- **Q1 — is the AI smart about kids?** Wiring was already live: `register_child` (child-tools.ts) is in the member-agent toolset (`CHILD_TOOLS` in runtime.ts `AGENT_TOOLS`), hard-gated on guardian consent (`guardianConsent: true` required; refuses without it; records consent `source: guardian`; links sender as primary guardian via guardianships). Claude added the persona line (`b80e570`): notice parenthood in passing, offer to register children *in that same chat* (names/ages/allergies), one after another; point young people to youth; never take a child's details from a child.
+- **Q2 — Phase 1 & 2 checklist:** every bullet is built — CAC+NIN onboarding (Mono), tiered access, creator/IT roles, join-by-code/QR, multi-church, guest vs member, number migration; member + child registration, first-timers, referral-only prayer, all five pastoral forms + life journeys, department joining as a real form. Remaining gap is depth (web forms build), not features.
+- **Audit results (DeepSeek, evidence-based):** WS1 never-re-ask — `getKnownProfile` + `buildKnownProfileBlock` injected at runtime.ts:265-270, `register_member` dedupe/prefill; WS3 — `assessRisk` triage at processor line ~930 *before any agent routing*, scam refused+flagged, safeguarding escalated to humans, agent never called. **534 tests / 73 files green, tsc clean.**
+- **Fixed:** settings-route test mock didn't know the new `platformAdminAllowlist` export (`5fadbc8`) — now expects the merged allowlist `[env…, donotreply@chertt.com]`.
+- **Ops note:** C: drive hit 0 bytes free overnight (broke a test run — looked like "73 failed, no tests", actually disk-full). User freed space; suite green again. `reset-consent-demo.sql` fixed earlier (`e72c0b4`) — `pending_agent_action` is a column on `whatsapp_sessions`, not a table.
+
 ### 2026-08-13 — Data continuity, scam sensing, tooltips, WhatsApp upgrades (WS1-WS5)
 
 **Brief:** `docs/prompts/2026-08-13-data-continuity-scam-sensing-tooltips.md`. Built on the consent-first gate (already live). Migrations `20260813150000_flagged_messages` + `20260813160000_ws2_field_gaps` applied.
