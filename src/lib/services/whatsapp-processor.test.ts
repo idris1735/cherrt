@@ -8,6 +8,10 @@ vi.mock("@/lib/services/whatsapp", () => ({
   downloadMedia: vi.fn().mockResolvedValue({ buffer: Buffer.from(""), mimeType: "image/jpeg" }),
 }));
 
+vi.mock("@/lib/services/chat-attachments", () => ({
+  persistChatAttachment: vi.fn().mockResolvedValue({ id: "a1", storagePath: "ws1/p1/a1.jpg" }),
+}));
+
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
@@ -58,6 +62,7 @@ import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 import { flagMessage } from "@/lib/services/safety/flags";
+import { persistChatAttachment } from "@/lib/services/chat-attachments";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -65,6 +70,7 @@ const mockList = sendInteractiveList as ReturnType<typeof vi.fn>;
 const mockDownload = downloadMedia as ReturnType<typeof vi.fn>;
 const mockRun = runCherttCommand as ReturnType<typeof vi.fn>;
 const mockClaim = claimWhatsAppMessage as ReturnType<typeof vi.fn>;
+const mockPersist = persistChatAttachment as ReturnType<typeof vi.fn>;
 
 const PHONE = "2348012345678";
 
@@ -234,6 +240,35 @@ describe("processWhatsAppMessage", () => {
     ]);
     expect(context.memoryContext).not.toContain("data:image/jpeg;base64");
     expect(mockSend).toHaveBeenCalledWith(PHONE, "Issue photo reviewed.");
+  });
+
+  it("WS-A: persists an inbound image to the chat-attachments store", async () => {
+    await skipWelcome();
+    mockDownload.mockResolvedValueOnce({ buffer: Buffer.from("photo-bytes"), mimeType: "image/jpeg" });
+    mockRun.mockResolvedValue({ reply: "Got it." });
+
+    await processWhatsAppMessage({ from: PHONE, type: "image", text: "save this", mediaId: "media-1" });
+
+    expect(mockPersist).toHaveBeenCalledWith({
+      workspaceId: null,
+      personId: null,
+      kind: "image",
+      buffer: Buffer.from("photo-bytes"),
+      mimeType: "image/jpeg",
+      caption: "save this",
+    });
+  });
+
+  it("WS-A: persists a document attachment", async () => {
+    await skipWelcome();
+    mockDownload.mockResolvedValueOnce({ buffer: Buffer.from("pdf-bytes"), mimeType: "application/pdf" });
+    mockRun.mockResolvedValue({ reply: "Got it." });
+
+    await processWhatsAppMessage({ from: PHONE, type: "document", text: "my certificate", mediaId: "media-2" });
+
+    expect(mockPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "document", mimeType: "application/pdf", caption: "my certificate" }),
+    );
   });
 
   it("includes history from previous messages in context", async () => {

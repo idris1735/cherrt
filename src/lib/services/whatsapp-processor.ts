@@ -45,6 +45,7 @@ import { recordToolAudit } from "@/lib/services/agent/audit";
 import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
 import { assessRisk } from "@/lib/services/safety/risk";
 import { flagMessage } from "@/lib/services/safety/flags";
+import { persistChatAttachment } from "@/lib/services/chat-attachments";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -801,6 +802,9 @@ async function handleVoiceNote(from: string, mediaId: string, session: WhatsAppS
   let buffer: Buffer; let mimeType: string;
   try { ({ buffer, mimeType } = await downloadMedia(mediaId)); }
   catch { await sendTextMessage(from, "Could not download that voice note. Please type your request."); return; }
+  // WS-A: the audio file itself is persisted (private bucket + row), never
+  // silently dropped — best-effort so a storage hiccup can't block the reply.
+  void persistChatAttachment({ workspaceId: link?.workspaceId ?? null, personId: personId ?? null, kind: "audio", buffer, mimeType });
   const transcript = await transcribeVoiceNote(buffer, mimeType);
   if (!transcript) { await sendTextMessage(from, "Could not make out that voice note. Please try again or type your message."); return; }
 
@@ -1291,6 +1295,10 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     try { ({ buffer, mimeType } = await downloadMedia(message.mediaId)); }
     catch { await sendTextMessage(from, "Could not download that image. Please try again."); return; }
 
+    // WS-A: persist the image (private bucket + row) so "save this to my
+    // record" genuinely saves. Best-effort — never blocks the reply.
+    void persistChatAttachment({ workspaceId: link?.workspaceId ?? null, personId: personId ?? null, kind: "image", buffer, mimeType, caption: trimmed || null });
+
     // Linked users: the multimodal agent sees the photo and acts (e.g. a
     // receipt → log_expense, if they have permission).
     if (link) {
@@ -1318,6 +1326,9 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let buffer: Buffer; let mimeType: string;
     try { ({ buffer, mimeType } = await downloadMedia(message.mediaId)); }
     catch { await sendTextMessage(from, "Could not download that file. Please try again."); return; }
+
+    // WS-A: persist the document (private bucket + row). Best-effort.
+    void persistChatAttachment({ workspaceId: link?.workspaceId ?? null, personId: personId ?? null, kind: "document", buffer, mimeType, caption: trimmed || null });
 
     if (link) {
       const media: MediaPart[] = [{ mimeType, data: buffer.toString("base64") }];
