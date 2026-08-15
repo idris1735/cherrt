@@ -1,0 +1,348 @@
+<title>Chertt — System Architecture Map</title>
+<style>
+  :root{
+    --bg:#faf8f4; --surface:#ffffff; --surface-2:#f5f1ea; --ink:#1b1712; --muted:#6d6559;
+    --line:#e9e2d6; --accent:#fa8300;
+    --c-surface:#0284c7; --c-surface-bg:#e0f2fe;
+    --c-safety:#dc2626; --c-safety-bg:#fdECEC;
+    --c-ai:#7c3aed; --c-ai-bg:#f1eafe;
+    --c-data:#2563eb; --c-data-bg:#e6edfe;
+    --c-power:#15803d; --c-power-bg:#e4f6e9;
+    --c-limit:#b45309; --c-limit-bg:#fdf1e0;
+    --shadow:0 1px 2px rgba(60,40,10,.05), 0 4px 16px rgba(60,40,10,.04);
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root:not([data-theme="light"]){}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#141210; --surface:#1e1b17; --surface-2:#252119; --ink:#f4efe6; --muted:#a89e8d;
+      --line:#332e26; --accent:#fb9d3c;
+      --c-surface:#38bdf8; --c-surface-bg:#0c2733;
+      --c-safety:#f87171; --c-safety-bg:#2e1615;
+      --c-ai:#a78bfa; --c-ai-bg:#211836;
+      --c-data:#60a5fa; --c-data-bg:#13213f;
+      --c-power:#4ade80; --c-power-bg:#12281a;
+      --c-limit:#fbbf24; --c-limit-bg:#2b1f0c;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#141210; --surface:#1e1b17; --surface-2:#252119; --ink:#f4efe6; --muted:#a89e8d;
+    --line:#332e26; --accent:#fb9d3c;
+    --c-surface:#38bdf8; --c-surface-bg:#0c2733;
+    --c-safety:#f87171; --c-safety-bg:#2e1615;
+    --c-ai:#a78bfa; --c-ai-bg:#211836;
+    --c-data:#60a5fa; --c-data-bg:#13213f;
+    --c-power:#4ade80; --c-power-bg:#12281a;
+    --c-limit:#fbbf24; --c-limit-bg:#2b1f0c;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:0 20px 80px}
+  .wrap{max-width:1080px;margin:0 auto}
+  header.top{padding:44px 0 8px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em;font-size:15px}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--accent)}
+  h1{font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.03em;margin:14px 0 6px;text-wrap:balance}
+  .lede{color:var(--muted);font-size:15px;max-width:60ch;margin:0}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:20px 0 0;font-size:12px;color:var(--muted)}
+  .legend b{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)}
+  .swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+  section{margin-top:44px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+  h2{font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:64ch}
+
+  /* Tree */
+  .tree{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:28px 22px;display:flex;flex-direction:column;align-items:center;gap:14px;overflow-x:auto}
+  .node{border-radius:12px;padding:10px 16px;font-weight:700;font-size:14px;border:1.5px solid;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:8px}
+  .root{background:var(--accent);color:#fff;border-color:var(--accent);font-size:16px;letter-spacing:.02em;padding:12px 26px}
+  .conn{width:2px;height:16px;background:var(--line)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .n-surface{background:var(--c-surface-bg);color:var(--c-surface);border-color:var(--c-surface)}
+  .n-safety{background:var(--c-safety-bg);color:var(--c-safety);border-color:var(--c-safety)}
+  .n-ai{background:var(--c-ai-bg);color:var(--c-ai);border-color:var(--c-ai)}
+  .n-data{background:var(--c-data-bg);color:var(--c-data);border-color:var(--c-data)}
+  .n-power{background:var(--c-power-bg);color:var(--c-power);border-color:var(--c-power)}
+  .n-limit{background:var(--c-limit-bg);color:var(--c-limit);border-color:var(--c-limit)}
+  .layer-label{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;max-width:760px;margin-top:4px}
+  .col{border-radius:14px;padding:14px;border:1px solid}
+  .col.pow{background:var(--c-power-bg);border-color:color-mix(in srgb,var(--c-power) 34%,var(--line))}
+  .col.lim{background:var(--c-limit-bg);border-color:color-mix(in srgb,var(--c-limit) 34%,var(--line))}
+  .col h3{margin:0 0 10px;font-size:12px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase}
+  .col.pow h3{color:var(--c-power)} .col.lim h3{color:var(--c-limit)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:12px;font-weight:600;padding:4px 9px;border-radius:7px;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+
+  /* Flow */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  .step{font-size:12.5px;font-weight:600;padding:7px 11px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line)}
+  .step.hot{background:var(--c-safety-bg);color:var(--c-safety);border-color:color-mix(in srgb,var(--c-safety) 30%,var(--line))}
+  .step.brain{background:var(--c-ai-bg);color:var(--c-ai);border-color:color-mix(in srgb,var(--c-ai) 30%,var(--line))}
+  .arrow{color:var(--muted);font-weight:700}
+
+  /* Data model */
+  .domains{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .domain{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .domain .h{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .domain .bar{width:9px;height:9px;border-radius:3px}
+  .domain h4{margin:0;font-size:14.5px;font-weight:700}
+  .domain p{margin:2px 0 12px;font-size:12.5px;color:var(--muted)}
+  .tbls{display:flex;flex-wrap:wrap;gap:5px}
+  .t{font-family:var(--mono);font-size:11.5px;padding:3px 7px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink)}
+
+  /* Roles ladder */
+  .ladder{display:flex;flex-direction:column;gap:10px}
+  .rung{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:start;background:var(--surface);
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .rank{font-family:var(--mono);font-weight:700;font-size:12px;color:var(--accent);background:var(--surface-2);
+    border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
+  .rung h4{margin:0 0 2px;font-size:14.5px}
+  .rung .who{font-size:12px;color:var(--muted);margin:0 0 8px}
+  .rung ul{margin:0;padding-left:16px}
+  .rung li{font-size:13px;margin:2px 0}
+  .special{border-left:3px solid var(--accent)}
+  .lock{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--c-safety);
+    background:var(--c-safety-bg);border-radius:6px;padding:2px 7px;margin-top:6px}
+
+  /* Rules grid */
+  .rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .rule{background:var(--c-limit-bg);border:1px solid color-mix(in srgb,var(--c-limit) 26%,var(--line));
+    border-radius:12px;padding:13px 15px}
+  .rule h4{margin:0 0 3px;font-size:13.5px;color:var(--c-limit)}
+  .rule p{margin:0;font-size:12.5px;color:var(--ink)}
+
+  /* Services */
+  .svcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .svc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .svc h4{margin:0 0 2px;font-size:14px} .svc p{margin:0;font-size:12.5px;color:var(--muted)}
+  .buckets{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .bucket{font-family:var(--mono);font-size:11.5px;padding:4px 9px;border-radius:7px;border:1px dashed color-mix(in srgb,var(--c-data) 40%,var(--line));color:var(--c-data);background:var(--c-data-bg)}
+
+  footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  a{color:var(--accent)}
+  @media (max-width:640px){ .split{grid-template-columns:1fr} .rung{grid-template-columns:52px 1fr} }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="brand"><span class="dot"></span> Chertt</div>
+  <h1>The whole system, on one page</h1>
+  <p class="lede">Every surface, every safety rule, every data type, and what each kind of person is allowed to do — a WhatsApp-first church platform for the Nigerian market. Built from the live codebase, not a sketch.</p>
+  <div class="legend">
+    <b><span class="swatch" style="background:var(--c-surface)"></span> Surface</b>
+    <b><span class="swatch" style="background:var(--c-safety)"></span> Safety</b>
+    <b><span class="swatch" style="background:var(--c-ai)"></span> AI agent</b>
+    <b><span class="swatch" style="background:var(--c-data)"></span> Data</b>
+    <b><span class="swatch" style="background:var(--c-power)"></span> Powers</b>
+    <b><span class="swatch" style="background:var(--c-limit)"></span> Limits</b>
+  </div>
+</header>
+
+<!-- THE TREE -->
+<section>
+  <div class="tree">
+    <span class="node root">🌳 CHERTT</span>
+    <div class="conn"></div>
+    <span class="layer-label">Where people meet it</span>
+    <div class="row">
+      <span class="node n-surface">💬 WhatsApp — the product</span>
+      <span class="node n-surface">🖥️ /admin — Chertt team console</span>
+      <span class="node n-surface">📝 /onboard — church KYC form</span>
+      <span class="node n-surface">💳 Payments</span>
+    </div>
+    <div class="conn"></div>
+    <span class="layer-label">Every message passes through, in order</span>
+    <div class="row">
+      <span class="node n-safety">🛡️ SAFETY — consent · scam · danger · guardrails</span>
+      <span class="node n-ai">🧠 AI AGENT — bounded tool-loop</span>
+      <span class="node n-data">🗄️ DB — Supabase, RLS deny-all</span>
+    </div>
+    <div class="conn"></div>
+    <div class="split">
+      <div class="col pow">
+        <h3>▲ Powers — what it can do</h3>
+        <div class="chips">
+          <span class="chip">Giving &amp; payments</span><span class="chip">Kids check-in + QR</span>
+          <span class="chip">Pastoral care &amp; forms</span><span class="chip">Ministries &amp; departments</span>
+          <span class="chip">Events</span><span class="chip">Prayer (referral)</span>
+          <span class="chip">First-timers</span><span class="chip">Announcements</span>
+          <span class="chip">Life milestones</span><span class="chip">Member &amp; child registration</span>
+        </div>
+      </div>
+      <div class="col lim">
+        <h3>▼ Limits — what it must never do</h3>
+        <div class="chips">
+          <span class="chip">No schema creation</span><span class="chip">Never prays / counsels</span>
+          <span class="chip">Never reads an OTP</span><span class="chip">No money to a new account</span>
+          <span class="chip">Guardian consent for kids</span><span class="chip">Confirm before consequences</span>
+          <span class="chip">Max steps per turn</span><span class="chip">Never cross churches</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REQUEST PATH -->
+<section>
+  <p class="eyebrow">The path of a single message</p>
+  <h2>What happens when someone texts</h2>
+  <p class="sub">Nothing is stored or acted on until consent is given and the safety layer clears it. The AI only ever calls typed, role-checked tools — it never touches the database directly.</p>
+  <div class="flow">
+    <span class="step">Inbound webhook</span><span class="arrow">→</span>
+    <span class="step">De-dupe</span><span class="arrow">→</span>
+    <span class="step hot">Consent gate</span><span class="arrow">→</span>
+    <span class="step">Resolve identity &amp; church</span><span class="arrow">→</span>
+    <span class="step hot">Scam / danger check</span><span class="arrow">→</span>
+    <span class="step brain">Agent loop (step-capped)</span><span class="arrow">→</span>
+    <span class="step">Role-checked tool</span><span class="arrow">→</span>
+    <span class="step">Supabase (service-role)</span><span class="arrow">→</span>
+    <span class="step">Reply + delivery log</span>
+  </div>
+</section>
+
+<!-- DATA MODEL -->
+<section>
+  <p class="eyebrow">Everything it remembers</p>
+  <h2>The data model — 50+ tables, by domain</h2>
+  <p class="sub">Every human is one <span class="t">people</span> row; phones point at them, roles are a person × church. All sensitive tables are RLS deny-all — only trusted server code reads them.</p>
+  <div class="domains">
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--accent)"></span><h4>Identity &amp; tenancy</h4></div>
+      <p>Who is who, which church, what role.</p>
+      <div class="tbls"><span class="t">people</span><span class="t">phone_contacts</span><span class="t">branch_memberships</span><span class="t">organizations</span><span class="t">workspaces</span><span class="t">organization_admins</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-surface)"></span><h4>Verification (KYC)</h4></div>
+      <p>Real churches only — CAC + NIN via Mono, human-reviewed.</p>
+      <div class="tbls"><span class="t">kyc_applications</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-safety)"></span><h4>Children &amp; safety</h4></div>
+      <p>Guardian-consented, guardian-only release.</p>
+      <div class="tbls"><span class="t">child_profiles</span><span class="t">guardianships</span><span class="t">child_checkins</span><span class="t">pickup_attempts</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-power)"></span><h4>Giving &amp; money</h4></div>
+      <p>The official giving ledger + categories.</p>
+      <div class="tbls"><span class="t">giving_records</span><span class="t">giving_categories</span><span class="t">demo_payments</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-ai)"></span><h4>Pastoral &amp; life journeys</h4></div>
+      <p>Care requests, the five forms, milestones.</p>
+      <div class="tbls"><span class="t">prayer_requests</span><span class="t">pastoral_care_requests</span><span class="t">pastoral_forms</span><span class="t">pastoral_form_submissions</span><span class="t">person_milestones</span><span class="t">life_journeys</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-data)"></span><h4>Belonging &amp; Sundays</h4></div>
+      <p>Ministries, departments, events, services.</p>
+      <div class="tbls"><span class="t">ministry_units</span><span class="t">department_memberships</span><span class="t">announcements</span><span class="t">event_registrations</span><span class="t">services</span><span class="t">service_reports</span><span class="t">service_attendance</span><span class="t">approvals</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-surface)"></span><h4>Engagement &amp; ops</h4></div>
+      <p>First-timers, volunteers, the front desk.</p>
+      <div class="tbls"><span class="t">first_timers</span><span class="t">volunteer_needs</span><span class="t">volunteer_signups</span><span class="t">office_guests</span><span class="t">lost_found_items</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-ai)"></span><h4>Governed AI data</h4></div>
+      <p>What the AI captures — with hard rails.</p>
+      <div class="tbls"><span class="t">person_attributes</span><span class="t">chat_attachments</span><span class="t">flagged_messages</span><span class="t">agent_tool_audit</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--c-limit)"></span><h4>Consent &amp; privacy</h4></div>
+      <p>Lawful basis, opt-out, data-subject rights.</p>
+      <div class="tbls"><span class="t">data_requests</span><span class="t">otp_challenges</span><span class="t">number_migration_requests</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--muted)"></span><h4>Conversation &amp; delivery</h4></div>
+      <p>Session state + every send outcome.</p>
+      <div class="tbls"><span class="t">whatsapp_sessions</span><span class="t">whatsapp_processed_messages</span><span class="t">whatsapp_send_logs</span><span class="t">conversations</span><span class="t">messages</span></div></div>
+
+    <div class="domain"><div class="h"><span class="bar" style="background:var(--muted)"></span><h4>Business toolkit (legacy)</h4></div>
+      <p>From the earlier dual-surface era; retained.</p>
+      <div class="tbls"><span class="t">toolkit_forms</span><span class="t">toolkit_form_submissions</span><span class="t">toolkit_expense_entries</span><span class="t">toolkit_issue_reports</span><span class="t">toolkit_inventory_items</span><span class="t">toolkit_appointments</span><span class="t">toolkit_feedback_polls</span><span class="t">toolkit_knowledge_articles</span><span class="t">toolkit_onboarding_tracks</span><span class="t">toolkit_people</span></div></div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section>
+  <p class="eyebrow">Who can do what</p>
+  <h2>Roles &amp; powers — the authority ladder</h2>
+  <p class="sub">Each rung unlocks everything below it. Powers come from a tool's minimum rank; anything holding personal data is gated separately — and read-only for the IT role, always.</p>
+  <div class="ladder">
+    <div class="rung special"><div class="rank">GUEST</div><div>
+      <h4>Guest — an unlinked number</h4><p class="who">Anyone who texts the line and isn't a member yet</p>
+      <ul><li>Must pass the privacy consent gate first</li><li>Join a church by code / QR, or start church setup if they lead one</li><li>Recover a changed number</li><li>No church tools until connected</li></ul></div></div>
+
+    <div class="rung"><div class="rank">0</div><div>
+      <h4>Member</h4><p class="who">member · staff — everyday congregant self-service</p>
+      <ul><li>Give (with confirmation), set birthday, register for events</li><li>Request prayer &amp; pastoral care, submit a dedication/naming form</li><li>Register themselves &amp; their own children (guardian consent), check a child in</li><li>Join a department, report lost &amp; found</li></ul></div></div>
+
+    <div class="rung"><div class="rank">1</div><div>
+      <h4>Children's team &amp; department leaders</h4><p class="who">children · dept_leader</p>
+      <ul><li>Look up a pickup code, see checked-in children, release a child <em>to their registered guardian</em></li></ul></div></div>
+
+    <div class="rung special"><div class="rank">2</div><div>
+      <h4>Secretary · Operations · <b>IT / technical</b></h4><p class="who">secretary · operations · it_technical</p>
+      <ul><li>Follow-up queue &amp; visitor list, pending requests, low supplies, open issues</li><li>Front desk: office guests in/out; birthday lists</li></ul>
+      <span class="lock">🔒 IT / technical: configures &amp; fixes the church — reads NO member, giving, child, or prayer data</span></div></div>
+
+    <div class="rung"><div class="rank">3</div><div>
+      <h4>Finance &amp; approvers</h4><p class="who">finance · approver</p>
+      <ul><li>Record giving, giving summaries, top givers</li><li>Pastoral queue: list, assign, resolve; pastoral form submissions</li><li>Record milestones; approve / decline department requests</li></ul></div></div>
+
+    <div class="rung"><div class="rank">4</div><div>
+      <h4>Pastors</h4><p class="who">pastor · pastoral · manager</p>
+      <ul><li>Prayer requests, convert a first-timer to a member, register members</li><li>Create events &amp; announcements, life-journey details, approve number migrations</li></ul></div></div>
+
+    <div class="rung"><div class="rank">5–6</div><div>
+      <h4>Senior leadership &amp; the Creator</h4><p class="who">admin · senior_pastor · owner · creator</p>
+      <ul><li>Full church admin. <b>Creator</b> is the account owner who signed the church up — full authority, never an auto-assigned ministry title.</li><li>Assign roles (with an anti-escalation guard: you can't grant above yourself)</li></ul></div></div>
+
+    <div class="rung special"><div class="rank">WEB</div><div>
+      <h4>Platform admin — the Chertt team</h4><p class="who">Not a church role — the /admin console, allow-listed emails</p>
+      <ul><li>Review &amp; approve/reject church KYC, see all churches, people, giving, data requests</li><li>The only role that sees across churches — every church tool is otherwise walled to its own workspace</li></ul></div></div>
+  </div>
+</section>
+
+<!-- RULES -->
+<section>
+  <p class="eyebrow">The rails it can't cross</p>
+  <h2>Rules &amp; guardrails</h2>
+  <p class="sub">These are enforced in code and locked by tests — the AI stays sharp and reactive, but never autonomous over money, minors, or personal data.</p>
+  <div class="rules">
+    <div class="rule"><h4>Consent first</h4><p>No data stored or used until the person agrees (NDPA). Opt-out via <b>stop</b> suppresses every future message.</p></div>
+    <div class="rule"><h4>Never prays or counsels</h4><p>Captures prayer &amp; pastoral needs and refers to a real human — never spiritual advice itself.</p></div>
+    <div class="rule"><h4>Scam-proof with money &amp; codes</h4><p>Never reads an OTP, never sends money to a new/unknown account, never acts on "it's the pastor, urgent" pressure.</p></div>
+    <div class="rule"><h4>Danger → a human, fast</h4><p>Abuse, self-harm, a child in danger → stay calm, don't fix it, escalate to a pastor and point to help (112).</p></div>
+    <div class="rule"><h4>Confirmation gates</h4><p>Collecting money, messaging everyone, releasing a child, or storing sensitive data all require an explicit yes.</p></div>
+    <div class="rule"><h4>Guardian consent for children</h4><p>Only a parent/guardian registers a child; release only to a registered guardian with pickup permission.</p></div>
+    <div class="rule"><h4>Special-category refusal</h4><p>Health, religion, ethnicity, politics, orientation, biometrics — refused unless the person explicitly consents.</p></div>
+    <div class="rule"><h4>No dynamic schema</h4><p>The AI never invents tables or columns — extra facts go into a governed attributes bag only.</p></div>
+    <div class="rule"><h4>Bounded reasoning</h4><p>A step-capped tool loop — the AI can't run away with itself or loop endlessly.</p></div>
+    <div class="rule"><h4>Church isolation</h4><p>Every church tool is walled to its own workspace; RLS deny-all means one church can never read another's data.</p></div>
+    <div class="rule"><h4>Tiered access</h4><p>Bank-app style — an unverified church can't take money or add members until KYC is approved.</p></div>
+    <div class="rule"><h4>IT sees no data</h4><p>The technical role can configure and fix the church but can never read members, giving, children, or prayers.</p></div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section>
+  <p class="eyebrow">What it stands on</p>
+  <h2>External services &amp; storage</h2>
+  <p class="sub">Each dependency degrades gracefully — a missing key never crashes the flow.</p>
+  <div class="svcs">
+    <div class="svc"><h4>Mono</h4><p>Nigerian KYC — CAC registry + NIN identity lookup.</p></div>
+    <div class="svc"><h4>WhatsApp Cloud API</h4><p>The product channel — inbound webhook + templates + delivery status.</p></div>
+    <div class="svc"><h4>Email (SMTP → Resend)</h4><p>Verification codes, with a WhatsApp fallback so it never blocks.</p></div>
+    <div class="svc"><h4>Paystack</h4><p>Real giving payments, signature-verified &amp; idempotent.</p></div>
+    <div class="svc"><h4>Supabase</h4><p>Postgres (RLS) + Auth (admin console) + private file storage.</p></div>
+    <div class="svc"><h4>Gemini 2.5 Flash</h4><p>The reasoning behind the agent's tool-calling loop.</p></div>
+  </div>
+  <div class="buckets">
+    <span class="bucket">🔒 kyc (private)</span>
+    <span class="bucket">🔒 chat-attachments (private)</span>
+    <span class="bucket">workspace-attachments</span>
+  </div>
+</section>
+
+<footer>
+  Chertt — WhatsApp-first church management, Nigeria. Generated from the live codebase. Web is admin-only; WhatsApp runs the whole church end-to-end.
+</footer>
+</div>
