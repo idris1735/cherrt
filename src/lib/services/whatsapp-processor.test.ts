@@ -12,6 +12,10 @@ vi.mock("@/lib/services/chat-attachments", () => ({
   persistChatAttachment: vi.fn().mockResolvedValue({ id: "a1", storagePath: "ws1/p1/a1.jpg" }),
 }));
 
+vi.mock("@/lib/services/approvals/department", () => ({
+  decideDepartmentRequest: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
@@ -63,6 +67,7 @@ import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsa
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 import { flagMessage } from "@/lib/services/safety/flags";
 import { persistChatAttachment } from "@/lib/services/chat-attachments";
+import { decideDepartmentRequest } from "@/lib/services/approvals/department";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -650,6 +655,40 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalled(); // sends help menu with buttons
     mockButtons.mockClear();
     mockSend.mockClear();
+  });
+
+  it("approve_dept button decides via the quorum service and notifies member + other leaders", async () => {
+    const mockDecide = decideDepartmentRequest as ReturnType<typeof vi.fn>;
+    mockDecide.mockResolvedValueOnce({
+      status: "approved", memberName: "Ada", unitName: "Choir",
+      memberPhone: "+2348009", otherApprovers: ["+2348002"],
+    });
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "approve_dept:dm1" });
+    expect(mockDecide).toHaveBeenCalledWith("dm1", PHONE, "approve");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Approved Ada"));
+    expect(mockSend).toHaveBeenCalledWith("+2348009", expect.stringContaining("You're in"));
+    expect(mockSend).toHaveBeenCalledWith("+2348002", expect.stringContaining("approved"));
+  });
+
+  it("decline_dept button declines and the member is told", async () => {
+    const mockDecide = decideDepartmentRequest as ReturnType<typeof vi.fn>;
+    mockDecide.mockResolvedValueOnce({
+      status: "declined", memberName: "Ada", unitName: "Choir",
+      memberPhone: "+2348009", otherApprovers: [],
+    });
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "decline_dept:dm1" });
+    expect(mockDecide).toHaveBeenCalledWith("dm1", PHONE, "decline");
+    expect(mockSend).toHaveBeenCalledWith("+2348009", expect.stringContaining("declined"));
+  });
+
+  it("a decision on an already-resolved request says so", async () => {
+    const mockDecide = decideDepartmentRequest as ReturnType<typeof vi.fn>;
+    mockDecide.mockResolvedValueOnce(null);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "approve_dept:dm9" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("already been decided"));
   });
 });
 

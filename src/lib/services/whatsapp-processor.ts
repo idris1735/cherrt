@@ -42,6 +42,7 @@ import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
+import { decideDepartmentRequest } from "@/lib/services/approvals/department";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
 import { assessRisk } from "@/lib/services/safety/risk";
@@ -636,6 +637,23 @@ async function buildOrgWideReport(
   return buildOrgOverviewReport(perBranch);
 }
 
+// ── Department approvals (quorum 'any') ──────────────────────────────────────
+async function handleDepartmentDecision(from: string, requestId: string, decision: "approve" | "decline"): Promise<void> {
+  const result = await decideDepartmentRequest(requestId, from, decision);
+  if (!result) { await sendTextMessage(from, "That request has already been decided."); return; }
+  await sendTextMessage(from, `${result.status === "approved" ? "✅ Approved" : "❌ Declined"} ${result.memberName}'s request to join ${result.unitName}.`);
+  if (result.memberPhone && result.memberPhone !== from) {
+    await sendTextMessage(result.memberPhone, result.status === "approved"
+      ? `🎉 You're in! Your request to join ${result.unitName} was approved. See you Sunday.`
+      : `Your request to join ${result.unitName} was declined — a leader will reach out to you.`);
+  }
+  for (const phone of result.otherApprovers) {
+    if (phone !== from) {
+      await sendTextMessage(phone, `${from} ${result.status === "approved" ? "approved" : "declined"} ${result.memberName}'s ${result.unitName} request.`);
+    }
+  }
+}
+
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
   if (await handleHelpButton(from, buttonId)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
@@ -713,6 +731,11 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
 
   // ── Menu button — available to any linked member ──
   if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
+  if (buttonId.startsWith("approve_dept:") || buttonId.startsWith("decline_dept:")) {
+    const [verb, requestId] = buttonId.split(":");
+    await handleDepartmentDecision(from, requestId, verb === "approve_dept" ? "approve" : "decline");
+    return;
+  }
   if (buttonId === "menu_more") { await sendMainMenu(from, link, 2); return; }
   if (buttonId.startsWith("menu:")) {
     const prompt = menuPromptFor(buttonId.slice(5));

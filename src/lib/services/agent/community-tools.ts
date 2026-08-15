@@ -9,6 +9,9 @@ import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
 import { recordConsent } from "@/lib/services/privacy/consent";
+import { sendInteractiveButtons } from "@/lib/services/whatsapp";
+import { roleRank } from "@/lib/services/identity/role-catalog";
+import { startDepartmentApproval } from "@/lib/services/approvals/department";
 
 export const COMMUNITY_TOOLS: AgentTool[] = [
   {
@@ -127,7 +130,7 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
       // Consent: the member consents to applying for the department
       recordConsent({ personId, source: "department_join" }).catch(() => {});
 
-      const { error } = await db.from("department_memberships").insert({
+      const { data: inserted, error } = await db.from("department_memberships").insert({
         id: randomUUID(),
         workspace_id: ctx.workspaceId,
         person_id: personId,
@@ -137,13 +140,50 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
         skills: String(args.skills ?? "") || null,
         availability: String(args.availability ?? "") || null,
         status: "pending",
-      });
+      }).select("id").single();
       if (error) return { error: error.message };
+      const membershipId = (inserted as { id?: string } | null)?.id;
 
-      // Notify unit leaders
+      // ── Approval with quorum (kind: dept_join, any-leader decides) ──
+      // Leaders get tappable Approve/Decline buttons keyed by row id — no
+      // typing, no AI involvement, decision recorded per approver.
+      if (membershipId) {
+        try {
+          const { data: memberships } = await db
+            .from("branch_memberships")
+            .select("person_id, role")
+            .eq("workspace_id", ctx.workspaceId)
+            .eq("status", "active");
+          const leaderPersonIds = (memberships ?? [])
+            .filter((m) => roleRank((m as { role?: string }).role ?? "member") >= 3)
+            .map((m) => (m as { person_id?: string }).person_id)
+            .filter(Boolean) as string[];
+          const { data: contacts } = await db.from("phone_contacts").select("person_id, phone_number");
+          const leaderPhones = (contacts ?? [])
+            .filter((c) => leaderPersonIds.includes((c as { person_id?: string }).person_id ?? ""))
+            .map((c) => (c as { phone_number?: string }).phone_number)
+            .filter(Boolean) as string[];
+
+          await startDepartmentApproval(ctx.workspaceId, membershipId, leaderPhones);
+          for (const phone of leaderPhones) {
+            await sendInteractiveButtons(
+              phone,
+              `🤝 ${ctx.userName ?? "A member"} wants to join *${unitName}*.`,
+              [
+                { id: `approve_dept:${membershipId}`, title: "✅ Approve" },
+                { id: `decline_dept:${membershipId}`, title: "❌ Decline" },
+              ],
+            ).catch(() => {});
+          }
+        } catch {
+          // approval wiring is best-effort — the pending row + leader message still stand
+        }
+      }
+
+      // Notify unit leaders (fallback text if buttons couldn't be sent)
       notifyLeaders({
         workspaceId: ctx.workspaceId,
-        message: `🤝 ${ctx.userName ?? "A member"} wants to join ${unitName}. Reply APPROVE or DECLINE to handle it.`,
+        message: `🤝 ${ctx.userName ?? "A member"} wants to join ${unitName}. Use the Approve/Decline buttons to decide.`,
       }).catch(() => {});
 
       return { ok: true, message: `🙌 Your application to join ${unitName} is in — the leader will follow up with you.` };
