@@ -51,6 +51,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     description: "Open prayer requests in this church. Anonymous ones hide the requester's name.",
     parameters: { type: "object", properties: {} },
     minRank: 4, // pastoral — prayer requests are sensitive
+    dataSensitive: true, // prayer PII — never readable by it_technical
     handler: async (_args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, requests: [] };
@@ -73,6 +74,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
     description: "First-time visitors captured for this church, most recent first — for follow-up.",
     parameters: { type: "object", properties: {} },
     minRank: 2, // follow-up team (secretary+) — visitor PII
+    dataSensitive: true, // names + phones — never readable by it_technical
     handler: async (_args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, firstTimers: [] };

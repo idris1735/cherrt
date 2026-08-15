@@ -42,6 +42,7 @@ export const BIRTHDAY_TOOLS: AgentTool[] = [
       required: [],
     },
     minRank: 2,
+    dataSensitive: true, // member PII — never readable by it_technical
     handler: async (args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, birthdays: [] };

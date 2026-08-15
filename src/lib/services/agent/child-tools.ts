@@ -293,6 +293,7 @@ export const CHILD_TOOLS: AgentTool[] = [
       "How many and which children are currently checked in to children's church right now. Use for 'how many kids/children do we have checked in', 'how many kids are here', 'who's in children's church', 'list the children checked in'. This is the live check-in count, not Sunday-service attendance.",
     parameters: { type: "object", properties: {} },
     minRank: 1, // children's-team / leaders — reveals child + guardian names
+    dataSensitive: true, // child + guardian PII — never readable by it_technical
     handler: async (_args, ctx) => {
       const db = getSupabaseServerClient();
       if (!db) return { count: 0, children: [] };

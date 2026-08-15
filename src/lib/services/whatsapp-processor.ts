@@ -7,7 +7,7 @@ import {
   deductDemoBalance,
   type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
-import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia, type InteractiveListRow } from "@/lib/services/whatsapp";
+import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia } from "@/lib/services/whatsapp";
 import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
@@ -41,6 +41,7 @@ import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
+import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
 import { assessRisk } from "@/lib/services/safety/risk";
@@ -307,22 +308,12 @@ async function sendGuestWelcome(from: string): Promise<void> {
   }
 }
 
-// The main menu as a WhatsApp interactive list (richer than 3 buttons).
-// Available to any linked member — no typing required. 10 items max (WhatsApp
-// list limit). "More help →" shows the full help text with button shortcuts.
-async function sendMainMenu(from: string): Promise<void> {
-  const rows: InteractiveListRow[] = [
-    { id: "help_give", title: "💰 Give", description: "Give a tithe or offering" },
-    { id: "help_prayer", title: "🕊️ Ask for prayer", description: "Submit a prayer request" },
-    { id: "help_checkin", title: "👶 Check in a child", description: "Get a pickup code" },
-    { id: "help_firsttimer", title: "👋 I'm new here", description: "Register as a first-timer" },
-    { id: "help_join", title: "🤝 Join a ministry", description: "Join a department or team" },
-    { id: "help_event", title: "📅 Events", description: "See or register for events" },
-    { id: "help_service", title: "📝 Record service", description: "Log attendance & offering" },
-    { id: "rpt:giving", title: "📊 Giving this month", description: "Totals and recent gifts" },
-    { id: "rpt:overview", title: "🏛️ Church at a glance", description: "Attendance, approvals, issues" },
-    { id: "help_more", title: "💡 More help →", description: "See everything I can do" },
-  ];
+// The main menu as a WhatsApp interactive list — role-aware (WS-menu): the rows
+// offered are exactly the tools this caller is allowed to use, derived from the
+// same permission machinery that guards execution. Page 2 holds the overflow.
+async function sendMainMenu(from: string, link: PhoneLink | null, page = 1): Promise<void> {
+  if (!link) { await sendGuestWelcome(from); return; }
+  const rows = menuForRole(link.userRole ?? "member", page);
   try {
     await sendInteractiveList(from, "What do you need? 👇", "Open menu", rows, "Menu");
   } catch {
@@ -721,7 +712,24 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   }
 
   // ── Menu button — available to any linked member ──
-  if (buttonId === "main_menu") { await sendMainMenu(from); return; }
+  if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
+  if (buttonId === "menu_more") { await sendMainMenu(from, link, 2); return; }
+  if (buttonId.startsWith("menu:")) {
+    const prompt = menuPromptFor(buttonId.slice(5));
+    if (prompt) {
+      // Feed the prompt through the exact same path as a typed message — every
+      // guard (confirmation gates, consent, role checks) still applies.
+      if (link && (await dispatchToAgent(from, prompt, agentCtx(link, from, personId)))) return;
+      await addToHistory(from, "user", prompt);
+      const freshSession = await getSession(from);
+      let context: CommandExecutionContext;
+      if (link) { const [ctx, kb] = await Promise.all([loadWorkspaceContext(link.workspaceId), loadKnowledgeContext(link.workspaceId)]); context = buildWorkspaceCtx(link, ctx, freshSession, undefined, kb); }
+      else { context = buildGuestContext(freshSession); }
+      const result = await runCherttCommand(prompt, context, false);
+      await handleAiResult(from, result, prompt, freshSession, link);
+      return;
+    }
+  }
 
   // ── Org-wide report navigation buttons ──
   if (buttonId === "rpt:org-overview" || buttonId === "rpt:org-giving") {
@@ -1108,7 +1116,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // ── Menu / lost — any linked member gets the tappable menu, no typing a
   // command out. Placed before HELP_RE so the richer list wins. ──
-  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from); return; }
+  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, link); return; }
   // Guests get the tappable who-are-you buttons for any menu / "how does this
   // work" / options intent — never a "we don't have a menu" text reply.
   if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) { await sendGuestWelcome(from); return; }

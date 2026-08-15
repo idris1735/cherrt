@@ -550,7 +550,7 @@ describe("processWhatsAppMessage", () => {
     }
   });
 
-  it("'menu' opens a rich interactive list (10 items) for a linked member", async () => {
+  it("'menu' opens a role-aware interactive list for a linked member", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
     ]);
@@ -558,13 +558,47 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
     expect(mockList).toHaveBeenCalled();
     const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
-    expect(rows.some((r) => r.id === "rpt:giving")).toBe(true);
-    expect(rows.some((r) => r.id === "help_give")).toBe(true);
-    expect(rows.some((r) => r.id === "help_firsttimer")).toBe(true);
-    expect(rows.some((r) => r.id === "help_join")).toBe(true);
-    expect(rows.some((r) => r.id === "help_more")).toBe(true);
+    expect(rows.some((r) => r.id === "menu:give")).toBe(true);
+    expect(rows.some((r) => r.id === "menu:giving_month")).toBe(true); // creator sees finance rows
+    expect(rows.some((r) => r.id === "menu:checkin")).toBe(true);
     expect(rows.length).toBe(10);
     expect(rows.some((r) => r.id === "role:menu")).toBe(false); // no demo role-switch
+  });
+
+  it("the menu is role-aware: a member never sees leadership rows", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string }>];
+    const allIds = rows.map((r) => r.id);
+    expect(allIds).toContain("menu:give");
+    expect(allIds).not.toContain("menu:giving_month");
+    expect(allIds).not.toContain("menu:members");
+    expect(allIds).not.toContain("menu:announce");
+  });
+
+  it("tapping a menu row feeds its prompt through the normal agent path", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:give" });
+    // runAgentQuery is stubbed to null (no Gemini) so it falls through to the creator.
+    expect(runCherttCommand).toHaveBeenCalledWith("I want to give", expect.anything(), false);
+  });
+
+  it("'More actions' opens menu page 2 with the overflow rows", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu_more" });
+    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string }>];
+    const allIds = rows.map((r) => r.id);
+    expect(allIds).toContain("menu:join_dept"); // overflow begins on page 2
+    expect(allIds).toContain("menu:announce");
   });
 
   it("'help first-timer' button sends a first-timer guide", async () => {
