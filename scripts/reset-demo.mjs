@@ -30,9 +30,15 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(1);
 }
 
-// FK-safe order: runtime data → memberships → identity → orgs
+// FK-safe order: conversation memory + logs → runtime data → memberships →
+// identity → orgs. Tables that don't exist yet just 404 and are skipped.
 const TABLES = [
-  "whatsapp_sessions", "whatsapp_processed_messages", "otp_challenges", "kyc_applications",
+  // Conversation memory + delivery logs — clears so the bot feels brand-new to everyone.
+  "conversations", "messages", "conversation_threads",
+  "whatsapp_sessions", "whatsapp_processed_messages", "whatsapp_send_logs", "otp_challenges",
+  // AI-collected + governed data.
+  "chat_attachments", "person_attributes", "flagged_messages", "data_requests",
+  "kyc_applications",
   "giving_records", "prayer_requests", "first_timers", "pastoral_care_requests",
   "child_checkins", "event_registrations", "event_records", "department_memberships",
   "life_journeys", "announcements", "pastoral_form_submissions", "person_milestones",
@@ -59,7 +65,13 @@ async function rest(path, method = "GET", body) {
 
 async function wipeTable(table) {
   // PostgREST DELETE needs a filter; use a column that always exists.
-  await rest(`${table}?id=not.null`, "DELETE");
+  // Resilient: a missing table (404) or one without an `id` column just gets
+  // skipped with a warning — one odd table never aborts the whole reset.
+  try {
+    await rest(`${table}?id=not.null`, "DELETE");
+  } catch (err) {
+    console.warn(`   ⚠ skipped ${table}: ${String(err.message).split("\n")[0]}`);
+  }
 }
 
 async function emptyBucket() {
