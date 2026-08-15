@@ -13,8 +13,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 let SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 try {
-  for (const line of readFileSync(resolve(__dirname, "..", ".env.local"), "utf8").split("\n")) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+  for (const line of readFileSync(resolve(__dirname, "..", ".env.local"), "utf8").split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*?)\r?$/);
     if (!m) continue;
     const value = m[2].trim().replace(/^["']|["']$/g, "");
     if (m[1] === "NEXT_PUBLIC_SUPABASE_URL" && !SUPABASE_URL) SUPABASE_URL = value;
@@ -82,11 +82,13 @@ async function seedChurch(cfg) {
     await insert("person_milestones", { id: randomUUID(), person_id: childId, workspace_id: wsId, type: "child_dedication", occurred_on: daysAgo(5), details: { via: "seed" } });
   }
 
-  // A first-timer awaiting follow-up
+  // A first-timer awaiting follow-up (first_timers is name/phone-based —
+  // no person_id column, no people row needed).
   if (cfg.firstTimer) {
-    const ftId = randomUUID();
-    await insert("people", { id: ftId, full_name: cfg.firstTimer.name });
-    await insert("first_timers", { id: randomUUID(), workspace_id: wsId, person_id: ftId, name: cfg.firstTimer.name, phone: cfg.firstTimer.phone, follow_up_status: "new", created_at: daysAgo(1) });
+    await insert("first_timers", {
+      id: randomUUID(), workspace_id: wsId, name: cfg.firstTimer.name, phone: cfg.firstTimer.phone,
+      invited_by: cfg.pastor.name, follow_up_status: "new", created_at: daysAgo(1),
+    });
   }
 
   // Milestones + giving story
@@ -103,7 +105,10 @@ async function seedChurch(cfg) {
 
   // An open pastoral request so leaders have something to see
   if (memberIds[0]) {
-    await insert("pastoral_care_requests", { id: randomUUID(), workspace_id: wsId, person_id: memberIds[0], requester_name: cfg.members[0].name, category: "marriage", details: "Pre-marital counselling booking", status: "open", created_at: daysAgo(1) });
+    await insert("pastoral_care_requests", {
+      id: randomUUID(), workspace_id: wsId, requester_name: cfg.members[0].name,
+      category: "marriage", details: "Pre-marital counselling booking", status: "open", created_at: daysAgo(1),
+    });
   }
 
   return { name: cfg.name, code: cfg.joinCode, members: cfg.members.length + 1, giving: total, city: cfg.city };
