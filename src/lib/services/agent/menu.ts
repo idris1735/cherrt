@@ -63,7 +63,8 @@ export function menuForRole(role: string, page = 1): Array<{ id: string; title: 
   const ctx: AgentContext = { workspaceId: "", role: role as AgentContext["role"] };
   const visible = MENU_ITEMS.filter((m) => {
     const tool = getAgentTool(m.tool);
-    return Boolean(tool) && !toolAccessError(tool, ctx);
+    if (!tool) return false;
+    return !toolAccessError(tool, ctx);
   });
   const start = (page - 1) * PAGE_SIZE;
   const rows = visible

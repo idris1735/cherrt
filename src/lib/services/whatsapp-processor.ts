@@ -742,7 +742,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     if (prompt) {
       // Feed the prompt through the exact same path as a typed message — every
       // guard (confirmation gates, consent, role checks) still applies.
-      if (link && (await dispatchToAgent(from, prompt, agentCtx(link, from, personId)))) return;
+      if (link && (await dispatchToAgent(from, prompt, agentCtx(link, from, personId ?? undefined)))) return;
       await addToHistory(from, "user", prompt);
       const freshSession = await getSession(from);
       let context: CommandExecutionContext;
