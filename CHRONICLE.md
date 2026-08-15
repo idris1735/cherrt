@@ -8,6 +8,12 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-15 — Role-aware menus + department approvals with quorum
+
+- **Role-aware tappable menus** (`37a715e`): `agent/menu.ts` — 21 curated actions across 5 groups, each row gated by the *same* `toolAccessError` as execution. Member / finance / pastor / creator / it_technical get honestly different menus; 10-row pages with "More actions →" overflow; tapping feeds a natural-language prompt through the normal guarded path. Bonus security fix the test surfaced: `list_first_timers`, `list_checked_in_children`, `list_prayer_requests`, `list_birthdays` marked `dataSensitive` — IT/technical can no longer read visitor/child PII.
+- **Department approvals with quorum** (`f19ec04`): migration `20260815100000_approvals` (kind dept_join/spend/broadcast; quorum any/all/n_of_m; per-approver decisions jsonb; RLS deny-all). Pure `quorum.ts` math (any → first decides; n_of_m → requirement math; all → one decline kills) + `approvals/department.ts` (open approval, record decision, resolve membership by row id). `join_department` now opens an approval and sends leaders (rank ≥ 3) tappable **Approve/Decline buttons keyed by row id**; processor handles `approve_dept:`/`decline_dept:` → member + other leaders notified. No more "reply APPROVE and hope the AI routes it."
+- **Demo-ready:** reset/seed scripts fixed (CRLF env, PostgREST filters, schema truth) and run — 3 churches live in production. **619 tests / 82 files green.** Demo run-of-show + speech: `docs/demo-presentation.md`. Architecture tree: `docs/architecture-tree.md`.
+
 ### 2026-08-14 — Governed data + AI guardrails (WS-A → WS-D → WS-B → WS-C)
 
 **Brief:** `docs/prompts/2026-08-14-chat-attachments-governed-data-ai-guardrails.md` (Claude's direction: governed flexibility, not a blank cheque). **591 tests / 80 files green.** Migrations applied: `20260814120000_chat_attachments`, `20260814130000_pickup_safety_join_code`, `20260814140000_person_attributes`.
