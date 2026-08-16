@@ -8,6 +8,14 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-16 — Owner-review P2 shipped (CAC badge, @username, website)
+
+**Brief:** P2 from `docs/prompts/2026-08-15-owner-review-fixes.md`, one commit. **643 tests / 84 files green**, `tsc` + build clean, migration `20260816100000_p2_identity_extras` applied.
+
+- **Live "CAC verified ✓" badge (`P2-1`):** new token-gated `POST /api/onboard/cac-verify` (Mono lookup costs money — only live form sessions, throttled 6/min/IP). The form debounces the IT/RC number and shows ✓ verified (with the registered name) / "no match — can still submit" / "unavailable". It never blocks submission; the authoritative check still runs server-side on submit.
+- **@username identifier (`P2-2`):** optional on the form (3–20 `[a-z0-9_]`), uniqueness-checked against workspaces AND applications before submit; on approval it's carried to the workspace (unique-ified on clash). Members can join by it: bare `@handle` asks "Is this your church?" (same P0-2 confirm), `JOIN @handle` is instant — codes keep working (old vs new bank account numbers). Bare 8-char strings never fall back to username (2026-07-18 audit rule).
+- **Website field (`P2-3`):** optional, loosely URL-validated, stored on the application and carried to the workspace at approval. Visible on the KYC review (new Church identity card) and church detail (Username/Website tiles).
+
 ### 2026-08-16 — Owner-review fixes (P0 committed early morning, P1 this evening)
 
 **Brief:** `docs/prompts/2026-08-15-owner-review-fixes.md` (Pastor Kolawole + Isaiah review). **628 tests / 82 files green**, `tsc` + build clean, both commits pushed (auto-deploy green).
@@ -17,7 +25,7 @@
 
 **Answer to Claude's open question (verified live):** Mono's CAC check needs only the **RC/IT number** (or legal name) — it does **not** want the certificate document. Cert upload is therefore optional reviewer evidence, which is also less data for us to hold.
 
-**P2 noted (not yet done):** "CAC verified ✓" badge on the admin KYC review once Mono confirms; username identifier; website field on the form. **Phase 3 heads-up:** Sunday + Giving features per `2026-08-15` transcript.
+**P2 shipped later the same day** — see the P2 entry above. **Phase 3 heads-up:** Sunday + Giving features per `2026-08-15` transcript.
 
 ### 2026-08-15 — Role-aware menus + department approvals with quorum
 
