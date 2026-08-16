@@ -503,7 +503,7 @@ export async function getWorkspaceJoinCode(id: string): Promise<string> {
   return codeFromWorkspaceId(id);
 }
 
-export async function findWorkspaceByJoinCode(code: string): Promise<{ id: string; slug: string; name: string } | null> {
+export async function findWorkspaceByJoinCode(code: string): Promise<{ id: string; slug: string; name: string; city: string } | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
 
@@ -511,10 +511,10 @@ export async function findWorkspaceByJoinCode(code: string): Promise<{ id: strin
   // WS-D: indexed equality lookup on the stored join_code column.
   const { data } = await db
     .from("workspaces")
-    .select("id, slug, name")
+    .select("id, slug, name, city")
     .eq("join_code", normalized)
     .maybeSingle();
-  return (data as { id: string; slug: string; name: string } | null) ?? null;
+  return (data as { id: string; slug: string; name: string; city: string } | null) ?? null;
 }
 
 export async function createPendingOrganization(fields: {

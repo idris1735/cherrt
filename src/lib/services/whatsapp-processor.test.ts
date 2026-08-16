@@ -16,6 +16,15 @@ vi.mock("@/lib/services/approvals/department", () => ({
   decideDepartmentRequest: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/services/demo-reset", () => ({
+  resetSenderData: vi.fn().mockResolvedValue({ wiped: [] }),
+}));
+
+vi.mock("@/lib/services/identity/provisioning", () => ({
+  provisionPersonMembership: vi.fn().mockResolvedValue(true),
+  ensureVerifiedPerson: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
@@ -51,6 +60,7 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
     ...actual,
     claimWhatsAppMessage: vi.fn().mockResolvedValue(true),
     lookupAllPhoneLinks: vi.fn().mockResolvedValue([]),
+    findWorkspaceByJoinCode: vi.fn().mockResolvedValue(null),
     persistWorkspaceAiResult: vi.fn().mockResolvedValue(undefined),
     getApproverPhone: vi.fn().mockResolvedValue(null),
     approveWorkspaceRequest: vi.fn().mockResolvedValue(true),
@@ -63,11 +73,13 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
 import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
-import { claimWhatsAppMessage, lookupAllPhoneLinks } from "@/lib/services/whatsapp-workspace";
+import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode } from "@/lib/services/whatsapp-workspace";
+import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 import { flagMessage } from "@/lib/services/safety/flags";
 import { persistChatAttachment } from "@/lib/services/chat-attachments";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
+import { resetSenderData } from "@/lib/services/demo-reset";
 
 const mockSend = sendTextMessage as ReturnType<typeof vi.fn>;
 const mockButtons = sendInteractiveButtons as ReturnType<typeof vi.fn>;
@@ -689,6 +701,61 @@ describe("processWhatsAppMessage", () => {
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "approve_dept:dm9" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("already been decided"));
+  });
+
+  it("P0-1 — a welcomed guest prompted for a code gets linked when they send a bare code", async () => {
+    const mockFind = findWorkspaceByJoinCode as ReturnType<typeof vi.fn>;
+    mockFind.mockResolvedValueOnce({ id: "ws-daystar", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos" });
+    await updateSession(PHONE, { welcomed: true, awaitingJoinCode: true });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "DAYSTAR3" });
+    expect(mockFind).toHaveBeenCalledWith("DAYSTAR3");
+    // P0-2 — never links silently: reflects the church back and asks to confirm.
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar Christian Centre"), expect.anything(), expect.anything());
+    expect(provisionPersonMembership).not.toHaveBeenCalled();
+  });
+
+  it("P0-2 — YES on the church confirm links the person and greets by church name", async () => {
+    await updateSession(PHONE, {
+      welcomed: true,
+      pendingJoin: { workspaceId: "ws-daystar", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos" },
+    });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "join_yes" });
+    expect(provisionPersonMembership).toHaveBeenCalledWith(expect.objectContaining({
+      phoneNumber: PHONE, workspaceId: "ws-daystar", workspaceName: "Daystar Christian Centre", role: "member",
+    }));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("connected to *Daystar Christian Centre*"));
+  });
+
+  it("P0-2 — NO on the church confirm clears the pending join without linking", async () => {
+    await updateSession(PHONE, {
+      welcomed: true,
+      pendingJoin: { workspaceId: "ws-daystar", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos" },
+    });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "join_no" });
+    expect(provisionPersonMembership).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("right code"));
+  });
+
+  it("P0-3 — a returning linked member gets a per-church welcome-back, never a code prompt", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Welcome back, Idris"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar Christian Centre"));
+    expect(mockSend.mock.calls.flat().join(" ")).not.toContain("code");
+  });
+
+  it("P0-5 — #reset wipes the sender's own data and starts them fresh", async () => {
+    const mockReset = resetSenderData as ReturnType<typeof vi.fn>;
+    await updateSession(PHONE, { welcomed: true, userName: "Idris" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "#reset" });
+    expect(mockReset).toHaveBeenCalledWith(PHONE);
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("wiped"));
+    const fresh = await getSession(PHONE);
+    expect(fresh.welcomed).toBe(false);
+    expect(fresh.userName).toBeUndefined();
   });
 });
 

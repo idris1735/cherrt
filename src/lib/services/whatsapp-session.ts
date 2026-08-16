@@ -5,6 +5,11 @@ export type WhatsAppSession = {
   welcomed: boolean;
   demoBalance: number;
   userName?: string;
+  // P0-1: the guest was just prompted to send their church's code — while set,
+  // a bare 8-char code is accepted as a join attempt even though welcomed=true.
+  awaitingJoinCode?: boolean;
+  // P0-2: a resolved join code waits for the person's YES before linking.
+  pendingJoin?: { workspaceId: string; slug: string; name: string; city: string };
   // Which workspace this conversation is currently scoped to, when the phone
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."
@@ -219,4 +224,15 @@ export async function deductDemoBalance(phoneNumber: string, amount: number): Pr
 
 export function resetSessions(): void {
   sessions.clear();
+}
+
+// P0-5 #reset: wipe one sender's whole conversation state — in-memory cache
+// AND the persisted DB row — so their next message is a true first contact.
+export async function resetSession(phoneNumber: string): Promise<void> {
+  sessions.delete(phoneNumber);
+  const db = getSupabaseServerClient();
+  if (!db) return;
+  await db.from("whatsapp_sessions").delete().eq("phone_number", phoneNumber).then(
+    ({ error }) => { if (error) console.error("[session] reset delete failed:", error.message); },
+  );
 }

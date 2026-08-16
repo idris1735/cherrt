@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { adminFetch } from "../use-admin-fetch";
 import { InfoTip, TIPS } from "@/components/admin/info-tip";
 
@@ -24,6 +25,7 @@ const nf = (n: number) => n.toLocaleString("en-NG");
 type SortKey = "name" | "members" | "givingTotal" | "createdAt" | "branches";
 
 export default function ChurchesList() {
+  const router = useRouter();
   const [rows, setRows] = useState<Church[] | null>(null);
   const [err, setErr] = useState(false);
   const [q, setQ] = useState("");
@@ -82,8 +84,8 @@ export default function ChurchesList() {
             </thead>
             <tbody>
               {visible.map((c) => (
-                <tr key={c.id}>
-                  <td><Link href={`/admin/churches/${c.id}`} style={{ fontWeight: 600, color: "var(--ink)" }}>{c.name}</Link></td>
+                <tr key={c.id} onClick={() => router.push(`/admin/churches/${c.id}`)} style={{ cursor: "pointer" }} className="clickable-row">
+                  <td><Link href={`/admin/churches/${c.id}`} onClick={(e) => e.stopPropagation()} style={{ fontWeight: 600, color: "var(--ink)" }}>{c.name}</Link></td>
                   <td><span className={`badge ${statusBadge(c.status)}`}>{c.status.replace(/_/g, " ")}</span></td>
                   <td className="tabular">{c.branches}</td>
                   <td className="tabular">{nf(c.members)}</td>

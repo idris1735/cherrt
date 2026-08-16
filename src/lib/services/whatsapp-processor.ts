@@ -43,6 +43,8 @@ import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/li
 import { toolAccessError } from "@/lib/services/agent/access";
 import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
+import { resetSenderData } from "@/lib/services/demo-reset";
+import { resetSession } from "@/lib/services/whatsapp-session";
 import { recordToolAudit } from "@/lib/services/agent/audit";
 import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/services/privacy/consent";
 import { assessRisk } from "@/lib/services/safety/risk";
@@ -683,6 +685,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // continuing, recorded on the person (Slice B).
   if (buttonId === "guest_member") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    // P0-1 — the next bare code they send IS a join attempt, even if welcomed.
+    await updateSession(from, { awaitingJoinCode: true });
     // WS5 — people tap, they don't type: follow the welcome with tappable
     // next steps instead of "reply X".
     await sendInteractiveButtons(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. What do you need today?", [
@@ -693,6 +697,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     return;
   }
   if (buttonId === "guest_give") {
+    await updateSession(from, { awaitingJoinCode: true });
     await sendTextMessage(from, "Giving runs through your church's own secure flow. Send your church's code here and I'll connect you so you can give safely. 🙏");
     return;
   }
@@ -701,6 +706,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     return;
   }
   if (buttonId === "guest_ministry") {
+    await updateSession(from, { awaitingJoinCode: true });
     await sendTextMessage(from, "Love that! Tell me which ministry (choir, ushering, media, children, prayer band…) and once you're connected to your church I'll note you down. 🎶🙌");
     return;
   }
@@ -721,6 +727,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     return;
   }
   if (buttonId === "guest_code") {
+    await updateSession(from, { awaitingJoinCode: true });
     await sendTextMessage(from, "📨 Send the 8-character code your church gave you — I'll connect you right away.");
     return;
   }
@@ -731,6 +738,31 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
 
   // ── Menu button — available to any linked member ──
   if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
+
+  // ── P0-2 join confirmation ──
+  if (buttonId === "join_yes") {
+    const pj = session.pendingJoin;
+    await updateSession(from, { pendingJoin: undefined });
+    if (pj) {
+      await provisionPersonMembership({
+        phoneNumber: from,
+        fullName: session.userName ?? "",
+        workspaceId: pj.workspaceId,
+        workspaceSlug: pj.slug,
+        workspaceName: pj.name,
+        role: "member",
+      });
+      await sendTextMessage(from, `🎉 You're connected to *${pj.name}*! What can I help you with today?`);
+    } else {
+      await sendTextMessage(from, "Send your church's 8-character code and I'll connect you.");
+    }
+    return;
+  }
+  if (buttonId === "join_no") {
+    await updateSession(from, { pendingJoin: undefined });
+    await sendTextMessage(from, "No problem — send the right code whenever you're ready, or tell me your church's name.");
+    return;
+  }
   if (buttonId.startsWith("approve_dept:") || buttonId.startsWith("decline_dept:")) {
     const [verb, requestId] = buttonId.split(":");
     await handleDepartmentDecision(from, requestId, verb === "approve_dept" ? "approve" : "decline");
@@ -1062,6 +1094,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
+  // ── P0-5 #reset — the owner wipes their own conversation + links ──
+  if (trimmed.toLowerCase() === "#reset") {
+    await resetSenderData(from).catch(() => {});
+    await resetSession(from);
+    await sendTextMessage(from, "🧹 Done — all your chat memory and church links on Chertt are wiped. Your next message starts completely fresh, like a brand-new guest.");
+    return;
+  }
+
   // ── Member join-by-code ──
   // A brand-new or unlinked number texting an invite code auto-links as a
   // member, no approval needed (matches the self-serve-member decision).
@@ -1076,21 +1116,43 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // string typed later in an ongoing guest conversation from silently
   // joining them to whatever workspace happens to own that code.
   if (!link && trimmed) {
-    const joinMatch =
-      trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i) ??
-      (!session.welcomed && /^[a-z0-9]{8}$/i.test(trimmed) ? [trimmed, trimmed] : null);
-    if (joinMatch) {
-      const workspace = await findWorkspaceByJoinCode(joinMatch[1]);
+    const prefixed = trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i);
+    const bare = (!session.welcomed || session.awaitingJoinCode)
+      ? trimmed.match(/^([a-z0-9]{8})$/i)
+      : null;
+    const joinCode = prefixed?.[1] ?? bare?.[1] ?? null;
+    if (joinCode) {
+      const workspace = await findWorkspaceByJoinCode(joinCode);
       if (workspace) {
-        await provisionPersonMembership({
-          phoneNumber: from,
-          fullName: session.userName ?? "",
-          workspaceId: workspace.id,
-          workspaceSlug: workspace.slug,
-          workspaceName: workspace.name,
-          role: "member",
+        // Explicit "JOIN <code>" keeps its instant path (clear intent).
+        if (prefixed) {
+          await provisionPersonMembership({
+            phoneNumber: from,
+            fullName: session.userName ?? "",
+            workspaceId: workspace.id,
+            workspaceSlug: workspace.slug,
+            workspaceName: workspace.name,
+            role: "member",
+          });
+          await sendTextMessage(from, `Welcome to *${workspace.name}*! You're in. Just tell me what you need — give, ask for prayer, or anything else.`);
+          return;
+        }
+        // P0-2 — a bare code is never linked silently: reflect the church
+        // back and make the person confirm before anything is stored.
+        await updateSession(from, {
+          awaitingJoinCode: false,
+          pendingJoin: { workspaceId: workspace.id, slug: workspace.slug, name: workspace.name, city: workspace.city ?? "" },
         });
-        await sendTextMessage(from, `Welcome to *${workspace.name}*! You're in. Just tell me what you need — give, ask for prayer, or anything else.`);
+        const city = workspace.city ? `, ${workspace.city}` : "";
+        await sendInteractiveButtons(
+          from,
+          `That's *${workspace.name}*${city}. Is this your church?`,
+          [
+            { id: "join_yes", title: "✅ Yes, connect me" },
+            { id: "join_no", title: "❌ No" },
+          ],
+          "Connect to church",
+        );
         return;
       }
       await sendTextMessage(from, "I couldn't find a church with that code — check with your admin, or just tell me your church's name.");
@@ -1380,6 +1442,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   }
 
   if (trimmed) {
+    // P0-3 — a returning linked member is greeted per-church, never re-asked
+    // for a code; pure greetings get a short welcome-back, not a wall of text.
+    if (link && GREETING_ONLY_RE.test(trimmed)) {
+      const name = link.userName ? `, ${link.userName}` : "";
+      await sendTextMessage(from, `Welcome back${name} 🙏 You're at *${link.workspaceName}* — what can I help you with today?`);
+      return;
+    }
     // Unlinked / guest: meet the real Chertt — a warm church-focused intro that
     // guides them into onboarding, not the old SME/demo bot.
     if (!link) {
