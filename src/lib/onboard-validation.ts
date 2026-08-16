@@ -5,6 +5,8 @@ export type OnboardFields = {
   church_legal_name?: string;
   it_number?: string;
   address?: string;
+  city?: string;
+  country?: string;
   church_phone?: string;
   full_name?: string;
   position?: string;
@@ -49,9 +51,10 @@ export function validateOnboard(f: OnboardFields & { position_other?: string }):
   if (!req(f.church_legal_name)) e.church_legal_name = "Enter your church's legal name.";
   if (!req(f.it_number)) e.it_number = "Enter your CAC IT/RC number.";
   else if (!isValidItNumber(f.it_number)) e.it_number = "That doesn't look like a valid CAC IT/RC number (e.g. IT 12345 or RC 123456).";
-  if (!req(f.address)) e.address = "Enter the church address.";
-  if (!req(f.church_phone)) e.church_phone = "Enter a church phone number.";
-  else if (!isValidPhone(f.church_phone)) e.church_phone = "Use a valid Nigerian number, e.g. 0803 123 4567.";
+  if (!req(f.city)) e.city = "Enter the church's city.";
+  if (!req(f.address)) e.address = "Enter the street address.";
+  if (!req(f.church_phone)) e.church_phone = "Enter the church's WhatsApp number.";
+  else if (!isValidPhone(f.church_phone)) e.church_phone = "Use a valid Nigerian WhatsApp number, e.g. 0803 123 4567.";
   if (!req(f.full_name)) e.full_name = "Enter your full name (as on your ID).";
   else if (!isValidFullName(f.full_name)) e.full_name = "Enter your first and last name, as on your ID.";
   if (!req(f.position)) e.position = "Select your position.";

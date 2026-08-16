@@ -83,9 +83,10 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
             <span>Platform</span><span className="sep">/</span>
             <Link href="/admin/kyc">KYC</Link><span className="sep">/</span><span>{app.church_legal_name ?? "Review"}</span>
           </div>
-          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             {app.church_legal_name ?? "Unnamed church"}{" "}
             <span className={`badge ${statusBadge(app.status)}`}>{app.status ?? "draft"}</span>
+            {app.church_phone_mismatch && <span className="badge badge-warning">⚠️ Church WhatsApp ≠ applicant number</span>}
           </h1>
         </div>
         <div className="flex items-center gap-2">

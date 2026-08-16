@@ -7,7 +7,7 @@ import {
   deductDemoBalance,
   type WhatsAppSession,
 } from "@/lib/services/whatsapp-session";
-import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, downloadMedia } from "@/lib/services/whatsapp";
+import { sendTextMessage, sendInteractiveButtons, sendInteractiveList, sendUrlButton, downloadMedia } from "@/lib/services/whatsapp";
 import { sendOrgApprovedTemplate, sendOrgRejectedTemplate } from "@/lib/services/whatsapp-templates";
 import { runCherttCommand, type CommandExecutionContext } from "@/lib/services/ai-service";
 import { formatAiResult } from "@/lib/services/whatsapp-formatter";
@@ -722,8 +722,12 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // Only a self-identified leader is routed to church setup/management.
   if (buttonId === "guest_leader" || buttonId === "guest_setup") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    const reply = await startSignupFlow(from);
-    await sendTextMessage(from, reply + "\n\n(Already lead a church here? Send your admin code instead.)");
+    const { text, url } = await startSignupFlow(from);
+    if (url) {
+      try { await sendUrlButton(from, text, url, "Verify my church"); } catch { await sendTextMessage(from, `${text}\n\n${url}`); }
+    } else {
+      await sendTextMessage(from, text);
+    }
     return;
   }
   if (buttonId === "guest_code") {
@@ -1277,8 +1281,12 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
 
   // ── New church signup trigger ──
   if (trimmed && isSignupTrigger(trimmed) && !session.onboarding) {
-    const reply = await startSignupFlow(from);
-    await sendTextMessage(from, reply);
+    const { text, url } = await startSignupFlow(from);
+    if (url) {
+      try { await sendUrlButton(from, text, url, "Verify my church"); } catch { await sendTextMessage(from, `${text}\n\n${url}`); }
+    } else {
+      await sendTextMessage(from, text);
+    }
     return;
   }
 

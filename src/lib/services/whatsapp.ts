@@ -77,6 +77,21 @@ export async function sendTextMessage(to: string, text: string): Promise<void> {
   });
 }
 
+// P1-4 — a tappable URL button (CTA) instead of a bare link in the body.
+// Meta shape: interactive > button, action.buttons = [{ type: "url", url, text }].
+export async function sendUrlButton(to: string, bodyText: string, url: string, urlTitle = "Open"): Promise<void> {
+  await postToGraph({
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: bodyText.slice(0, 1024) },
+      action: { buttons: [{ type: "url", url, text: urlTitle.slice(0, 25) }] },
+    },
+  });
+}
+
 // Sends an image message by public URL (Meta fetches the link), with an
 // optional caption. Used to deliver a scannable QR — e.g. a child's pickup pass
 // — straight into the chat, no web page needed.

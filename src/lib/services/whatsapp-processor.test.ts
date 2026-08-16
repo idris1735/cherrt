@@ -5,6 +5,7 @@ vi.mock("@/lib/services/whatsapp", () => ({
   sendTextMessage: vi.fn().mockResolvedValue(undefined),
   sendInteractiveButtons: vi.fn().mockResolvedValue(undefined),
   sendInteractiveList: vi.fn().mockResolvedValue(undefined),
+  sendUrlButton: vi.fn().mockResolvedValue(undefined),
   downloadMedia: vi.fn().mockResolvedValue({ buffer: Buffer.from(""), mimeType: "image/jpeg" }),
 }));
 

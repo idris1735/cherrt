@@ -28,7 +28,10 @@ export async function POST(req: Request): Promise<Response> {
   const fields: Record<string, string> = {};
   if (idNumber && !isValidId(idType, idNumber)) fields.id_number = `${idType.toUpperCase()} must be exactly 11 digits.`;
   if (email && !isValidEmail(email)) fields.email = "Enter a valid email address.";
-  if (churchPhone && !isValidPhone(churchPhone)) fields.church_phone = "Enter a valid Nigerian phone number.";
+  if (churchPhone && !isValidPhone(churchPhone)) fields.church_phone = "Enter a valid Nigerian WhatsApp number.";
+  if (!s("city")) fields.city = "Enter the church's city.";
+  if (!s("address")) fields.address = "Enter the street address.";
+  if (s("country") && s("country") !== "Nigeria") fields.country = "Chertt currently serves Nigerian churches.";
   if (fullNameRaw && !isValidFullName(fullNameRaw)) fields.full_name = "Enter your first and last name, as on your ID.";
   if (positionRaw === "Other" && !s("position_other")) fields.position = "Tell us your position.";
   if (Object.keys(fields).length) return Response.json({ ok: false, error: "Please fix the highlighted fields.", fields }, { status: 400 });
@@ -64,8 +67,13 @@ export async function POST(req: Request): Promise<Response> {
     church_legal_name: s("church_legal_name"),
     it_number: s("it_number"),
     address: s("address"),
+    city: s("city") || null,
+    country: s("country") || "Nigeria",
     denomination: s("denomination") || null,
     church_phone: churchPhone ? normalizePhone(churchPhone) : null,
+    // P1-1: flag (don't block) when the church's WhatsApp line differs from
+    // the applicant's own number — a yellow case for the reviewer.
+    church_phone_mismatch: churchPhone ? normalizePhone(churchPhone) !== (app.applicantPhone ?? "") : false,
     applicant_role: applicantRole,
     applicant_full_name: fullName || null,
     applicant_position: position || null,

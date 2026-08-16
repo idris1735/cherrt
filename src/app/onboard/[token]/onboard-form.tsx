@@ -32,7 +32,7 @@ function formatIdNumber(raw: string): string {
 }
 
 export function OnboardForm({ token }: { token: string }) {
-  const [v, setV] = useState<Vals>({ id_type: "nin" });
+  const [v, setV] = useState<Vals>({ id_type: "nin", country: "Nigeria" });
   const [errs, setErrs] = useState<FieldErrors>({});
   const [selfie, setSelfie] = useState<File | null>(null);
   const [cacCert, setCacCert] = useState<File | null>(null);
@@ -63,7 +63,8 @@ export function OnboardForm({ token }: { token: string }) {
   const missing: string[] = [];
   if (!(v.church_legal_name ?? "").trim()) missing.push("church name");
   if (!(v.it_number ?? "").trim()) missing.push("IT/RC number");
-  if (!(v.address ?? "").trim()) missing.push("address");
+  if (!(v.city ?? "").trim()) missing.push("city");
+  if (!(v.address ?? "").trim()) missing.push("street address");
   if (!(v.full_name ?? "").trim()) missing.push("your full name");
   if (!(v.position ?? "").trim()) missing.push("your position");
   else if (v.position === "Other" && !(v.position_other ?? "").trim()) missing.push("what your position is");
@@ -71,7 +72,6 @@ export function OnboardForm({ token }: { token: string }) {
   if (!isValidEmail(v.email ?? "")) missing.push("your email");
   if (!emailSent) missing.push("email verification");
   if (!selfie) missing.push("selfie");
-  if (!cacCert) missing.push("CAC certificate");
   if (v.consent !== "on") missing.push("consent");
   const submitReady = missing.length === 0;
 
@@ -111,7 +111,9 @@ export function OnboardForm({ token }: { token: string }) {
     e.preventDefault();
     const fieldErrs = validateOnboard(v);
     const sErr = fileError(selfie, "Selfie holding your ID");
-    const cErr = fileError(cacCert, "CAC certificate");
+    // P1-3 data minimization: the CAC certificate is OPTIONAL (Mono only
+    // needs the RC number) — validate it only when one was attached.
+    const cErr = cacCert ? fileError(cacCert, "CAC certificate") : null;
     if (sErr) fieldErrs.selfie = sErr;
     if (cErr) fieldErrs.cac = cErr;
     if (!emailSent) fieldErrs.email_code = "Verify your email — tap “Send code” first.";
@@ -123,7 +125,7 @@ export function OnboardForm({ token }: { token: string }) {
     setBusy("submit"); setBanner("");
     const fd = new FormData();
     fd.set("token", token);
-    ["church_legal_name", "it_number", "address", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    ["church_legal_name", "it_number", "address", "city", "country", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
     fd.set("id_number", (v.id_number ?? "").replace(/\s/g, "")); // strip display grouping
     fd.set("church_phone", normalizePhone((v.church_phone ?? "").replace(/\s/g, "")));
     fd.set("consent", "on");
@@ -173,8 +175,15 @@ export function OnboardForm({ token }: { token: string }) {
           <div className={s.form}>
             <F name="church_legal_name" label="Church legal name" hint="Exactly as registered with CAC" v={v} errs={errs} set={set} autoFocus />
             <F name="it_number" label="CAC IT / RC number" hint="The RC/IT number printed on your CAC certificate" v={v} errs={errs} set={set} />
-            <F name="address" label="Church address" v={v} errs={errs} set={set} />
-            <F name="church_phone" label="Church phone" hint="e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
+            <label className={s.field}>Country
+              <span className={s.hint}>Chertt currently serves Nigerian churches.</span>
+              <select name="country" className={s.select} value={v.country ?? "Nigeria"} onChange={set("country")}>
+                <option value="Nigeria">🇳🇬 Nigeria</option>
+              </select>
+            </label>
+            <F name="city" label="City" hint="e.g. Lagos, Abuja, Ibadan" v={v} errs={errs} set={set} />
+            <F name="address" label="Street address" hint="e.g. 14 Salawa Street, Ikeja" v={v} errs={errs} set={set} />
+            <F name="church_phone" label="Church WhatsApp number" hint="The line your members will message — your verification code is sent here. e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
             <label className={s.field}>Denomination (optional)
               <span className={s.hint}>Your church family — e.g. RCCG, Catholic, Anglican. Pick from the list or type your own.</span>
               <input name="denomination" list="denominations" className={s.input} value={v.denomination ?? ""} onChange={set("denomination")} />
@@ -232,7 +241,7 @@ export function OnboardForm({ token }: { token: string }) {
             </label>
             {emailSent && <F name="email_code" label="6-digit code" v={v} errs={errs} set={set} inputMode="numeric" />}
 
-            <FileField label="CAC certificate" hint="A clear photo or PDF of your certificate" file={cacCert} err={errs.cac} onPick={pickFile("cac")} accept="image/*,application/pdf" />
+            <FileField label="CAC certificate (optional)" hint="For the reviewer — Mono verifies the RC number directly. A clear photo or PDF" file={cacCert} err={errs.cac} onPick={pickFile("cac")} accept="image/*,application/pdf" />
             <FileField label="Selfie holding your ID" hint="Your face and your ID clearly visible in one photo" file={selfie} preview={selfiePreview} err={errs.selfie} onPick={pickFile("selfie")} accept="image/*" />
 
             <label className={s.consent}>

@@ -60,21 +60,17 @@ function promptFor(step: OnboardingStep, collected: Collected): string {
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app";
 
 // A church now onboards on a secure web page with real KYC — not by typing
-// details into chat. We mint a single-use application token and send the link;
-// the web form + platform review (see kyc/*) take it from there.
-export async function startSignupFlow(phoneNumber: string): Promise<string> {
+// details into chat. We mint a single-use application token; the caller sends
+// the link as a tappable URL button (P1-4), never a bare URL in the body.
+export async function startSignupFlow(phoneNumber: string): Promise<{ text: string; url: string | null }> {
   const app = await startApplication(phoneNumber);
   if (!app) {
-    return "Something went wrong starting your church setup — please try again in a moment.";
+    return { text: "Something went wrong starting your church setup — please try again in a moment.", url: null };
   }
-  return [
-    "Welcome to Chertt 🙏 Setting up your church takes a quick, secure verification — we confirm your CAC registration and your ID, so your church is protected.",
-    "",
-    "🔒 Tap to verify your church securely:",
-    `${APP_URL()}/onboard/${app.token}`,
-    "",
-    "Submit the form and our team will review it. I'll message you here the moment you're approved.",
-  ].join("\n");
+  return {
+    text: "Welcome to Chertt 🙏 Setting up your church takes a quick, secure verification — we confirm your CAC registration and your ID, so your church is protected. Tap the button below to verify your church securely. Submit the form and our team will review it — I'll message you here the moment you're approved.",
+    url: `${APP_URL()}/onboard/${app.token}`,
+  };
 }
 
 export async function cancelOnboardingFlow(phoneNumber: string): Promise<void> {

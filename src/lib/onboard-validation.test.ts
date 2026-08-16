@@ -21,7 +21,7 @@ describe("field validators", () => {
 
 describe("validateOnboard", () => {
   const good = {
-    church_legal_name: "Grace Chapel", it_number: "IT123456", address: "12 Lagos St",
+    church_legal_name: "Grace Chapel", it_number: "IT123456", address: "12 Lagos St", city: "Lagos",
     church_phone: "08031234567", full_name: "Ada Obi", position: "Trustee",
     id_type: "nin", id_number: "12345678901", email: "ada@grace.org",
   };

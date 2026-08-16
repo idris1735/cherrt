@@ -20,7 +20,7 @@ function form(fields: Record<string, string>, withFile = true): Request {
   if (withFile) fd.set("selfie", new File([new Uint8Array([1, 2, 3])], "s.jpg", { type: "image/jpeg" }));
   return new Request("https://x/api/onboard/submit", { method: "POST", body: fd });
 }
-const base = { token: "t", church_legal_name: "Grace", it_number: "IT1", address: "Lagos", applicant_role: "Ada Obi", id_type: "nin", id_number: "12345678901", email: "a@b.co", email_code: "123456", consent: "on" };
+const base = { token: "t", church_legal_name: "Grace", it_number: "IT1", address: "14 Salawa Street", city: "Lagos", country: "Nigeria", applicant_role: "Ada Obi", id_type: "nin", id_number: "12345678901", email: "a@b.co", email_code: "123456", consent: "on" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,6 +69,25 @@ describe("POST /api/onboard/submit", () => {
     const res = await POST(form({ ...base, church_phone: "0803 123 4567" }));
     expect(res.status).toBe(200);
     expect(whatsappMock).toHaveBeenCalledWith("+2348031234567", expect.stringContaining("Chertt received"));
+  });
+
+  it("flags (not blocks) when the church WhatsApp number differs from the applicant's number", async () => {
+    const res = await POST(form({ ...base, church_phone: "0803 999 9999" }));
+    expect(res.status).toBe(200);
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ church_phone_mismatch: true }));
+  });
+
+  it("stores structured location: city + country + street", async () => {
+    await POST(form(base));
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ city: "Lagos", country: "Nigeria", address: "14 Salawa Street" }));
+  });
+
+  it("rejects a submission without a city", async () => {
+    const { city, ...noCity } = base;
+    void city;
+    const res = await POST(form(noCity));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.city).toBeTruthy();
   });
 
   it("never fails the submission when the church phone ping fails", async () => {
