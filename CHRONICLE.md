@@ -8,6 +8,17 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-16 — Owner-review fixes (P0 committed early morning, P1 this evening)
+
+**Brief:** `docs/prompts/2026-08-15-owner-review-fixes.md` (Pastor Kolawole + Isaiah review). **628 tests / 82 files green**, `tsc` + build clean, both commits pushed (auto-deploy green).
+
+- **P0 — WhatsApp signup bugs (`423f768`):** (1) guest_member/give/ministry/code buttons now set `awaitingJoinCode`, and a bare 8-char join code matches when the session is welcoming or awaiting one (regex fixed to a capture group); (2) a bare code now resolves the church and asks **"Is this your church?"** via `join_yes`/`join_no` buttons before touching anything (`JOIN <code>` stays instant); (3) a linked member sending a pure greeting now gets "Welcome back, {name} 🙏 You're at *{workspace}*…" instead of the generic menu; (5) `#reset` wipes sender data (`demo-reset.ts` — contacts, memberships, phone links, processed messages) AND the session. Admin `/admin/churches` rows are now clickable.
+- **P1 — form & product (`e231977`):** **P1-1** church phone labeled "Church WhatsApp number" + the verification code is sent to it; if it differs from the applicant's number we store `church_phone_mismatch` (yellow flag, never blocks) with a ⚠️ badge on the KYC review page. **P1-2** country select (Nigeria only, +234 phone validation) + separate City and Street address fields, stored as `city`/`country`/`address` (migration `20260816090000_onboard_location_mismatch`). **P1-3** CAC certificate is now **optional reviewer evidence** — Mono's CAC lookup needs only the RC/IT number. **P1-4** signup now sends a tappable WhatsApp URL button ("Verify my church") instead of a raw link, with graceful fallback to the plain link.
+
+**Answer to Claude's open question (verified live):** Mono's CAC check needs only the **RC/IT number** (or legal name) — it does **not** want the certificate document. Cert upload is therefore optional reviewer evidence, which is also less data for us to hold.
+
+**P2 noted (not yet done):** "CAC verified ✓" badge on the admin KYC review once Mono confirms; username identifier; website field on the form. **Phase 3 heads-up:** Sunday + Giving features per `2026-08-15` transcript.
+
 ### 2026-08-15 — Role-aware menus + department approvals with quorum
 
 - **Role-aware tappable menus** (`37a715e`): `agent/menu.ts` — 21 curated actions across 5 groups, each row gated by the *same* `toolAccessError` as execution. Member / finance / pastor / creator / it_technical get honestly different menus; 10-row pages with "More actions →" overflow; tapping feeds a natural-language prompt through the normal guarded path. Bonus security fix the test surfaced: `list_first_timers`, `list_checked_in_children`, `list_prayer_requests`, `list_birthdays` marked `dataSensitive` — IT/technical can no longer read visitor/child PII.
