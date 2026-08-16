@@ -8,6 +8,17 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-16 — Location data + Google Maps validation
+
+**Brief:** owner request — prepopulated country/city options from public GitHub datasets + Google Maps address integration. **649 tests / 84 files green**, `tsc` + build clean, migration `20260816120000_location_data` applied.
+
+- **Prepopulated location data:** `scripts/build-location-data.mjs` fetches and trims two public datasets into committed bundles — `src/lib/data/countries.json` (252 countries with dial + flag emoji, annexare/Countries) and `src/lib/data/nigeria.json` (37 states, 491 cities, dr5hn countries-states-cities-database). Regenerable; builds never touch GitHub.
+- **Form:** country select (all countries, default Nigeria — non-Nigeria rejected with a clear message), state select, city select that updates per state, and an **"Other (type my town)"** escape hatch for unlisted towns. Server re-validates every value against the same datasets (country code `NG` is the canonical stored value).
+- **Google Maps:** street address uses **Places Autocomplete** (Nigeria-restricted) when `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is set; picking a place stores `address_lat`/`address_lng` and shows "📍 Address verified on Google Maps". No key configured → graceful plain input, reviewer verifies manually. KYC review now shows the state and an "Open in Google Maps" link for verified addresses.
+- **Stored:** `kyc_applications.state/address_lat/address_lng` + `workspaces.state`; approval carries state to the workspace.
+
+**To-do (owner):** create a Google Maps key (Google Cloud Console → Places API), add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel (and `.env.local`) to light up autocomplete.
+
 ### 2026-08-16 — Owner-review P2 shipped (CAC badge, @username, website)
 
 **Brief:** P2 from `docs/prompts/2026-08-15-owner-review-fixes.md`, one commit. **643 tests / 84 files green**, `tsc` + build clean, migration `20260816100000_p2_identity_extras` applied.
