@@ -82,8 +82,19 @@ export async function approveKycApplication(id: string, reviewerEmail: string): 
     if (!clash) break;
     slug = `${slugifyWorkspaceName(name)}-${Math.random().toString(36).slice(2, 6)}`;
   }
+  // P2-2: the church's chosen @username, unique-ified like the slug. Missing
+  // or clashing usernames fall back to the slug-derived handle.
+  let username: string | null = app.username ? String(app.username).toLowerCase() : null;
+  if (username) {
+    for (let i = 0; i < 5; i++) {
+      const { data: clash } = await db.from("workspaces").select("id").eq("username", username).maybeSingle();
+      if (!clash) break;
+      username = `${String(app.username).toLowerCase()}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+  }
   const { data: ws, error: wsErr } = await db.from("workspaces").insert({
-    slug, name, legal_name: name, city: app.address || "Unspecified", timezone: "Africa/Lagos", organization_id: org?.id,
+    slug, name, legal_name: name, city: app.city || app.address || "Unspecified", timezone: "Africa/Lagos", organization_id: org?.id,
+    username, website: app.website ?? null,
   }).select("id, slug, name").single();
   if (wsErr || !ws) return { ok: false, reason: "workspace_failed" };
 

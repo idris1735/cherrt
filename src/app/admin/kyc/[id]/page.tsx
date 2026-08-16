@@ -170,6 +170,18 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
             </div>
           </div>
 
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", marginBottom: 12 }}>Church identity</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Church WhatsApp</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.church_phone ?? "—"}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Location</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{[app.address, app.city, app.country].filter(Boolean).join(", ") || "—"}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Username</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.username ? `@${app.username}` : "— (assigned from name)"}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Website</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.website ?? "—"}</div>
+          </div>
+
           {isPending && (
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", marginBottom: 12 }}>Actions</div>

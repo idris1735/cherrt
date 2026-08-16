@@ -517,6 +517,20 @@ export async function findWorkspaceByJoinCode(code: string): Promise<{ id: strin
   return (data as { id: string; slug: string; name: string; city: string } | null) ?? null;
 }
 
+// P2-2: the @username identifier — members can find their church by a
+// memorable handle instead of the 8-char code (the code keeps working).
+export async function findWorkspaceByUsername(username: string): Promise<{ id: string; slug: string; name: string; city: string } | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const normalized = username.trim().toLowerCase().replace(/^@/, "");
+  const { data } = await db
+    .from("workspaces")
+    .select("id, slug, name, city")
+    .eq("username", normalized)
+    .maybeSingle();
+  return (data as { id: string; slug: string; name: string; city: string } | null) ?? null;
+}
+
 export async function createPendingOrganization(fields: {
   name: string;
   requestedByPhone: string;

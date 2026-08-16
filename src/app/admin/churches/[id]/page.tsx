@@ -7,7 +7,7 @@ import { adminFetch } from "../../use-admin-fetch";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Detail = {
   org: any;
-  workspaces: { id: string; name: string; city: string | null }[];
+  workspaces: { id: string; name: string; city: string | null; username: string | null; website: string | null }[];
   members: { name: string; role: string; level: 0 | 1 | 2; joinedAt: string; gender: string | null; birthdate: string | null; email: string | null; maritalStatus: string | null }[];
   children?: { name: string; guardian: string; relationship: string | null; allergies: string; medicalNotes: string; classroom: string }[];
   pastoralRequests?: { total: number; open: number; scheduled: number; resolved: number };
@@ -112,6 +112,8 @@ export default function ChurchDetail({ params }: { params: Promise<{ id: string 
               <h4 style={{ marginBottom: 12 }}>Details</h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
                 <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>City</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.requested_city ?? "—"}</div></div>
+                <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Username</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.workspaces[0]?.username ? `@${d.workspaces[0].username}` : "—"}</div></div>
+                <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Website</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.workspaces[0]?.website ?? "—"}</div></div>
                 <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Created</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.created_at?.slice(0, 10) ?? "—"}</div></div>
                 <div style={{ padding: 12, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)" }}><div style={{ fontSize: 11, color: "var(--muted)" }}>Approved by</div><div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{d.org.approved_by ?? "—"}</div></div>
               </div>

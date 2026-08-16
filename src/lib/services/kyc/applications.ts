@@ -40,6 +40,20 @@ export async function updateApplication(id: string, patch: Record<string, unknow
   return !error;
 }
 
+// P2-2: usernames are global identifiers — taken if any live workspace or
+// application (pending OR approved) already holds one. Fail closed ("taken")
+// when the DB is unreachable rather than mint duplicates.
+export async function isUsernameTaken(username: string): Promise<boolean> {
+  const db = getSupabaseServerClient();
+  if (!db) return true;
+  const u = username.trim().toLowerCase();
+  const [ws, app] = await Promise.all([
+    db.from("workspaces").select("id").eq("username", u).maybeSingle(),
+    db.from("kyc_applications").select("id").eq("username", u).maybeSingle(),
+  ]);
+  return !!(ws.data || app.data);
+}
+
 // Runs the automated checks (CAC + trustee match + ID lookup) and records the
 // results onto the application. Returns a summary; nothing auto-approves — a
 // human reviewer decides with these results visible.

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { store, provisionMock, approvedTplMock, rejectedTplMock, startSetupMock } = vi.hoisted(() => ({
-  store: { app: null as any, all: null as any, updates: [] as any[], workspace: { id: "ws1", slug: "grace", name: "Grace Chapel" }, org: { id: "org1" } },
+  store: { app: null as any, all: null as any, updates: [] as any[], inserts: [] as any[], usernameClash: false, workspace: { id: "ws1", slug: "grace", name: "Grace Chapel" }, org: { id: "org1" } },
   provisionMock: vi.fn().mockResolvedValue(true),
   approvedTplMock: vi.fn().mockResolvedValue(undefined),
   rejectedTplMock: vi.fn().mockResolvedValue(undefined),
@@ -14,13 +14,16 @@ vi.mock("@/lib/services/supabase-server", () => ({
     from: (table: string) => ({
       select: () => ({
         order: () => Promise.resolve({ data: store.all ?? (store.app ? [store.app] : []) }),
-        eq: () => ({
+        eq: (col: string) => ({
           eq: () => ({ order: () => Promise.resolve({ data: store.app ? [store.app] : [] }) }),
-          maybeSingle: () => Promise.resolve({ data: store.app }),
+          maybeSingle: () => Promise.resolve({ data: col === "username" ? (store.usernameClash ? { id: "x" } : null) : store.app }),
           order: () => Promise.resolve({ data: store.app ? [store.app] : [] }),
         }),
       }),
-      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: table === "workspaces" ? store.workspace : store.org, error: null }) }) }),
+      insert: (row: any) => {
+        store.inserts.push({ table, row });
+        return { select: () => ({ single: () => Promise.resolve({ data: table === "workspaces" ? store.workspace : store.org, error: null }) }) };
+      },
       update: (patch: any) => ({ eq: () => { store.updates.push({ table, patch }); return Promise.resolve({ error: null }); } }),
     }),
   }),
@@ -37,7 +40,7 @@ const pendingApp = {
   id_result: { firstname: "Ada", surname: "Obi", photoBase64: "IMG64" }, trustee_match: "match", created_at: "2026-08-09",
 };
 
-beforeEach(() => { store.app = { ...pendingApp }; store.all = null; store.updates = []; vi.clearAllMocks(); });
+beforeEach(() => { store.app = { ...pendingApp }; store.all = null; store.updates = []; store.inserts = []; store.usernameClash = false; vi.clearAllMocks(); });
 
 describe("listAllApplications — pipeline (Slice 5)", () => {
   it("returns every stage with chip data for at-a-glance results", async () => {
@@ -73,6 +76,21 @@ describe("approveKycApplication", () => {
   it("seeds the post-approval setup for the applicant", async () => {
     await approveKycApplication("k1", "ops@chertt.com");
     expect(startSetupMock).toHaveBeenCalledWith("234800", "org1", "ws1");
+  });
+  it("P2-2/P2-3 — carries the chosen username + website onto the workspace", async () => {
+    store.app = { ...pendingApp, username: "GraceCC", website: "https://gracechapel.org" };
+    await approveKycApplication("k1", "ops@chertt.com");
+    const row = store.inserts.find((i: any) => i.table === "workspaces")!.row;
+    expect(row.username).toBe("gracecc");
+    expect(row.website).toBe("https://gracechapel.org");
+  });
+  it("P2-2 — unique-ifies a clashing username instead of failing the approval", async () => {
+    store.usernameClash = true;
+    store.app = { ...pendingApp, username: "daystar" };
+    const r = await approveKycApplication("k1", "ops@chertt.com");
+    expect(r.ok).toBe(true);
+    const row = store.inserts.find((i: any) => i.table === "workspaces")!.row;
+    expect(row.username).toMatch(/^daystar-[a-z0-9]{4}$/);
   });
   it("is idempotent — refuses a non-pending row", async () => {
     store.app = { ...pendingApp, status: "approved" };

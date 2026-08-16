@@ -387,7 +387,7 @@ export async function getChurchDetail(id: string) {
   if (!db) return null;
   const org = (await db.from("organizations").select("*").eq("id", id).maybeSingle()).data as any;
   if (!org) return null;
-  const workspaces = ((await db.from("workspaces").select("id, name, city").eq("organization_id", id)).data ?? []) as any[];
+  const workspaces = ((await db.from("workspaces").select("id, name, city, username, website").eq("organization_id", id)).data ?? []) as any[];
   const wsIds = workspaces.map((w) => w.id);
   const memberships = wsIds.length
     ? (((await db.from("branch_memberships").select("person_id, role, status, created_at").in("workspace_id", wsIds).eq("status", "active")).data ?? []) as any[])

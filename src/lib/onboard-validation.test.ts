@@ -28,6 +28,13 @@ describe("validateOnboard", () => {
   it("passes a fully valid form", () => {
     expect(Object.keys(validateOnboard(good))).toHaveLength(0);
   });
+  it("P2-2/P2-3 — username + website are optional and validated only when present", () => {
+    expect(Object.keys(validateOnboard({ ...good, username: "", website: "" }))).toHaveLength(0);
+    const e = validateOnboard({ ...good, username: "BAD HANDLE!", website: "not a url" });
+    expect(e.username).toBeTruthy();
+    expect(e.website).toBeTruthy();
+    expect(Object.keys(validateOnboard({ ...good, username: "daystar_cc", website: "https://grace.org" }))).toHaveLength(0);
+  });
   it("flags each bad/missing field", () => {
     const e = validateOnboard({ ...good, id_number: "12", email: "x", church_phone: "", full_name: "" });
     expect(e.id_number).toBeTruthy();

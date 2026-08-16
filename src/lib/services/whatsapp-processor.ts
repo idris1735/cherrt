@@ -30,6 +30,7 @@ import {
   approveOrganization,
   rejectOrganization,
   findWorkspaceByJoinCode,
+  findWorkspaceByUsername,
   claimBranchAdmin,
   type PhoneLink,
   type WorkspaceContext,
@@ -1120,13 +1121,24 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // string typed later in an ongoing guest conversation from silently
   // joining them to whatever workspace happens to own that code.
   if (!link && trimmed) {
-    const prefixed = trimmed.match(/^join[\s-]?([a-z0-9]{8})$/i);
-    const bare = (!session.welcomed || session.awaitingJoinCode)
+    const prefixed = trimmed.match(/^join[\s-]?@?([a-z0-9_]{3,20})$/i);
+    const bareCode = (!session.welcomed || session.awaitingJoinCode)
       ? trimmed.match(/^([a-z0-9]{8})$/i)
       : null;
-    const joinCode = prefixed?.[1] ?? bare?.[1] ?? null;
-    if (joinCode) {
-      const workspace = await findWorkspaceByJoinCode(joinCode);
+    // P2-2: a bare @username works like a bare code (confirm-first).
+    const bareUsername = (!session.welcomed || session.awaitingJoinCode)
+      ? trimmed.match(/^@([a-z0-9_]{3,20})$/i)
+      : null;
+    const identifier = prefixed?.[1] ?? bareCode?.[1] ?? bareUsername?.[1] ?? null;
+    const explicitUsername = prefixed && /^join[\s-]?@/i.test(trimmed) ? prefixed[1] : (bareUsername?.[1] ?? null);
+    if (identifier) {
+      let workspace = await findWorkspaceByJoinCode(identifier);
+      // Username fallback only when it's an explicit @username or not shaped
+      // like a join code — a bare 8-char string never accidentally becomes
+      // a username match (2026-07-18 audit rule).
+      if (!workspace && (explicitUsername || !/^[a-z0-9]{8}$/i.test(identifier))) {
+        workspace = await findWorkspaceByUsername(explicitUsername ?? identifier);
+      }
       if (workspace) {
         // Explicit "JOIN <code>" keeps its instant path (clear intent).
         if (prefixed) {
@@ -1159,7 +1171,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         );
         return;
       }
-      await sendTextMessage(from, "I couldn't find a church with that code — check with your admin, or just tell me your church's name.");
+      await sendTextMessage(from, "I couldn't find a church with that code or username — check with your admin, or just tell me your church's name.");
       return;
     }
   }

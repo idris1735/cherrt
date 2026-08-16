@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 import s from "./onboard.module.css";
 import { validateOnboard, fileError, normalizePhone, isValidEmail, type FieldErrors } from "@/lib/onboard-validation";
-
 const POSITIONS = [
   "Senior Pastor", "Pastor", "Assistant Pastor", "Minister", "Church Secretary", "Administrator",
   "Trustee", "Finance Officer", "IT / Technical", "Media / Sound", "Choir / Music", "Deacon",
@@ -43,6 +42,27 @@ export function OnboardForm({ token }: { token: string }) {
   const [busy, setBusy] = useState<"" | "code" | "submit">("");
   const [banner, setBanner] = useState("");
   const [done, setDone] = useState(false);
+  // P2-1: live CAC check on the IT/RC number — never blocks submit.
+  const [cac, setCac] = useState<{ state: "idle" | "checking" | "verified" | "not_found" | "error"; name?: string }>({ state: "idle" });
+  const cacTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const it = (v.it_number ?? "").trim();
+    const valid = /^[A-Za-z0-9-]{4,15}$/.test(it.replace(/[\s/]/g, ""));
+    if (cacTimer.current) { clearTimeout(cacTimer.current); cacTimer.current = null; }
+    if (!valid) { setCac({ state: "idle" }); return; }
+    setCac({ state: "checking" });
+    cacTimer.current = window.setTimeout(async () => {
+      try {
+        const res = await fetch("/api/onboard/cac-verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, it_number: it }) });
+        const j = await res.json();
+        if (j.ok && j.verified) setCac({ state: "verified", name: j.name });
+        else if (j.ok) setCac({ state: "not_found" });
+        else setCac({ state: "error" });
+      } catch { setCac({ state: "error" }); }
+    }, 700);
+    return () => { if (cacTimer.current) { clearTimeout(cacTimer.current); cacTimer.current = null; } };
+  }, [v.it_number, token]);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -125,7 +145,7 @@ export function OnboardForm({ token }: { token: string }) {
     setBusy("submit"); setBanner("");
     const fd = new FormData();
     fd.set("token", token);
-    ["church_legal_name", "it_number", "address", "city", "country", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    ["church_legal_name", "it_number", "address", "city", "country", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code", "username", "website"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
     fd.set("id_number", (v.id_number ?? "").replace(/\s/g, "")); // strip display grouping
     fd.set("church_phone", normalizePhone((v.church_phone ?? "").replace(/\s/g, "")));
     fd.set("consent", "on");
@@ -175,6 +195,10 @@ export function OnboardForm({ token }: { token: string }) {
           <div className={s.form}>
             <F name="church_legal_name" label="Church legal name" hint="Exactly as registered with CAC" v={v} errs={errs} set={set} autoFocus />
             <F name="it_number" label="CAC IT / RC number" hint="The RC/IT number printed on your CAC certificate" v={v} errs={errs} set={set} />
+            {cac.state === "checking" && <span className={s.hint} style={{ marginTop: -6 }}>⏳ Checking CAC registry…</span>}
+            {cac.state === "verified" && <span className={s.sentNote} style={{ color: "var(--success, #16a34a)" }}>✓ CAC verified — {cac.name}</span>}
+            {cac.state === "not_found" && <span className={s.hint} style={{ marginTop: -6, color: "var(--warning, #b45309)" }}>No CAC match yet — you can still submit and we'll verify manually.</span>}
+            {cac.state === "error" && <span className={s.hint} style={{ marginTop: -6 }}>CAC check unavailable right now — we'll verify during review.</span>}
             <label className={s.field}>Country
               <span className={s.hint}>Chertt currently serves Nigerian churches.</span>
               <select name="country" className={s.select} value={v.country ?? "Nigeria"} onChange={set("country")}>
@@ -184,6 +208,8 @@ export function OnboardForm({ token }: { token: string }) {
             <F name="city" label="City" hint="e.g. Lagos, Abuja, Ibadan" v={v} errs={errs} set={set} />
             <F name="address" label="Street address" hint="e.g. 14 Salawa Street, Ikeja" v={v} errs={errs} set={set} />
             <F name="church_phone" label="Church WhatsApp number" hint="The line your members will message — your verification code is sent here. e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
+            <F name="username" label="Church @username (optional)" hint="A short handle like @daystarcc — members will soon be able to find your church by it instead of the code." v={v} errs={errs} set={set} />
+            <F name="website" label="Church website (optional)" hint="e.g. gracechapel.org or https://gracechapel.org" v={v} errs={errs} set={set} inputMode="url" />
             <label className={s.field}>Denomination (optional)
               <span className={s.hint}>Your church family — e.g. RCCG, Catholic, Anglican. Pick from the list or type your own.</span>
               <input name="denomination" list="denominations" className={s.input} value={v.denomination ?? ""} onChange={set("denomination")} />

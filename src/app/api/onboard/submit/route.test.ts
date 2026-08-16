@@ -4,6 +4,7 @@ vi.mock("@/lib/services/kyc/applications", () => ({
   resolveByToken: vi.fn(),
   updateApplication: vi.fn().mockResolvedValue(true),
   runKycChecks: vi.fn().mockResolvedValue({ cac: true, id: true, trustee: "match" }),
+  isUsernameTaken: vi.fn().mockResolvedValue(false),
 }));
 vi.mock("@/lib/services/kyc/email-otp", () => ({ verifyEmailOtp: vi.fn().mockResolvedValue(true) }));
 vi.mock("@/lib/services/kyc/storage", () => ({ uploadKycFile: vi.fn().mockResolvedValue(true) }));
@@ -11,7 +12,7 @@ const { whatsappMock } = vi.hoisted(() => ({ whatsappMock: vi.fn().mockResolvedV
 vi.mock("@/lib/services/whatsapp", () => ({ sendTextMessage: whatsappMock }));
 
 import { POST } from "@/app/api/onboard/submit/route";
-import { resolveByToken, updateApplication, runKycChecks } from "@/lib/services/kyc/applications";
+import { resolveByToken, updateApplication, runKycChecks, isUsernameTaken } from "@/lib/services/kyc/applications";
 import { verifyEmailOtp } from "@/lib/services/kyc/email-otp";
 
 function form(fields: Record<string, string>, withFile = true): Request {
@@ -88,6 +89,27 @@ describe("POST /api/onboard/submit", () => {
     const res = await POST(form(noCity));
     expect(res.status).toBe(400);
     expect((await res.json()).fields.city).toBeTruthy();
+  });
+
+  it("P2-2 — stores a lowercase username and P2-3 website on submit", async () => {
+    const res = await POST(form({ ...base, username: "GraceCC", website: "https://gracechapel.org" }));
+    expect(res.status).toBe(200);
+    expect(isUsernameTaken).toHaveBeenCalledWith("gracecc");
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ username: "gracecc", website: "https://gracechapel.org" }));
+  });
+
+  it("P2-2 — rejects a taken username before any OTP round trip", async () => {
+    (isUsernameTaken as any).mockResolvedValue(true);
+    const res = await POST(form({ ...base, username: "daystar" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.username).toBeTruthy();
+    expect(verifyEmailOtp).not.toHaveBeenCalled();
+  });
+
+  it("P2-3 — rejects a malformed website", async () => {
+    const res = await POST(form({ ...base, website: "not a url" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.website).toBeTruthy();
   });
 
   it("never fails the submission when the church phone ping fails", async () => {

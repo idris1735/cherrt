@@ -28,7 +28,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
   },
 }));
 
-import { findWorkspaceByJoinCode, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
+import { findWorkspaceByJoinCode, findWorkspaceByUsername, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
 
 beforeEach(() => {
   store.eqCalls.length = 0;
@@ -48,6 +48,20 @@ describe("findWorkspaceByJoinCode — WS-D indexed lookup", () => {
   it("returns null when no workspace holds the code", async () => {
     store.single["workspaces"] = null;
     expect(await findWorkspaceByJoinCode("ZZZZZZZZ")).toBeNull();
+  });
+});
+
+describe("findWorkspaceByUsername — P2-2 handle lookup", () => {
+  it("lowercases and strips the @ prefix before the indexed lookup", async () => {
+    store.single["workspaces"] = { id: "w1", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos", username: "daystarcc" };
+    const found = await findWorkspaceByUsername("@DaystarCC");
+    expect(found).toMatchObject({ id: "w1", name: "Daystar Christian Centre" });
+    expect(store.eqCalls).toEqual([{ table: "workspaces", key: "username", value: "daystarcc" }]);
+  });
+
+  it("returns null when no workspace holds the handle", async () => {
+    store.single["workspaces"] = null;
+    expect(await findWorkspaceByUsername("unknown_handle")).toBeNull();
   });
 });
 

@@ -8,6 +8,8 @@ export type OnboardFields = {
   city?: string;
   country?: string;
   church_phone?: string;
+  username?: string;
+  website?: string;
   full_name?: string;
   position?: string;
   id_type?: string;
@@ -45,6 +47,16 @@ export function isValidItNumber(raw?: string): boolean {
   const v = req(raw).replace(/[\s/]/g, "");
   return /^[A-Za-z0-9-]{4,15}$/.test(v);
 }
+// P2-2: church @username — 3–20 lowercase letters, numbers, underscores.
+export function isValidUsername(raw?: string): boolean {
+  return /^[a-z0-9_]{3,20}$/.test(req(raw).toLowerCase());
+}
+// P2-3: website is optional; when present it must look like a domain/URL.
+export function isValidWebsite(raw?: string): boolean {
+  const v = req(raw);
+  if (!v) return true;
+  return /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[^\s]*)?$/i.test(v);
+}
 
 export function validateOnboard(f: OnboardFields & { position_other?: string }): FieldErrors {
   const e: FieldErrors = {};
@@ -55,6 +67,8 @@ export function validateOnboard(f: OnboardFields & { position_other?: string }):
   if (!req(f.address)) e.address = "Enter the street address.";
   if (!req(f.church_phone)) e.church_phone = "Enter the church's WhatsApp number.";
   else if (!isValidPhone(f.church_phone)) e.church_phone = "Use a valid Nigerian WhatsApp number, e.g. 0803 123 4567.";
+  if (f.username && !isValidUsername(f.username)) e.username = "Usernames are 3–20 lowercase letters, numbers or underscores (e.g. daystarcc).";
+  if (f.website && !isValidWebsite(f.website)) e.website = "That doesn't look like a website (e.g. gracechapel.org).";
   if (!req(f.full_name)) e.full_name = "Enter your full name (as on your ID).";
   else if (!isValidFullName(f.full_name)) e.full_name = "Enter your first and last name, as on your ID.";
   if (!req(f.position)) e.position = "Select your position.";

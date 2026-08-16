@@ -1,8 +1,8 @@
-import { resolveByToken, updateApplication, runKycChecks } from "@/lib/services/kyc/applications";
+import { resolveByToken, updateApplication, runKycChecks, isUsernameTaken } from "@/lib/services/kyc/applications";
 import { verifyEmailOtp } from "@/lib/services/kyc/email-otp";
 import { uploadKycFile } from "@/lib/services/kyc/storage";
 import { sendTextMessage } from "@/lib/services/whatsapp";
-import { isValidId, isValidEmail, isValidPhone, isValidFullName, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
+import { isValidId, isValidEmail, isValidPhone, isValidFullName, isValidUsername, isValidWebsite, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,8 @@ export async function POST(req: Request): Promise<Response> {
   const idNumber = s("id_number");
   const email = s("email");
   const churchPhone = s("church_phone");
+  const username = s("username");
+  const website = s("website");
   const fullNameRaw = s("full_name");
   const positionRaw = s("position");
   const fields: Record<string, string> = {};
@@ -32,9 +34,17 @@ export async function POST(req: Request): Promise<Response> {
   if (!s("city")) fields.city = "Enter the church's city.";
   if (!s("address")) fields.address = "Enter the street address.";
   if (s("country") && s("country") !== "Nigeria") fields.country = "Chertt currently serves Nigerian churches.";
+  if (username && !isValidUsername(username)) fields.username = "Usernames are 3–20 lowercase letters, numbers or underscores (e.g. daystarcc).";
+  if (website && !isValidWebsite(website)) fields.website = "That doesn't look like a website (e.g. gracechapel.org).";
   if (fullNameRaw && !isValidFullName(fullNameRaw)) fields.full_name = "Enter your first and last name, as on your ID.";
   if (positionRaw === "Other" && !s("position_other")) fields.position = "Tell us your position.";
   if (Object.keys(fields).length) return Response.json({ ok: false, error: "Please fix the highlighted fields.", fields }, { status: 400 });
+
+  // P2-2: usernames are global — reject duplicates before any OTP round trip.
+  const usernameLower = username ? username.toLowerCase() : null;
+  if (usernameLower && (await isUsernameTaken(usernameLower))) {
+    return Response.json({ ok: false, error: "That username is already taken — please pick another.", fields: { username: "Already taken." } }, { status: 400 });
+  }
 
   if (!(await verifyEmailOtp(email, s("email_code")))) {
     return Response.json({ ok: false, error: "That email code is wrong or expired.", fields: { email_code: "Wrong or expired code." } }, { status: 400 });
@@ -71,6 +81,9 @@ export async function POST(req: Request): Promise<Response> {
     country: s("country") || "Nigeria",
     denomination: s("denomination") || null,
     church_phone: churchPhone ? normalizePhone(churchPhone) : null,
+    // P2-2 / P2-3: optional identifiers captured over time.
+    username: usernameLower,
+    website: website || null,
     // P1-1: flag (don't block) when the church's WhatsApp line differs from
     // the applicant's own number — a yellow case for the reviewer.
     church_phone_mismatch: churchPhone ? normalizePhone(churchPhone) !== (app.applicantPhone ?? "") : false,
