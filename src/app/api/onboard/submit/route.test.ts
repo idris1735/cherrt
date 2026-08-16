@@ -21,7 +21,7 @@ function form(fields: Record<string, string>, withFile = true): Request {
   if (withFile) fd.set("selfie", new File([new Uint8Array([1, 2, 3])], "s.jpg", { type: "image/jpeg" }));
   return new Request("https://x/api/onboard/submit", { method: "POST", body: fd });
 }
-const base = { token: "t", church_legal_name: "Grace", it_number: "IT1", address: "14 Salawa Street", city: "Lagos", country: "Nigeria", applicant_role: "Ada Obi", id_type: "nin", id_number: "12345678901", email: "a@b.co", email_code: "123456", consent: "on" };
+const base = { token: "t", church_legal_name: "Grace", it_number: "IT1", address: "14 Salawa Street", city: "Lagos", state: "Lagos", country: "NG", applicant_role: "Ada Obi", id_type: "nin", id_number: "12345678901", email: "a@b.co", email_code: "123456", consent: "on" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -80,7 +80,33 @@ describe("POST /api/onboard/submit", () => {
 
   it("stores structured location: city + country + street", async () => {
     await POST(form(base));
-    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ city: "Lagos", country: "Nigeria", address: "14 Salawa Street" }));
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ city: "Lagos", state: "Lagos", country: "NG", address: "14 Salawa Street" }));
+  });
+
+  it("rejects a submission without a state", async () => {
+    const { state, ...noState } = base;
+    void state;
+    const res = await POST(form(noState));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.state).toBeTruthy();
+  });
+
+  it("rejects a city that isn't in the chosen state's list", async () => {
+    const res = await POST(form({ ...base, city: "Atlantis" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.city).toBeTruthy();
+  });
+
+  it("rejects a non-Nigeria country", async () => {
+    const res = await POST(form({ ...base, country: "US" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.country).toBeTruthy();
+  });
+
+  it("stores Google Maps coordinates and lets 'Other' cities type their town", async () => {
+    const res = await POST(form({ ...base, city: "Other", city_other: "Makoko Landing", address_lat: "6.4567", address_lng: "3.3903" }));
+    expect(res.status).toBe(200);
+    expect(updateApplication).toHaveBeenCalledWith("k1", expect.objectContaining({ city: "Makoko Landing", address_lat: 6.4567, address_lng: 3.3903 }));
   });
 
   it("rejects a submission without a city", async () => {

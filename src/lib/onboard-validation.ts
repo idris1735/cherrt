@@ -1,11 +1,13 @@
 // Pure validation for the church onboarding form. Used client-side for inline
 // errors and re-used server-side so we never trust the browser.
+import { countryByCode, nigeriaCitiesFor, nigeriaState } from "@/lib/data/location";
 
 export type OnboardFields = {
   church_legal_name?: string;
   it_number?: string;
   address?: string;
   city?: string;
+  state?: string;
   country?: string;
   church_phone?: string;
   username?: string;
@@ -57,13 +59,32 @@ export function isValidWebsite(raw?: string): boolean {
   if (!v) return true;
   return /^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/[^\s]*)?$/i.test(v);
 }
+// Location dataset checks (vendored country + Nigerian states/cities).
+export function isValidCountry(code?: string): boolean {
+  return !!countryByCode(code);
+}
+export function isValidNigeriaState(name?: string): boolean {
+  return !!nigeriaState(name);
+}
+export function isValidNigeriaCity(state: string | undefined, city?: string): boolean {
+  return nigeriaCitiesFor(state).some((c) => c.toLowerCase() === req(city).toLowerCase());
+}
 
-export function validateOnboard(f: OnboardFields & { position_other?: string }): FieldErrors {
+export function validateOnboard(f: OnboardFields & { position_other?: string; city_other?: string }): FieldErrors {
   const e: FieldErrors = {};
   if (!req(f.church_legal_name)) e.church_legal_name = "Enter your church's legal name.";
   if (!req(f.it_number)) e.it_number = "Enter your CAC IT/RC number.";
   else if (!isValidItNumber(f.it_number)) e.it_number = "That doesn't look like a valid CAC IT/RC number (e.g. IT 12345 or RC 123456).";
-  if (!req(f.city)) e.city = "Enter the church's city.";
+  if (!req(f.country)) e.country = "Select your country.";
+  else if (!isValidCountry(f.country)) e.country = "Pick a country from the list.";
+  else if (f.country !== "NG") e.country = "Chertt currently serves Nigerian churches.";
+  if (f.country === "NG") {
+    if (!req(f.state)) e.state = "Select your state.";
+    else if (!isValidNigeriaState(f.state)) e.state = "Pick a state from the list.";
+    if (!req(f.city)) e.city = "Select your city.";
+    else if (f.city === "Other" && !req(f.city_other)) e.city = "Enter your town or city.";
+    else if (f.city !== "Other" && !isValidNigeriaCity(f.state, f.city)) e.city = "Pick a city from the list.";
+  }
   if (!req(f.address)) e.address = "Enter the street address.";
   if (!req(f.church_phone)) e.church_phone = "Enter the church's WhatsApp number.";
   else if (!isValidPhone(f.church_phone)) e.church_phone = "Use a valid Nigerian WhatsApp number, e.g. 0803 123 4567.";

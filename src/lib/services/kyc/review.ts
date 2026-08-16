@@ -93,7 +93,7 @@ export async function approveKycApplication(id: string, reviewerEmail: string): 
     }
   }
   const { data: ws, error: wsErr } = await db.from("workspaces").insert({
-    slug, name, legal_name: name, city: app.city || app.address || "Unspecified", timezone: "Africa/Lagos", organization_id: org?.id,
+    slug, name, legal_name: name, city: app.city || app.address || "Unspecified", state: app.state ?? null, timezone: "Africa/Lagos", organization_id: org?.id,
     username, website: app.website ?? null,
   }).select("id, slug, name").single();
   if (wsErr || !ws) return { ok: false, reason: "workspace_failed" };

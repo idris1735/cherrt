@@ -2,7 +2,7 @@ import { resolveByToken, updateApplication, runKycChecks, isUsernameTaken } from
 import { verifyEmailOtp } from "@/lib/services/kyc/email-otp";
 import { uploadKycFile } from "@/lib/services/kyc/storage";
 import { sendTextMessage } from "@/lib/services/whatsapp";
-import { isValidId, isValidEmail, isValidPhone, isValidFullName, isValidUsername, isValidWebsite, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
+import { isValidId, isValidEmail, isValidPhone, isValidFullName, isValidUsername, isValidWebsite, isValidCountry, isValidNigeriaState, isValidNigeriaCity, normalizePhone, MAX_FILE_BYTES } from "@/lib/onboard-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -25,15 +25,37 @@ export async function POST(req: Request): Promise<Response> {
   const churchPhone = s("church_phone");
   const username = s("username");
   const website = s("website");
+  const country = s("country") || "NG";
+  const state = s("state");
+  const cityRaw = s("city");
+  // "Other" lets a church in an unlisted town type it manually.
+  const city = cityRaw === "Other" ? s("city_other") : cityRaw;
   const fullNameRaw = s("full_name");
   const positionRaw = s("position");
+  // Google Maps coordinates from the address pick — null unless provided.
+  const coord = (k: string): number | null => {
+    const raw = s(k);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  const addressLat = coord("address_lat");
+  const addressLng = coord("address_lng");
+  if (addressLat !== null && (addressLat < -90 || addressLat > 90)) return Response.json({ ok: false, error: "Bad coordinates." }, { status: 400 });
+  if (addressLng !== null && (addressLng < -180 || addressLng > 180)) return Response.json({ ok: false, error: "Bad coordinates." }, { status: 400 });
   const fields: Record<string, string> = {};
   if (idNumber && !isValidId(idType, idNumber)) fields.id_number = `${idType.toUpperCase()} must be exactly 11 digits.`;
   if (email && !isValidEmail(email)) fields.email = "Enter a valid email address.";
   if (churchPhone && !isValidPhone(churchPhone)) fields.church_phone = "Enter a valid Nigerian WhatsApp number.";
-  if (!s("city")) fields.city = "Enter the church's city.";
+  if (!country || !isValidCountry(country)) fields.country = "Pick a country from the list.";
+  else if (country !== "NG") fields.country = "Chertt currently serves Nigerian churches.";
+  if (country === "NG") {
+    if (!state) fields.state = "Select your state.";
+    else if (!isValidNigeriaState(state)) fields.state = "Pick a state from the list.";
+    if (!city) fields.city = "Select your city.";
+    else if (cityRaw !== "Other" && !isValidNigeriaCity(state, city)) fields.city = "Pick a city from the list.";
+  }
   if (!s("address")) fields.address = "Enter the street address.";
-  if (s("country") && s("country") !== "Nigeria") fields.country = "Chertt currently serves Nigerian churches.";
   if (username && !isValidUsername(username)) fields.username = "Usernames are 3–20 lowercase letters, numbers or underscores (e.g. daystarcc).";
   if (website && !isValidWebsite(website)) fields.website = "That doesn't look like a website (e.g. gracechapel.org).";
   if (fullNameRaw && !isValidFullName(fullNameRaw)) fields.full_name = "Enter your first and last name, as on your ID.";
@@ -77,8 +99,11 @@ export async function POST(req: Request): Promise<Response> {
     church_legal_name: s("church_legal_name"),
     it_number: s("it_number"),
     address: s("address"),
-    city: s("city") || null,
-    country: s("country") || "Nigeria",
+    city: city || null,
+    state: country === "NG" ? state || null : null,
+    country,
+    address_lat: addressLat,
+    address_lng: addressLng,
     denomination: s("denomination") || null,
     church_phone: churchPhone ? normalizePhone(churchPhone) : null,
     // P2-2 / P2-3: optional identifiers captured over time.

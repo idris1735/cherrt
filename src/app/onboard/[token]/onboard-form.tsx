@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import s from "./onboard.module.css";
 import { validateOnboard, fileError, normalizePhone, isValidEmail, type FieldErrors } from "@/lib/onboard-validation";
+import { COUNTRIES, NIGERIA_STATES, nigeriaCitiesFor } from "@/lib/data/location";
 const POSITIONS = [
   "Senior Pastor", "Pastor", "Assistant Pastor", "Minister", "Church Secretary", "Administrator",
   "Trustee", "Finance Officer", "IT / Technical", "Media / Sound", "Choir / Music", "Deacon",
@@ -31,7 +32,7 @@ function formatIdNumber(raw: string): string {
 }
 
 export function OnboardForm({ token }: { token: string }) {
-  const [v, setV] = useState<Vals>({ id_type: "nin", country: "Nigeria" });
+  const [v, setV] = useState<Vals>({ id_type: "nin", country: "NG" });
   const [errs, setErrs] = useState<FieldErrors>({});
   const [selfie, setSelfie] = useState<File | null>(null);
   const [cacCert, setCacCert] = useState<File | null>(null);
@@ -42,6 +43,8 @@ export function OnboardForm({ token }: { token: string }) {
   const [busy, setBusy] = useState<"" | "code" | "submit">("");
   const [banner, setBanner] = useState("");
   const [done, setDone] = useState(false);
+  // Google Maps pick: coordinates of the verified street address (null = typed manually).
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   // P2-1: live CAC check on the IT/RC number — never blocks submit.
   const [cac, setCac] = useState<{ state: "idle" | "checking" | "verified" | "not_found" | "error"; name?: string }>({ state: "idle" });
   const cacTimer = useRef<number | null>(null);
@@ -75,7 +78,7 @@ export function OnboardForm({ token }: { token: string }) {
     // Live formatting: phone + ID number get digit grouping as they type
     if (k === "church_phone") val = formatPhone(val);
     if (k === "id_number") val = formatIdNumber(val);
-    setV((p) => ({ ...p, [k]: val }));
+    setV((p) => ({ ...p, [k]: val, ...(k === "state" ? { city: "", city_other: "" } : {}) }));
     if (errs[k]) setErrs((p) => { const n = { ...p }; delete n[k]; return n; });
   };
 
@@ -83,6 +86,7 @@ export function OnboardForm({ token }: { token: string }) {
   const missing: string[] = [];
   if (!(v.church_legal_name ?? "").trim()) missing.push("church name");
   if (!(v.it_number ?? "").trim()) missing.push("IT/RC number");
+  if (!(v.state ?? "").trim()) missing.push("state");
   if (!(v.city ?? "").trim()) missing.push("city");
   if (!(v.address ?? "").trim()) missing.push("street address");
   if (!(v.full_name ?? "").trim()) missing.push("your full name");
@@ -145,7 +149,8 @@ export function OnboardForm({ token }: { token: string }) {
     setBusy("submit"); setBanner("");
     const fd = new FormData();
     fd.set("token", token);
-    ["church_legal_name", "it_number", "address", "city", "country", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code", "username", "website"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    ["church_legal_name", "it_number", "address", "city", "city_other", "state", "country", "denomination", "full_name", "position", "position_other", "id_type", "email", "email_code", "username", "website"].forEach((k) => fd.set(k, (v[k] ?? "").trim()));
+    if (coords) { fd.set("address_lat", String(coords.lat)); fd.set("address_lng", String(coords.lng)); }
     fd.set("id_number", (v.id_number ?? "").replace(/\s/g, "")); // strip display grouping
     fd.set("church_phone", normalizePhone((v.church_phone ?? "").replace(/\s/g, "")));
     fd.set("consent", "on");
@@ -201,12 +206,36 @@ export function OnboardForm({ token }: { token: string }) {
             {cac.state === "error" && <span className={s.hint} style={{ marginTop: -6 }}>CAC check unavailable right now — we'll verify during review.</span>}
             <label className={s.field}>Country
               <span className={s.hint}>Chertt currently serves Nigerian churches.</span>
-              <select name="country" className={s.select} value={v.country ?? "Nigeria"} onChange={set("country")}>
-                <option value="Nigeria">🇳🇬 Nigeria</option>
+              <select name="country" className={`${s.select} ${errs.country ? s.inputBad : ""}`} value={v.country ?? "NG"} onChange={set("country")}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}{c.dial ? ` (${c.dial})` : ""}</option>)}
               </select>
+              {errs.country && <span className={s.fieldErr}>{errs.country}</span>}
             </label>
-            <F name="city" label="City" hint="e.g. Lagos, Abuja, Ibadan" v={v} errs={errs} set={set} />
-            <F name="address" label="Street address" hint="e.g. 14 Salawa Street, Ikeja" v={v} errs={errs} set={set} />
+            {v.country === "NG" && (
+              <label className={s.field}>State
+                <span className={s.hint}>Pick your state — the city list updates to match.</span>
+                <select name="state" className={`${s.select} ${errs.state ? s.inputBad : ""}`} value={v.state ?? ""} onChange={set("state")}>
+                  <option value="">Select state…</option>
+                  {NIGERIA_STATES.map((st) => <option key={st.name} value={st.name}>{st.name}</option>)}
+                </select>
+                {errs.state && <span className={s.fieldErr}>{errs.state}</span>}
+              </label>
+            )}
+            {v.country === "NG" && (
+              <label className={s.field}>City
+                <span className={s.hint}>Pick your city or LGA — choose "Other" to type a town that isn't listed.</span>
+                <select name="city" className={`${s.select} ${errs.city ? s.inputBad : ""}`} value={v.city ?? ""} onChange={set("city")} disabled={!v.state}>
+                  <option value="">{v.state ? "Select city…" : "Select your state first"}</option>
+                  {nigeriaCitiesFor(v.state).map((c) => <option key={c} value={c}>{c}</option>)}
+                  <option value="Other">Other (type my town)</option>
+                </select>
+                {v.city === "Other" && (
+                  <input name="city_other" placeholder="Your town or city" className={`${s.input} ${errs.city ? s.inputBad : ""}`} value={v.city_other ?? ""} onChange={set("city_other")} style={{ marginTop: 6 }} />
+                )}
+                {errs.city && <span className={s.fieldErr}>{errs.city}</span>}
+              </label>
+            )}
+            <GoogleAddressField v={v} errs={errs} onChange={(val, c) => { setV((p) => ({ ...p, address: val })); setCoords(c); if (errs.address) setErrs((p) => { const n = { ...p }; delete n.address; return n; }); }} />
             <F name="church_phone" label="Church WhatsApp number" hint="The line your members will message — your verification code is sent here. e.g. 0803 123 4567" v={v} errs={errs} set={set} inputMode="tel" />
             <F name="username" label="Church @username (optional)" hint="A short handle like @daystarcc — members will soon be able to find your church by it instead of the code." v={v} errs={errs} set={set} />
             <F name="website" label="Church website (optional)" hint="e.g. gracechapel.org or https://gracechapel.org" v={v} errs={errs} set={set} inputMode="url" />
@@ -300,6 +329,62 @@ function F(props: { name: string; label: string; hint?: string; v: Vals; errs: F
       {hint && <span className={s.hint}>{hint}</span>}
       <input name={name} autoFocus={props.autoFocus} inputMode={inputMode as any} className={`${s.input} ${errs[name] ? s.inputBad : ""}`} value={v[name] ?? ""} onChange={set(name)} />
       {errs[name] && <span className={s.fieldErr}>{errs[name]}</span>}
+    </label>
+  );
+}
+
+// Street address with Google Places Autocomplete. With no API key configured
+// it degrades to a plain input — the form still works, the reviewer verifies
+// the address manually.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function GoogleAddressField(props: { v: Vals; errs: FieldErrors; onChange: (val: string, coords: { lat: number; lng: number } | null) => void }) {
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autoRef = useRef<any>(null);
+  const [picked, setPicked] = useState(false);
+  const { v, errs } = props;
+
+  useEffect(() => {
+    if (!key || !inputRef.current) return;
+    const win = window as any;
+    const attach = () => {
+      if (!inputRef.current || !win.google?.maps?.places) return;
+      autoRef.current = new win.google.maps.places.Autocomplete(inputRef.current, {
+        types: ["address"],
+        componentRestrictions: { country: "ng" },
+      });
+      autoRef.current.addListener("place_changed", () => {
+        const place = autoRef.current?.getPlace?.();
+        const formatted = place?.formatted_address || place?.name;
+        const loc = place?.geometry?.location;
+        if (formatted) {
+          props.onChange(formatted, loc && typeof loc.lat === "function" && typeof loc.lng === "function" ? { lat: loc.lat(), lng: loc.lng() } : null);
+          setPicked(true);
+        }
+      });
+    };
+    if (win.google?.maps?.places) { attach(); return; }
+    if (document.querySelector("script[data-gmaps]")) {
+      const t = setInterval(() => {
+        if ((window as any).google?.maps?.places) { clearInterval(t); attach(); }
+      }, 200);
+      return () => clearInterval(t);
+    }
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.gmaps = "1";
+    script.onload = () => attach();
+    document.head.appendChild(script);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <label className={s.field}>Street address
+      <span className={s.hint}>{key ? "Start typing — real addresses are suggested by Google Maps." : "e.g. 14 Salawa Street, Ikeja"}</span>
+      <input ref={inputRef} name="address" autoComplete="street-address" className={`${s.input} ${errs.address ? s.inputBad : ""}`} value={v.address ?? ""} onChange={(e) => { props.onChange(e.target.value, null); setPicked(false); }} />
+      {key && picked && <span className={s.sentNote} style={{ color: "var(--success, #16a34a)" }}>📍 Address verified on Google Maps</span>}
+      {errs.address && <span className={s.fieldErr}>{errs.address}</span>}
     </label>
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { adminFetch } from "../../use-admin-fetch";
 import { getSupabaseBrowserClient } from "@/lib/services/supabase";
+import { countryByCode } from "@/lib/data/location";
 import { ConfirmDialog, PhotoModal } from "@/components/admin/dialogs";
 import { toast } from "@/components/admin/toast";
 
@@ -175,7 +176,12 @@ export default function AdminKycDetail({ params }: { params: Promise<{ id: strin
             <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Church WhatsApp</div>
             <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.church_phone ?? "—"}</div>
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Location</div>
-            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{[app.address, app.city, app.country].filter(Boolean).join(", ") || "—"}</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{[app.address, app.city, app.state, app.country ? countryByCode(app.country)?.name ?? app.country : null].filter(Boolean).join(", ") || "—"}</div>
+            {(app.address_lat != null && app.address_lng != null) && (
+              <div style={{ marginTop: 8 }}>
+                <a href={`https://maps.google.com/?q=${app.address_lat},${app.address_lng}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontSize: 13, fontWeight: 600 }}>📍 Open in Google Maps</a>
+              </div>
+            )}
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Username</div>
             <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)" }}>{app.username ? `@${app.username}` : "— (assigned from name)"}</div>
             <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Website</div>
