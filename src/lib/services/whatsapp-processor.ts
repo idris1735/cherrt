@@ -51,6 +51,9 @@ import { recordConsent, setOptedOut, clearOptOut, logDataRequest } from "@/lib/s
 import { assessRisk } from "@/lib/services/safety/risk";
 import { flagMessage } from "@/lib/services/safety/flags";
 import { persistChatAttachment } from "@/lib/services/chat-attachments";
+// Side-effect import: registers every deterministic task flow with the engine.
+import "@/lib/services/flows";
+import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -657,9 +660,23 @@ async function handleDepartmentDecision(from: string, requestId: string, decisio
   }
 }
 
+// Renders a flow engine output to WhatsApp, with the same try/catch-to-text
+// fallback used by the report/menu helpers — a Meta error never strands the
+// conversation.
+async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
+  if (out.type === "buttons") {
+    try { await sendInteractiveButtons(from, out.text, out.buttons, out.header); return; }
+    catch { await sendTextMessage(from, out.text); return; }
+  }
+  if (out.type === "list") {
+    try { await sendInteractiveList(from, out.text, out.buttonLabel, out.rows, out.header); return; }
+    catch { await sendTextMessage(from, out.text); return; }
+  }
+  await sendTextMessage(from, out.text);
+}
+
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
-  if (await handleHelpButton(from, buttonId)) return;
-  if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
+  if (await handleHelpButton(from, buttonId)) return;  if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
   // ── Consent gate (must agree before anything is stored/used) ──
@@ -774,6 +791,11 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     return;
   }
   if (buttonId === "menu_more") { await sendMainMenu(from, link, 2); return; }
+  // Menu rows that map to a deterministic flow start the flow, not the agent.
+  if (buttonId === "menu:checkin" && link) {
+    const out = await startFlow("child_checkin", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
+  }
   if (buttonId.startsWith("menu:")) {
     const prompt = menuPromptFor(buttonId.slice(5));
     if (prompt) {
@@ -1211,6 +1233,24 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
+  // ── In-progress task flow (flow engine) ──
+  // A member mid-flow has every turn routed to the engine — text OR button tap —
+  // so the journey stays on one rail. Global opt-out keywords still escape
+  // (they fall through to the existing opt-out handler below). Placement:
+  // AFTER the global guards (claim, welcome, risk triage, #reset, platform
+  // admin, multi-church disambiguation — all return above) and BEFORE button
+  // routing and the agent, so a flow can never be skipped mid-step.
+  if (link && session.activeFlow && !/^(stop|unsubscribe|remove me)$/i.test(trimmed)) {
+    const runCtx = { phone: from, link, personId: personId ?? undefined, session };
+    const input = { text: trimmed, buttonId: message.buttonReplyId };
+    const out = await advanceFlow(input, runCtx, (patch) => updateSession(from, patch));
+    if (out) {
+      await addToHistory(from, "user", message.buttonReplyId ? `[tap] ${message.buttonReplyId}` : trimmed);
+      await sendFlowOutput(from, out);
+      return;
+    }
+  }
+
   if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link, personId); return; }
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
@@ -1381,6 +1421,14 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       }
       return;
     }
+  }
+
+  // ── Deterministic flow entry (typed intent) — Prompt 1: child check-in ──
+  // A plainly-typed intent also starts the flow; richer intent routing is
+  // Prompt 2. Never overrides an active flow (that block returns above).
+  if (trimmed && link && /\b(check\s*in|checkin)\b/i.test(trimmed) && /\b(child|kid|son|daughter|baby)\b/i.test(trimmed)) {
+    const out = await startFlow("child_checkin", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
   }
 
   // ── Agent: primary handler for all linked-user free text ──

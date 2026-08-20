@@ -782,6 +782,52 @@ describe("processWhatsAppMessage", () => {
     expect(fresh.welcomed).toBe(false);
     expect(fresh.userName).toBeUndefined();
   });
+
+  it("P1 — menu:checkin starts the child check-in flow instead of the agent", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:checkin" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("check your child in"));
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "child_checkin", step: "child_name" });
+  });
+
+  it("P1 — every message mid-flow routes to the engine (text advances the rail)", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "child_name", data: {} } });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Zoe" });
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("How old is Zoe"), expect.anything(), expect.anything());
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ step: "age", data: { childName: "Zoe" } });
+  });
+
+  it("P1 — typing menu mid-flow exits the flow politely (never the main menu)", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "age", data: { childName: "Zoe" } } });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("stopped that"));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("P1 — #reset still wins over an active flow", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeFlow: { name: "child_checkin", step: "child_name", data: {} } });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "#reset" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("wiped"));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
 });
 
 describe("WS3 — scam & danger sensing on inbound messages", () => {

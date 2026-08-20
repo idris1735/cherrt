@@ -14,6 +14,15 @@ export type WhatsAppSession = {
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."
   activeWorkspaceId?: string;
+  // A deterministic task flow in progress (child check-in, giving, etc.),
+  // run by the flow engine. Separate from `onboarding` (church setup) so task
+  // flows share one generic engine. `name` selects the flow definition; `data`
+  // is that flow's collected fields.
+  activeFlow?: {
+    name: string; // e.g. "child_checkin"
+    step: string; // current step id within that flow
+    data: Record<string, unknown>;
+  };
   // In-progress guided flow (e.g. new church signup, post-approval setup) —
   // deterministic step-by-step state, separate from the free-form Gemini
   // artifact path. Discriminated union so the two flows can have
@@ -97,6 +106,7 @@ type DbRow = {
   demo_balance: number;
   user_name: string | null;
   active_workspace_id: string | null;
+  active_flow: WhatsAppSession["activeFlow"] | null;
   onboarding: WhatsAppSession["onboarding"] | null;
   pending_confirmation: WhatsAppSession["pendingConfirmation"] | null;
   pending_approval: WhatsAppSession["pendingApproval"] | null;
@@ -121,6 +131,7 @@ function toSession(row: DbRow): WhatsAppSession {
     demoBalance: row.demo_balance,
     userName: row.user_name ?? undefined,
     activeWorkspaceId: row.active_workspace_id ?? undefined,
+    activeFlow: row.active_flow ?? undefined,
     onboarding: row.onboarding ?? undefined,
     pendingConfirmation: row.pending_confirmation ?? undefined,
     pendingApproval: row.pending_approval ?? undefined,
@@ -136,6 +147,7 @@ function toDbRow(session: WhatsAppSession): DbRow {
     demo_balance: session.demoBalance,
     user_name: session.userName ?? null,
     active_workspace_id: session.activeWorkspaceId ?? null,
+    active_flow: session.activeFlow ?? null,
     onboarding: session.onboarding ?? null,
     pending_confirmation: session.pendingConfirmation ?? null,
     pending_approval: session.pendingApproval ?? null,
