@@ -8,6 +8,19 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-20 — Flow engine + Child check-in (Prompt 1 of 2)
+
+**Brief:** `docs/prompts/2026-08-20-flow-engine-child-checkin.md` (Kola feedback: "the bot wanders"). Architectural fix: core tasks run on deterministic state-machine rails; the LLM stays on the edges. **669 tests / 87 files green**, `npm run typecheck` + build clean, migration `20260820100000_whatsapp_sessions_active_flow` applied.
+
+- **Generic flow engine** (`flows/engine.ts`): pure render/advance runtime — `startFlow`/`advanceFlow` with `{ to, patch } | { stay } | { done }` transitions, injected `update` (never calls WhatsApp directly), global polite cancel (`cancel/exit/quit/menu/start over`) from any step. `stop/unsubscribe` deliberately NOT engine-cancelled — those fall through to the global opt-out.
+- **First flow** (`flows/child-checkin.ts`): name → age (Skip) → allergies (None) → confirm (✅/✏️) → commit via the real `check_in_child` tool (QR pass + code included). One question per turn; buttons for every choice.
+- **Session:** new `activeFlow { name, step, data }` on `whatsapp_sessions` (jsonb column `active_flow`), separate from the church-setup `onboarding` union.
+- **Wiring** (`whatsapp-processor.ts`): (a) mid-flow, every turn (text or button) routes to the engine — placed after all global guards (claim/welcome/risk/#reset/platform-admin/disambiguation) and before button routing + the agent; (b) `menu:checkin` starts the flow instead of feeding the agent; (c) typed "check in my child"-style intent also starts it (regex only, richer NLU is Prompt 2). Tested: menu start, mid-flow routing, mid-flow `menu` exits politely, `#reset` still wins over a flow.
+- **Untouched, per spec:** Gemini agent path, guest agent, `clarificationStreak` breaker, onboarding flows, `child-tools.ts`.
+- Also committed: the prompt spec + Kola's `feedback/` screenshots (16 files, ~1.9MB) for the record.
+
+**Next:** manual WhatsApp feel-test of check-in, then Prompt 2 (Give / Prayer / Join flows + AI demotion).
+
 ### 2026-08-16 — Location data + Google Maps validation
 
 **Brief:** owner request — prepopulated country/city options from public GitHub datasets + Google Maps address integration. **649 tests / 84 files green**, `tsc` + build clean, migration `20260816120000_location_data` applied.
