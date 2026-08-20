@@ -8,6 +8,20 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-20 — Guest → Connect-to-Church rail (Prompt 2)
+
+**Brief:** `docs/prompts/2026-08-20-guest-connect-flow.md` — client tested Prompt 1 and "felt nothing" because child check-in is member-only; the real first impression is the guest front door, which was still the wandering bot ("Talk to a leader → wall of text"). Now the whole front door is on rails. **680 tests / 88 files green**, typecheck + build clean. No migration. Demo seeds refreshed (`GRACE001` / `COVEN002` / `DAYSTAR3`).
+
+- **Engine (small extensions only):** `FlowRunContext.link` is now nullable (guest flows create the link on completion); new `urlButton` FlowOutput variant; child-checkin got a one-line nullable-link guard. Nothing else changed.
+- **`guest_connect` flow:** consent → who are you (attend / child / leader) → name once (skipped when known) → church code or @username → "That's *Grace Chapel*, Lagos — connect you? ✅/❌" → `provisionPersonMembership` + land in the member menu list. The leader branch ends immediately with the secure web-onboarding `urlButton` (reuses `startSignupFlow`). Real lookups only: `findWorkspaceByJoinCode` / `findWorkspaceByUsername` / `provisionPersonMembership`.
+- **Processor rewiring:** the in-flow advance block moved EARLIER (right after `#reset`, before join-code/admin matchers) and is now guest-capable — an active rail owns every turn for members AND guests. Consent tap, typed "I agree", and guest "menu/how does this work" all START the rail (with `sendGuestWelcome` kept as fallback). The old `guest_*` button handlers remain as dead-but-harmless code (cleanup in a later pass). The "Talk to a leader → wall of text" dead end is gone because that button no longer exists in the rail.
+- **Safety order preserved:** claim → welcome/consent → risk triage → `#reset` → **flow engine** → join-code matchers → … → agent. `#reset` and `stop` still beat any flow (tested).
+- **Tests:** 6 new guest-connect flow tests + 3 new processor tests; Prompt 1's child-checkin tests pass unchanged.
+
+**Manual test (after Vercel Ready):** `#reset` → `Hi` → ✅ I agree → I attend a church → `Ada` → `GRACE001` → ✅ Yes → member menu → 👶 Check in a child → Prompt 1 rail.
+
+**Next:** Prompt 3 — Give / Prayer / Join on the same rails + demote the AI to router-and-FAQ and remove the `clarificationStreak` breaker.
+
 ### 2026-08-20 — Flow engine + Child check-in (Prompt 1 of 2)
 
 **Brief:** `docs/prompts/2026-08-20-flow-engine-child-checkin.md` (Kola feedback: "the bot wanders"). Architectural fix: core tasks run on deterministic state-machine rails; the LLM stays on the edges. **669 tests / 87 files green**, `npm run typecheck` + build clean, migration `20260820100000_whatsapp_sessions_active_flow` applied.
