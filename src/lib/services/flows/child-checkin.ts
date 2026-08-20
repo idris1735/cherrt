@@ -104,6 +104,11 @@ export const childCheckinFlow: FlowDefinition = {
             },
           };
         }
+        // In practice this flow only starts for linked members, but the
+        // context type is now nullable for guest flows — guard explicitly.
+        if (!ctx.link) {
+          return { done: { type: "text", text: "Please connect to your church first, then I can check your child in." } };
+        }
         // Commit through the real tool — it inserts the check-in, sends the QR
         // pickup pass, and returns the pickup-code message.
         const tool = getAgentTool("check_in_child");

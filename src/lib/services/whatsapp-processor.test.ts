@@ -828,6 +828,33 @@ describe("processWhatsAppMessage", () => {
     const s = await getSession(PHONE);
     expect(s.activeFlow).toBeUndefined();
   });
+
+  it("P2 — tapping I agree on the consent gate starts the guest-connect rail", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", text: "", buttonReplyId: "guest_consent" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "guest_connect", step: "who_are_you" });
+    expect(mockButtons).toHaveBeenCalled();
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.map((b) => b.id)).toEqual(["who_attend", "who_child", "who_lead"]);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("P2 — a guest mid-rail who taps who_attend advances to the name question", async () => {
+    await updateSession(PHONE, { welcomed: true, activeFlow: { name: "guest_connect", step: "who_are_you", data: {} } });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "who_attend" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("your name"));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ step: "ask_name" });
+  });
+
+  it("P2 — #reset still wins over an active guest-connect flow", async () => {
+    await updateSession(PHONE, { welcomed: true, activeFlow: { name: "guest_connect", step: "connect_code", data: { fullName: "Ada" } } });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "#reset" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("wiped"));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
 });
 
 describe("WS3 — scam & danger sensing on inbound messages", () => {

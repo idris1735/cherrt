@@ -672,6 +672,10 @@ async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
     try { await sendInteractiveList(from, out.text, out.buttonLabel, out.rows, out.header); return; }
     catch { await sendTextMessage(from, out.text); return; }
   }
+  if (out.type === "urlButton") {
+    try { await sendUrlButton(from, out.text, out.url, out.buttonLabel); return; }
+    catch { await sendTextMessage(from, `${out.text}\n\n${out.url}`); return; }
+  }
   await sendTextMessage(from, out.text);
 }
 
@@ -682,7 +686,10 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // ── Consent gate (must agree before anything is stored/used) ──
   if (buttonId === "guest_consent") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    await sendGuestWelcome(from);
+    // Consent given — open the guest front door ON RAILS.
+    const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
+    await sendGuestWelcome(from); // fallback if the flow failed to start
     return;
   }
   if (buttonId === "guest_privacy") {
@@ -1129,6 +1136,23 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
 
+  // ── In-progress task flow (flow engine) ──
+  // An active rail owns the turn — text OR button tap — for members AND guests,
+  // so it wins over the ad-hoc join-code / admin-claim matchers below. Global
+  // guards that must always win (message-claim, welcome/consent, risk triage,
+  // #reset, platform admin, multi-church disambiguation) all return above this.
+  // Opt-out keywords still escape (they fall through to the handler below).
+  if (session.activeFlow && !/^(stop|unsubscribe|remove me)$/i.test(trimmed)) {
+    const runCtx = { phone: from, link, personId: personId ?? undefined, session };
+    const input = { text: trimmed, buttonId: message.buttonReplyId };
+    const out = await advanceFlow(input, runCtx, (patch) => updateSession(from, patch));
+    if (out) {
+      await addToHistory(from, "user", message.buttonReplyId ? `[tap] ${message.buttonReplyId}` : trimmed);
+      await sendFlowOutput(from, out);
+      return;
+    }
+  }
+
   // ── Member join-by-code ──
   // A brand-new or unlinked number texting an invite code auto-links as a
   // member, no approval needed (matches the self-serve-member decision).
@@ -1233,24 +1257,6 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
-  // ── In-progress task flow (flow engine) ──
-  // A member mid-flow has every turn routed to the engine — text OR button tap —
-  // so the journey stays on one rail. Global opt-out keywords still escape
-  // (they fall through to the existing opt-out handler below). Placement:
-  // AFTER the global guards (claim, welcome, risk triage, #reset, platform
-  // admin, multi-church disambiguation — all return above) and BEFORE button
-  // routing and the agent, so a flow can never be skipped mid-step.
-  if (link && session.activeFlow && !/^(stop|unsubscribe|remove me)$/i.test(trimmed)) {
-    const runCtx = { phone: from, link, personId: personId ?? undefined, session };
-    const input = { text: trimmed, buttonId: message.buttonReplyId };
-    const out = await advanceFlow(input, runCtx, (patch) => updateSession(from, patch));
-    if (out) {
-      await addToHistory(from, "user", message.buttonReplyId ? `[tap] ${message.buttonReplyId}` : trimmed);
-      await sendFlowOutput(from, out);
-      return;
-    }
-  }
-
   if (type === "interactive" && message.buttonReplyId) { await handleButtonReply(from, message.buttonReplyId, session, link, personId); return; }
 
   if (trimmed && !session.userName && !link) { const name = extractName(trimmed); if (name) await updateSession(from, { userName: name }); }
@@ -1258,14 +1264,21 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
   // ── Menu / lost — any linked member gets the tappable menu, no typing a
   // command out. Placed before HELP_RE so the richer list wins. ──
   if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, link); return; }
-  // Guests get the tappable who-are-you buttons for any menu / "how does this
-  // work" / options intent — never a "we don't have a menu" text reply.
-  if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) { await sendGuestWelcome(from); return; }
+  // Guests get the tappable guest front-door rail for any menu / "how does
+  // this work" / options intent — never a "we don't have a menu" text reply.
+  if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) {
+    const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
+    await sendGuestWelcome(from);
+    return;
+  }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   // Typed consent (for guests who type instead of tapping the gate button).
   if (!link && /^(i\s*)?agree\b.*$|^(yes,?\s*)?i\s*agree$/i.test(trimmed)) {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
     await sendGuestWelcome(from);
     return;
   }

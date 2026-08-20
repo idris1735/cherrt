@@ -2,5 +2,7 @@
 // Import once (for side effects) — whatsapp-processor.ts does this at the top.
 import { registerFlow } from "@/lib/services/flows/engine";
 import { childCheckinFlow } from "@/lib/services/flows/child-checkin";
+import { guestConnectFlow } from "@/lib/services/flows/guest-connect";
 
 registerFlow(childCheckinFlow);
+registerFlow(guestConnectFlow);

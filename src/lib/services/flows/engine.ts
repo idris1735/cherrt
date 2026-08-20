@@ -14,7 +14,8 @@ import type { PhoneLink } from "@/lib/services/whatsapp-workspace";
 export type FlowOutput =
   | { type: "text"; text: string }
   | { type: "buttons"; text: string; header?: string; buttons: Array<{ id: string; title: string }> }
-  | { type: "list"; text: string; header?: string; buttonLabel: string; rows: Array<{ id: string; title: string; description?: string }> };
+  | { type: "list"; text: string; header?: string; buttonLabel: string; rows: Array<{ id: string; title: string; description?: string }> }
+  | { type: "urlButton"; text: string; url: string; buttonLabel: string }; // leader → web-onboarding link
 
 // Normalized user input for a turn.
 export type FlowInput = { text: string; buttonId?: string };
@@ -22,7 +23,7 @@ export type FlowInput = { text: string; buttonId?: string };
 // Everything a flow's handlers may need at runtime.
 export type FlowRunContext = {
   phone: string;
-  link: PhoneLink; // flows only run for linked members — never null
+  link: PhoneLink | null; // guest flows run with null and CREATE the link on completion
   personId?: string;
   session: WhatsAppSession;
 };
