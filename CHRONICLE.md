@@ -8,6 +8,20 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-21 — Rails Everywhere (Prompt 3): name search + all core tasks + AI demoted
+
+**Brief:** `docs/prompts/2026-08-21-rails-everywhere.md` — client typed a church NAME and hit a dead end; "build everything we need, stop deferring." **706 tests / 96 files green**, typecheck + build clean. No migration.
+
+- **A — Church-name search:** `findWorkspacesByName` (ilike, capped at 6) + new `pick_church` list step in the guest rail. The connect step is now ONE smart field: code, @username, or name; 1 name match → confirm, several → "Which church?" list, none → gentle reprompt.
+- **B — Engine:** `startFlow` takes an optional `seed` so a typed "give 5000" pre-fills and is never re-asked. Nothing else changed.
+- **C–F — Core member tasks on rails,** each committing through its REAL tool: `give` (amount → type → confirm → `give_now` payment link; cancel path), `prayer` (`capture_prayer_request`, name/anonymous buttons), `pastoral` (`request_pastoral_care`, category list + skip), `join` (`join_department`, Apply/Change). All guard `!ctx.link`.
+- **H — AI demoted to the edges:** `MENU_FLOW` map (checkin/give/prayer/pastoral/join_dept) starts rails instead of agent prompts; a typed-intent router before the agent (seeds amounts; regex only); **`clarificationStreak` circuit-breaker deleted** (the poll write + the 3-strikes help-menu block). The agent remains the FAQ/off-script answerer — tested: "what time is service?" still reaches it.
+- **Tests:** 5+4+4+5 new flow tests, name-search + pick_church tests, workspace `findWorkspacesByName` tests, 3 new processor tests; Prompt 1 + 2 suites pass unchanged.
+
+**Manual test (Vercel Ready):** connect by name "Grace" → pick → in. Menu → Give → 5000 → Offering → ✅ → payment link; Prayer → text → anonymous → sent; Pastoral → category → Skip → "a pastor will reach out"; Join → choir → Apply. Type "give 2000 tithe" → lands on giving-type (amount pre-filled).
+
+**Remaining:** Phase 3 Sunday & Giving (attendance, department reports, volunteer data, real Paystack reconciliation).
+
 ### 2026-08-20 — Guest → Connect-to-Church rail (Prompt 2)
 
 **Brief:** `docs/prompts/2026-08-20-guest-connect-flow.md` — client tested Prompt 1 and "felt nothing" because child check-in is member-only; the real first impression is the guest front door, which was still the wandering bot ("Talk to a leader → wall of text"). Now the whole front door is on rails. **680 tests / 88 files green**, typecheck + build clean. No migration. Demo seeds refreshed (`GRACE001` / `COVEN002` / `DAYSTAR3`).
