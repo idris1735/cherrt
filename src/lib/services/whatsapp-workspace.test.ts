@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const { store } = vi.hoisted(() => ({
   store: {
     eqCalls: [] as Array<{ table: string; key: string; value: string }>,
+    ilikeCalls: [] as Array<{ table: string; key: string; value: string }>,
     single: {} as Record<string, unknown | null>,
     list: {} as Record<string, unknown[]>,
     dbNull: false,
@@ -19,6 +20,11 @@ vi.mock("@/lib/services/supabase-server", () => ({
             store.eqCalls.push({ table, key, value });
             return chain;
           },
+          ilike: (key: string, value: string) => {
+            store.ilikeCalls.push({ table, key, value });
+            return chain;
+          },
+          limit: () => chain,
           maybeSingle: () => Promise.resolve({ data: store.single[table] ?? null, error: null }),
           then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: store.list[table] ?? [], error: null }),
         };
@@ -28,10 +34,11 @@ vi.mock("@/lib/services/supabase-server", () => ({
   },
 }));
 
-import { findWorkspaceByJoinCode, findWorkspaceByUsername, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
+import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
 
 beforeEach(() => {
   store.eqCalls.length = 0;
+  store.ilikeCalls.length = 0;
   store.single = {};
   store.list = {};
   store.dbNull = false;
@@ -62,6 +69,25 @@ describe("findWorkspaceByUsername — P2-2 handle lookup", () => {
   it("returns null when no workspace holds the handle", async () => {
     store.single["workspaces"] = null;
     expect(await findWorkspaceByUsername("unknown_handle")).toBeNull();
+  });
+});
+
+describe("findWorkspacesByName — P3-A fuzzy lookup", () => {
+  it("returns capped ilike matches", async () => {
+    store.list["workspaces"] = [
+      { id: "w1", slug: "grace-ikeja", name: "Grace Chapel Ikeja", city: "Lagos" },
+      { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja" },
+    ];
+    const found = await findWorkspacesByName("grace");
+    expect(found).toHaveLength(2);
+    expect(found[0]).toMatchObject({ id: "w1" });
+    expect(store.ilikeCalls).toEqual([{ table: "workspaces", key: "name", value: "%grace%" }]);
+  });
+
+  it("returns [] for queries shorter than 3 chars or with no db", async () => {
+    expect(await findWorkspacesByName("ab")).toEqual([]);
+    store.dbNull = true;
+    expect(await findWorkspacesByName("grace")).toEqual([]);
   });
 });
 

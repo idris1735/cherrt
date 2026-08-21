@@ -531,6 +531,22 @@ export async function findWorkspaceByUsername(username: string): Promise<{ id: s
   return (data as { id: string; slug: string; name: string; city: string } | null) ?? null;
 }
 
+// P3-A: fuzzy church lookup by name — for members who know their church's
+// name but not its code. Capped; the caller disambiguates when there are
+// several matches.
+export async function findWorkspacesByName(query: string): Promise<Array<{ id: string; slug: string; name: string; city: string }>> {
+  const db = getSupabaseServerClient();
+  if (!db) return [];
+  const q = query.trim();
+  if (q.length < 3) return [];
+  const { data } = await db
+    .from("workspaces")
+    .select("id, slug, name, city")
+    .ilike("name", `%${q}%`)
+    .limit(6);
+  return (data as Array<{ id: string; slug: string; name: string; city: string }>) ?? [];
+}
+
 export async function createPendingOrganization(fields: {
   name: string;
   requestedByPhone: string;

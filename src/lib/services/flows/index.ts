@@ -3,6 +3,9 @@
 import { registerFlow } from "@/lib/services/flows/engine";
 import { childCheckinFlow } from "@/lib/services/flows/child-checkin";
 import { guestConnectFlow } from "@/lib/services/flows/guest-connect";
+import { giveFlow } from "@/lib/services/flows/give";
+import { prayerFlow } from "@/lib/services/flows/prayer";
+import { pastoralFlow } from "@/lib/services/flows/pastoral";
+import { joinFlow } from "@/lib/services/flows/join";
 
-registerFlow(childCheckinFlow);
-registerFlow(guestConnectFlow);
+[childCheckinFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, joinFlow].forEach(registerFlow);

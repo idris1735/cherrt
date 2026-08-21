@@ -64,14 +64,17 @@ export function getFlow(name: string): FlowDefinition | undefined {
 const CANCEL_RE = /^(cancel|exit|quit|menu|start over)$/i;
 
 // Begin a flow: persist state, return the first step's rendered output.
+// `seed` pre-fills fields (e.g. a typed "give 5000" seeds the amount) so the
+// flow never re-asks what the user already said.
 export async function startFlow(
   name: string,
   ctx: FlowRunContext,
   update: (patch: { activeFlow: WhatsAppSession["activeFlow"] }) => Promise<void>,
+  seed?: FlowData,
 ): Promise<FlowOutput | null> {
   const def = getFlow(name);
   if (!def) return null;
-  const data = def.initialData ? def.initialData(ctx) : {};
+  const data = { ...(def.initialData ? def.initialData(ctx) : {}), ...(seed ?? {}) };
   await update({ activeFlow: { name, step: def.firstStep, data } });
   return def.steps[def.firstStep].render(data, ctx);
 }

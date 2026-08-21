@@ -5,7 +5,7 @@
 // Uses the REAL connect logic — findWorkspaceByJoinCode / findWorkspaceByUsername /
 // provisionPersonMembership — nothing reimplemented, just on rails.
 import type { FlowDefinition, FlowInput, FlowData, FlowRunContext, Transition } from "@/lib/services/flows/engine";
-import { findWorkspaceByJoinCode, findWorkspaceByUsername } from "@/lib/services/whatsapp-workspace";
+import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { startSignupFlow } from "@/lib/services/onboarding-flow";
 import { menuForRole } from "@/lib/services/agent/menu";
@@ -95,10 +95,47 @@ export const guestConnectFlow: FlowDefinition = {
       }),
       onInput: async (input): Promise<Transition> => {
         const church = await lookupChurch(input.text);
-        if (!church) {
-          return { stay: { type: "text", text: "Hmm, I couldn't find a church with that code. Double-check it with your church, and send it again." } };
+        if (church) {
+          return { to: "confirm", patch: { workspaceId: church.id, workspaceSlug: church.slug, workspaceName: church.name, workspaceCity: church.city ?? "" } };
         }
-        return { to: "confirm", patch: { workspaceId: church.id, workspaceSlug: church.slug, workspaceName: church.name, workspaceCity: church.city ?? "" } };
+        // P3-A: no code/@username hit — try the church's NAME too.
+        const matches = await findWorkspacesByName(input.text);
+        if (matches.length === 1) {
+          const m = matches[0];
+          return { to: "confirm", patch: { workspaceId: m.id, workspaceSlug: m.slug, workspaceName: m.name, workspaceCity: m.city ?? "" } };
+        }
+        if (matches.length > 1) {
+          return { to: "pick_church", patch: { candidates: matches.map((m) => ({ id: m.id, slug: m.slug, name: m.name, city: m.city ?? "" })) } };
+        }
+        return { stay: { type: "text", text: "Hmm, I couldn't find that — send your church's *code* or `@username`, or type the church's name again." } };
+      },
+    },
+
+    pick_church: {
+      render: (data) => {
+        const cands = (data.candidates as Array<{ id: string; name: string; city: string }>) ?? [];
+        return {
+          type: "list",
+          header: "Which church?",
+          text: "I found a few — which one is yours?",
+          buttonLabel: "Choose",
+          rows: cands.map((c, i) => ({ id: `pick_${i}`, title: c.name.slice(0, 24), description: c.city || "" })),
+        };
+      },
+      onInput: (input, data): Transition => {
+        const cands = (data.candidates as Array<{ id: string; slug: string; name: string; city: string }>) ?? [];
+        const m = /^pick_(\d+)$/.exec(input.buttonId ?? "");
+        const chosen = m ? cands[Number(m[1])] : undefined;
+        if (!chosen) {
+          return {
+            stay: {
+              type: "list", header: "Which church?", text: "Tap one of the churches below.",
+              buttonLabel: "Choose",
+              rows: cands.map((c, i) => ({ id: `pick_${i}`, title: c.name.slice(0, 24), description: c.city || "" })),
+            },
+          };
+        }
+        return { to: "confirm", patch: { workspaceId: chosen.id, workspaceSlug: chosen.slug, workspaceName: chosen.name, workspaceCity: chosen.city ?? "" } };
       },
     },
 

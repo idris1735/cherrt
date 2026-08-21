@@ -598,14 +598,15 @@ describe("processWhatsAppMessage", () => {
     expect(allIds).not.toContain("menu:announce");
   });
 
-  it("tapping a menu row feeds its prompt through the normal agent path", async () => {
+  it("tapping a non-rail menu row feeds its prompt through the normal agent path", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
     await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
-    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:give" });
+    // menu:record_giving is NOT rail-backed — it still feeds the agent.
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:record_giving" });
     // runAgentQuery is stubbed to null (no Gemini) so it falls through to the creator.
-    expect(runCherttCommand).toHaveBeenCalledWith("I want to give", expect.anything(), false);
+    expect(runCherttCommand).toHaveBeenCalledWith("Record giving we received", expect.anything(), false);
   });
 
   it("'More actions' opens menu page 2 with the overflow rows", async () => {
@@ -852,6 +853,41 @@ describe("processWhatsAppMessage", () => {
     await updateSession(PHONE, { welcomed: true, activeFlow: { name: "guest_connect", step: "connect_code", data: { fullName: "Ada" } } });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "#reset" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("wiped"));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("P3 — tapping menu:give starts the give flow, not the agent", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:give" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("How much would you like to give"));
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
+  });
+
+  it("P3 — typing 'I want to give 5000' starts give seeded with the amount", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to give 5000" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("₦5,000 — what type?"));
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "give", step: "amount", data: { amount: 5000 } });
+  });
+
+  it("P3 — a typed FAQ still reaches the agent (AI stays as the off-script answerer)", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "what time is service on Sunday?" });
+    expect(mockRun).toHaveBeenCalled();
     const s = await getSession(PHONE);
     expect(s.activeFlow).toBeUndefined();
   });

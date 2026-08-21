@@ -560,33 +560,12 @@ async function handleAiResult(
       await sendTextMessage(from, `📊 *Poll created*\n\n*${title}*\n\nOptions:\n${optList}\n\nReply with the number of your choice.`);
     }
     await addToHistory(from, "assistant", `Poll: ${title} — ${options.join(", ")}`);
-    await updateSession(from, { clarificationStreak: 0 });
     return;
   }
 
   const replyText = (formatAiResult(result, freshSession, link).text || "Something went wrong. Please try again.") + approvalDeliveryNote;
   await sendTextMessage(from, replyText);
   await addToHistory(from, "assistant", replyText);
-
-  // Circuit breaker — after 3 consecutive non-actionable AI replies, show the help menu
-  const hasArtifact = !!(
-    result.pendingConfirmation || result.generatedRequest || result.generatedDocument ||
-    result.generatedExpenseEntry || result.generatedIssueReport || result.generatedInventoryItem ||
-    result.generatedAppointment || result.generatedPoll || result.generatedForm ||
-    result.generatedPaymentLink || result.generatedPerson || result.generatedGivingRecord
-  );
-  if (hasArtifact) {
-    await updateSession(from, { clarificationStreak: 0 });
-  } else {
-    const streak = (freshSession.clarificationStreak ?? 0) + 1;
-    if (streak >= 3) {
-      await updateSession(from, { clarificationStreak: 0 });
-      const latestSession = await getSession(from);
-      await sendHelpMenu(from, latestSession, link);
-    } else {
-      await updateSession(from, { clarificationStreak: streak });
-    }
-  }
 }
 
 // ─── Confirm / Button Handlers ────────────────────────────────────────────────
@@ -799,8 +778,15 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   }
   if (buttonId === "menu_more") { await sendMainMenu(from, link, 2); return; }
   // Menu rows that map to a deterministic flow start the flow, not the agent.
-  if (buttonId === "menu:checkin" && link) {
-    const out = await startFlow("child_checkin", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+  const MENU_FLOW: Record<string, string> = {
+    "menu:checkin": "child_checkin",
+    "menu:give": "give",
+    "menu:prayer": "prayer",
+    "menu:pastoral": "pastoral",
+    "menu:join_dept": "join",
+  };
+  if (link && MENU_FLOW[buttonId]) {
+    const out = await startFlow(MENU_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
   }
   if (buttonId.startsWith("menu:")) {
@@ -1436,12 +1422,27 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
-  // ── Deterministic flow entry (typed intent) — Prompt 1: child check-in ──
-  // A plainly-typed intent also starts the flow; richer intent routing is
-  // Prompt 2. Never overrides an active flow (that block returns above).
-  if (trimmed && link && /\b(check\s*in|checkin)\b/i.test(trimmed) && /\b(child|kid|son|daughter|baby)\b/i.test(trimmed)) {
-    const out = await startFlow("child_checkin", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
-    if (out) { await sendFlowOutput(from, out); return; }
+  // ── Typed-intent router → deterministic flow (AI demotion) ──
+  // A plainly-typed task intent starts its rail; the agent below only handles
+  // genuine off-script questions. Never overrides an active flow (that returns
+  // far above). Seeds obvious params so the flow never re-asks them.
+  if (trimmed && link && !session.activeFlow) {
+    const t = trimmed.toLowerCase();
+    let flow: string | null = null;
+    let seed: Record<string, unknown> | undefined;
+    if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
+    else if (/\b(give|giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t)) {
+      flow = "give";
+      const amt = Number((t.match(/(?:₦|ngn|n)?\s*([\d,]{2,})/)?.[1] ?? "").replace(/,/g, ""));
+      if (Number.isFinite(amt) && amt > 0) seed = { amount: Math.round(amt) };
+    }
+    else if (/\b(pray|prayer)\b/.test(t)) flow = "prayer";
+    else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
+    else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
+    if (flow) {
+      const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
+      if (out) { await sendFlowOutput(from, out); return; }
+    }
   }
 
   // ── Agent: primary handler for all linked-user free text ──

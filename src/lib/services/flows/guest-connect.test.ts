@@ -4,9 +4,10 @@ import type { FlowOutput, FlowRunContext } from "@/lib/services/flows/engine";
 import { guestConnectFlow } from "@/lib/services/flows/guest-connect";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
-const { findCodeMock, findUserMock, provisionMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
+const { findCodeMock, findUserMock, findNameMock, provisionMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
   findCodeMock: vi.fn(),
   findUserMock: vi.fn(),
+  findNameMock: vi.fn(),
   provisionMock: vi.fn(),
   signupMock: vi.fn(),
   menuMock: vi.fn(),
@@ -15,6 +16,7 @@ const { findCodeMock, findUserMock, provisionMock, signupMock, menuMock, updateS
 vi.mock("@/lib/services/whatsapp-workspace", () => ({
   findWorkspaceByJoinCode: findCodeMock,
   findWorkspaceByUsername: findUserMock,
+  findWorkspacesByName: findNameMock,
 }));
 vi.mock("@/lib/services/identity/provisioning", () => ({
   provisionPersonMembership: provisionMock,
@@ -55,6 +57,7 @@ beforeEach(() => {
   registerFlow(guestConnectFlow);
   findCodeMock.mockResolvedValue(null);
   findUserMock.mockResolvedValue(null);
+  findNameMock.mockResolvedValue([]);
   provisionMock.mockResolvedValue(true);
   updateSessionMock.mockResolvedValue(undefined);
   menuMock.mockReturnValue([{ id: "menu:checkin", title: "👶 Check in a child", description: "Pickup code + QR pass" }]);
@@ -128,5 +131,41 @@ describe("guest_connect flow", () => {
     const { out, session } = await drive([{ text: "hello" }]);
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Tap one") });
     expect(session.activeFlow).toMatchObject({ step: "who_are_you" });
+  });
+
+  it("P3-A — a church NAME with one match goes straight to confirm", async () => {
+    findNameMock.mockResolvedValue([GRACE]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Grace chapel" }]);
+    expect(findNameMock).toHaveBeenCalledWith("Grace chapel");
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Assembly") });
+    expect(session.activeFlow).toMatchObject({ step: "confirm", data: { workspaceId: "ws-grace" } });
+  });
+
+  it("P3-A — several name matches open the pick_church list and resolve the pick", async () => {
+    findNameMock.mockResolvedValue([
+      { id: "w1", slug: "grace-ikeja", name: "Grace Chapel Ikeja", city: "Lagos" },
+      { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja" },
+      { id: "w3", slug: "grace-ph", name: "Grace Chapel PH", city: "Port Harcourt" },
+    ]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Grace" }]);
+    expect(out).toMatchObject({ type: "list", text: expect.stringContaining("I found a few") });
+    expect(out?.type === "list" ? out.rows.length : 0).toBe(3);
+    expect(session.activeFlow).toMatchObject({ step: "pick_church" });
+
+    // pick the second church → confirm with its details
+    const harness2 = harness("Ada Obi");
+    await startFlow("guest_connect", harness2.ctx, harness2.update);
+    await advanceFlow({ text: "", buttonId: "who_attend" }, harness2.ctx, harness2.update);
+    await advanceFlow({ text: "Grace" }, harness2.ctx, harness2.update);
+    const pick = await advanceFlow({ text: "", buttonId: "pick_1" }, harness2.ctx, harness2.update);
+    expect(pick).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Abuja") });
+    expect(harness2.session.activeFlow).toMatchObject({ step: "confirm", data: { workspaceId: "w2", workspaceName: "Grace Chapel Abuja" } });
+  });
+
+  it("P3-A — zero matches on any identifier gives the gentle reprompt", async () => {
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Nowhere Church" }]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("couldn't find that") });
+    expect(session.activeFlow).toMatchObject({ step: "connect_code" });
+    expect(provisionMock).not.toHaveBeenCalled();
   });
 });
