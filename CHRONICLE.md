@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-24 — First-Contact basics: email + subscription gate (+ OneDrive corruption recovery)
+
+**Context:** Kola sent `FirstContact.pdf` — his canonical onboarding flowchart (Welcome → Onboarding → Verify Routine). Target: match its **directness**, ours better. Decision (asked): capture email on the member rail, **no OTP loop** (WhatsApp already proves the phone); real OTP/KYC stays on the founder path. Subscription gate honored.
+
+- **Recovery first:** the working tree had been silently overwritten by a **stale OneDrive snapshot** (flow files zeroed to 0 bytes, ~5000 lines reverted across 80 files, all stamped `Aug 23 07:18`). HEAD `e84373c` + `origin` were intact; `git stash` restored everything (corruption parked in `stash@{0}`), verified `tsc` + 121 tests. **Hazard logged** — repo lives under OneDrive-synced Desktop; recommend moving to a non-synced path.
+- **`ask_email` step** in `guest_connect` (after name, before church code): one field, **Skip** always offered, lenient validation; returning/known-name members skip it — never re-asked.
+- **`provisionPersonMembership`** takes optional `email` → `people.email` (fills a blank only, never clobbers).
+- **Subscription gate:** `isWorkspaceSubscriptionActive(workspaceId)` — today "active" = parent org `status === "active"`, fails **open** for demo/standalone workspaces; the seam for real billing later. Checked at confirm before provisioning; inactive church → clean exit, no membership.
+- **Tests:** +3 guest-connect (email captured→provisioning, bad-email reprompt, inactive-church exit); existing drives updated for the extra step. **173 tests / 17 files green** (targeted), `tsc` exit 0.
+
+**Remaining:** founder KYC path end-to-end audit (leader → web form → Mono → approval → activation — includes the OTP/verify-routine side of Kola's flow); Phase 3 real Paystack reconciliation.
+
 ### 2026-08-21 — Rails Everywhere (Prompt 3): name search + all core tasks + AI demoted
 
 **Brief:** `docs/prompts/2026-08-21-rails-everywhere.md` — client typed a church NAME and hit a dead end; "build everything we need, stop deferring." **706 tests / 96 files green**, typecheck + build clean. No migration.

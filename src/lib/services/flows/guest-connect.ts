@@ -5,7 +5,7 @@
 // Uses the REAL connect logic — findWorkspaceByJoinCode / findWorkspaceByUsername /
 // provisionPersonMembership — nothing reimplemented, just on rails.
 import type { FlowDefinition, FlowInput, FlowData, FlowRunContext, Transition } from "@/lib/services/flows/engine";
-import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName } from "@/lib/services/whatsapp-workspace";
+import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName, isWorkspaceSubscriptionActive } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { startSignupFlow } from "@/lib/services/onboarding-flow";
 import { menuForRole } from "@/lib/services/agent/menu";
@@ -15,6 +15,14 @@ function looksLikeName(s: string): boolean {
   const t = s.trim();
   return t.length >= 2 && /[a-z]/i.test(t) && !/^\d+$/.test(t);
 }
+
+// Deliberately lenient — enough to catch fat-finger typos, not to police RFC
+// 5322. The point is a usable email, and Skip is always one tap away.
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+const EMAIL_SKIP = [{ id: "email_skip", title: "Skip for now" }];
 
 // A code (8 alphanumerics) or an @username / bare handle (3–20).
 function parseIdentifier(text: string): { code?: string; username?: string } | null {
@@ -84,7 +92,34 @@ export const guestConnectFlow: FlowDefinition = {
       onInput: (input): Transition => {
         const name = input.text.trim();
         if (!looksLikeName(name)) return { stay: { type: "text", text: "Just your name, please — first and last is perfect." } };
-        return { to: "connect_code", patch: { fullName: name } };
+        return { to: "ask_email", patch: { fullName: name } };
+      },
+    },
+
+    // Basic bio, Kola's onboarding step: capture email once, on first connect.
+    // Never re-asked (a returning/known-name member skips straight to the code),
+    // and Skip is always available so it never walls the front door.
+    ask_email: {
+      render: (data) => ({
+        type: "buttons",
+        header: "Almost there",
+        text: `Thanks${data.fullName ? ", " + String(data.fullName).split(" ")[0] : ""}! What's your *email*? Your church uses it for receipts and updates.`,
+        buttons: EMAIL_SKIP,
+      }),
+      onInput: (input): Transition => {
+        if (input.buttonId === "email_skip") return { to: "connect_code" };
+        const email = input.text.trim();
+        if (!looksLikeEmail(email)) {
+          return {
+            stay: {
+              type: "buttons",
+              header: "Almost there",
+              text: "Hmm, that doesn't look like an email. Send it again, or tap *Skip for now*.",
+              buttons: EMAIL_SKIP,
+            },
+          };
+        }
+        return { to: "connect_code", patch: { email } };
       },
     },
 
@@ -169,10 +204,22 @@ export const guestConnectFlow: FlowDefinition = {
             },
           };
         }
+        // Subscription gate (Kola's "Verify Church Subscription"): don't connect
+        // anyone into a church that isn't active. Clean exit if it isn't.
+        const active = await isWorkspaceSubscriptionActive(String(data.workspaceId));
+        if (!active) {
+          return {
+            done: {
+              type: "text",
+              text: `*${String(data.workspaceName)}* isn't active on Chertt right now, so I can't connect you yet. Please check with a church leader. 🙏`,
+            },
+          };
+        }
         const fullName = String(data.fullName ?? ctx.session.userName ?? "");
         await provisionPersonMembership({
           phoneNumber: ctx.phone,
           fullName,
+          ...(data.email ? { email: String(data.email) } : {}),
           workspaceId: String(data.workspaceId),
           workspaceSlug: String(data.workspaceSlug),
           workspaceName: String(data.workspaceName),

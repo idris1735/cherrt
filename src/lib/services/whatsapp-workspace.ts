@@ -547,6 +547,33 @@ export async function findWorkspacesByName(query: string): Promise<Array<{ id: s
   return (data as Array<{ id: string; slug: string; name: string; city: string }>) ?? [];
 }
 
+// Subscription/active gate for the connect rail (Kola's "Verify Church
+// Subscription" step). A member must not join a church that isn't active.
+// Today "active subscription" == the parent organization's status === "active";
+// this is the exact seam where real billing status slots in later. Fails OPEN
+// for standalone/demo workspaces (no organization_id) and when storage is
+// unavailable, so a legitimate church is never wrongly turned away.
+export async function isWorkspaceSubscriptionActive(workspaceId: string): Promise<boolean> {
+  const db = getSupabaseServerClient();
+  if (!db) return true;
+
+  const { data: ws } = await db
+    .from("workspaces")
+    .select("organization_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const orgId = (ws as { organization_id?: string | null } | null)?.organization_id;
+  if (!orgId) return true; // standalone/demo workspace — allow
+
+  const { data: org } = await db
+    .from("organizations")
+    .select("status")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (!org) return true;
+  return (org as { status?: string }).status === "active";
+}
+
 export async function createPendingOrganization(fields: {
   name: string;
   requestedByPhone: string;

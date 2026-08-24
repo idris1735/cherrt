@@ -4,10 +4,11 @@ import type { FlowOutput, FlowRunContext } from "@/lib/services/flows/engine";
 import { guestConnectFlow } from "@/lib/services/flows/guest-connect";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
-const { findCodeMock, findUserMock, findNameMock, provisionMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
+const { findCodeMock, findUserMock, findNameMock, subActiveMock, provisionMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
   findCodeMock: vi.fn(),
   findUserMock: vi.fn(),
   findNameMock: vi.fn(),
+  subActiveMock: vi.fn(),
   provisionMock: vi.fn(),
   signupMock: vi.fn(),
   menuMock: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/services/whatsapp-workspace", () => ({
   findWorkspaceByJoinCode: findCodeMock,
   findWorkspaceByUsername: findUserMock,
   findWorkspacesByName: findNameMock,
+  isWorkspaceSubscriptionActive: subActiveMock,
 }));
 vi.mock("@/lib/services/identity/provisioning", () => ({
   provisionPersonMembership: provisionMock,
@@ -58,6 +60,7 @@ beforeEach(() => {
   findCodeMock.mockResolvedValue(null);
   findUserMock.mockResolvedValue(null);
   findNameMock.mockResolvedValue([]);
+  subActiveMock.mockResolvedValue(true);
   provisionMock.mockResolvedValue(true);
   updateSessionMock.mockResolvedValue(undefined);
   menuMock.mockReturnValue([{ id: "menu:checkin", title: "👶 Check in a child", description: "Pickup code + QR pass" }]);
@@ -69,6 +72,7 @@ describe("guest_connect flow", () => {
     const { out, session } = await drive([
       { buttonId: "who_attend" },
       { text: "Ada Obi" },
+      { buttonId: "email_skip" },
       { text: "GRACE001" },
       { buttonId: "connect_yes" },
     ]);
@@ -88,7 +92,7 @@ describe("guest_connect flow", () => {
   });
 
   it("an unknown code reprompts and stays on connect_code", async () => {
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "ZZZZ9999" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "ZZZZ9999" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("couldn't find") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code" });
     expect(provisionMock).not.toHaveBeenCalled();
@@ -96,7 +100,7 @@ describe("guest_connect flow", () => {
 
   it("@username path resolves through findWorkspaceByUsername", async () => {
     findUserMock.mockResolvedValue(GRACE);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "@gracechapel" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "@gracechapel" }]);
     expect(findUserMock).toHaveBeenCalledWith("gracechapel");
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Assembly") });
     expect(session.activeFlow).toMatchObject({ step: "confirm" });
@@ -105,7 +109,7 @@ describe("guest_connect flow", () => {
   it("No at confirm returns to the code step with workspace fields cleared", async () => {
     findCodeMock.mockResolvedValue(GRACE);
     const { out, session } = await drive([
-      { buttonId: "who_attend" }, { text: "Ada" }, { text: "GRACE001" }, { buttonId: "connect_no" },
+      { buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_no" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("church's *code*") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code", data: { workspaceId: undefined } });
@@ -135,7 +139,7 @@ describe("guest_connect flow", () => {
 
   it("P3-A — a church NAME with one match goes straight to confirm", async () => {
     findNameMock.mockResolvedValue([GRACE]);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Grace chapel" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Grace chapel" }]);
     expect(findNameMock).toHaveBeenCalledWith("Grace chapel");
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Assembly") });
     expect(session.activeFlow).toMatchObject({ step: "confirm", data: { workspaceId: "ws-grace" } });
@@ -147,7 +151,7 @@ describe("guest_connect flow", () => {
       { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja" },
       { id: "w3", slug: "grace-ph", name: "Grace Chapel PH", city: "Port Harcourt" },
     ]);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Grace" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Grace" }]);
     expect(out).toMatchObject({ type: "list", text: expect.stringContaining("I found a few") });
     expect(out?.type === "list" ? out.rows.length : 0).toBe(3);
     expect(session.activeFlow).toMatchObject({ step: "pick_church" });
@@ -163,9 +167,42 @@ describe("guest_connect flow", () => {
   });
 
   it("P3-A — zero matches on any identifier gives the gentle reprompt", async () => {
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "Nowhere Church" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Nowhere Church" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("couldn't find that") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code" });
     expect(provisionMock).not.toHaveBeenCalled();
+  });
+
+  it("basic bio — a typed email is captured and passed to provisioning", async () => {
+    findCodeMock.mockResolvedValue(GRACE);
+    await drive([
+      { buttonId: "who_attend" },
+      { text: "Ada Obi" },
+      { text: "ada@example.com" },
+      { text: "GRACE001" },
+      { buttonId: "connect_yes" },
+    ]);
+    expect(provisionMock).toHaveBeenCalledWith(expect.objectContaining({
+      fullName: "Ada Obi", email: "ada@example.com", workspaceId: "ws-grace", role: "member",
+    }));
+  });
+
+  it("basic bio — a non-email reprompts on ask_email with Skip still offered", async () => {
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "not-an-email" }]);
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("doesn't look like an email") });
+    expect(out?.type === "buttons" ? out.buttons[0].id : "").toBe("email_skip");
+    expect(session.activeFlow).toMatchObject({ step: "ask_email" });
+  });
+
+  it("subscription gate — an inactive church exits cleanly and never provisions", async () => {
+    findCodeMock.mockResolvedValue(GRACE);
+    subActiveMock.mockResolvedValue(false);
+    const { out, session } = await drive([
+      { buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_yes" },
+    ]);
+    expect(subActiveMock).toHaveBeenCalledWith("ws-grace");
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("isn't active") });
+    expect(provisionMock).not.toHaveBeenCalled();
+    expect(session.activeFlow).toBeUndefined();
   });
 });

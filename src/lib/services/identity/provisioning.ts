@@ -62,6 +62,9 @@ export async function provisionPersonMembership(opts: {
   workspaceName: string;
   role: string;
   organizationId?: string;
+  // Optional basic-bio email captured on the WhatsApp connect rail. Written to
+  // people.email, and only ever fills a blank — never overwrites an existing one.
+  email?: string;
 }): Promise<{ personId: string } | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
@@ -82,10 +85,14 @@ export async function provisionPersonMembership(opts: {
     if (opts.fullName) {
       await db.from("people").update({ full_name: opts.fullName }).eq("id", personId).eq("full_name", "");
     }
+    // Same for email — only ever fills a blank (null), never clobbers.
+    if (opts.email) {
+      await db.from("people").update({ email: opts.email }).eq("id", personId).is("email", null);
+    }
   } else {
     const { data: person, error } = await db
       .from("people")
-      .insert({ full_name: opts.fullName ?? "" })
+      .insert({ full_name: opts.fullName ?? "", ...(opts.email ? { email: opts.email } : {}) })
       .select("id")
       .single();
     if (error || !person) {
