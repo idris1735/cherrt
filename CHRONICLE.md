@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-25 — Sentence-aware church search + richer confirm
+
+**Live-test finding:** a real user typed *"I'm unsure. But I go to daystar"* → "couldn't find that". The name search was matching the **whole sentence** literally, so "daystar" was never tried.
+
+- **`findWorkspacesByName` is now sentence-aware:** strips filler stopwords, keeps meaningful tokens (≥3 chars, capped 5), OR-matches them (`name.ilike.%tok%`). "I go to daystar" → searches `daystar`. Falls back to the raw phrase when no usable tokens. Returns enriched rows now (id, slug, name, **city, state, username, website**).
+- **Richer confirm screen:** name → *📍 city, state · 🔗 @handle · 🌐 website* → "Is this your church?" So a member picking from a name list is sure it's theirs (Kola's ask). Detail carried through code hit, single name hit, and picked list row via one `churchPatch` helper; pick list rows show city · state.
+- **Tests:** +3 workspace (token OR-match, sentence extraction, all-filler guard), existing suites green. **126 flow/processor/workspace tests pass**, `tsc` 0.
+
+**Still open (raised live):** email is captured but **not verified** — plan is async, non-blocking verification (reuse `kyc/email-otp.ts`), decision pending. And **profile beyond name+email** — progressive profiling plan, decision pending.
+
 ### 2026-08-24 — First-Contact basics: email + subscription gate (+ OneDrive corruption recovery)
 
 **Context:** Kola sent `FirstContact.pdf` — his canonical onboarding flowchart (Welcome → Onboarding → Verify Routine). Target: match its **directness**, ours better. Decision (asked): capture email on the member rail, **no OTP loop** (WhatsApp already proves the phone); real OTP/KYC stays on the founder path. Subscription gate honored.

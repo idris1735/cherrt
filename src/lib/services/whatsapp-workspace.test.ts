@@ -4,6 +4,7 @@ const { store } = vi.hoisted(() => ({
   store: {
     eqCalls: [] as Array<{ table: string; key: string; value: string }>,
     ilikeCalls: [] as Array<{ table: string; key: string; value: string }>,
+    orCalls: [] as Array<{ table: string; expr: string }>,
     single: {} as Record<string, unknown | null>,
     list: {} as Record<string, unknown[]>,
     dbNull: false,
@@ -24,6 +25,10 @@ vi.mock("@/lib/services/supabase-server", () => ({
             store.ilikeCalls.push({ table, key, value });
             return chain;
           },
+          or: (expr: string) => {
+            store.orCalls.push({ table, expr });
+            return chain;
+          },
           limit: () => chain,
           maybeSingle: () => Promise.resolve({ data: store.single[table] ?? null, error: null }),
           then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: store.list[table] ?? [], error: null }),
@@ -39,6 +44,7 @@ import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName,
 beforeEach(() => {
   store.eqCalls.length = 0;
   store.ilikeCalls.length = 0;
+  store.orCalls.length = 0;
   store.single = {};
   store.list = {};
   store.dbNull = false;
@@ -72,20 +78,36 @@ describe("findWorkspaceByUsername — P2-2 handle lookup", () => {
   });
 });
 
-describe("findWorkspacesByName — P3-A fuzzy lookup", () => {
-  it("returns capped ilike matches", async () => {
+describe("findWorkspacesByName — P3-A church lookup", () => {
+  it("OR-matches the meaningful token(s) and returns the enriched rows", async () => {
     store.list["workspaces"] = [
-      { id: "w1", slug: "grace-ikeja", name: "Grace Chapel Ikeja", city: "Lagos" },
-      { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja" },
+      { id: "w1", slug: "grace-ikeja", name: "Grace Chapel Ikeja", city: "Lagos", state: "Lagos", username: "graceikeja", website: null },
+      { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja", state: "FCT", username: null, website: null },
     ];
     const found = await findWorkspacesByName("grace");
     expect(found).toHaveLength(2);
-    expect(found[0]).toMatchObject({ id: "w1" });
-    expect(store.ilikeCalls).toEqual([{ table: "workspaces", key: "name", value: "%grace%" }]);
+    expect(found[0]).toMatchObject({ id: "w1", state: "Lagos", username: "graceikeja" });
+    expect(store.orCalls).toEqual([{ table: "workspaces", expr: "name.ilike.%grace%" }]);
   });
 
-  it("returns [] for queries shorter than 3 chars or with no db", async () => {
+  it("pulls the church name out of a natural sentence (the daystar bug)", async () => {
+    store.list["workspaces"] = [{ id: "w9", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos", state: "Lagos", username: "daystar", website: null }];
+    const found = await findWorkspacesByName("I'm unsure. But I go to daystar");
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ id: "w9", name: "Daystar Christian Centre" });
+    // filler words dropped; only "daystar" survives as a token
+    expect(store.orCalls).toEqual([{ table: "workspaces", expr: "name.ilike.%daystar%" }]);
+  });
+
+  it("OR-joins several meaningful tokens", async () => {
+    store.list["workspaces"] = [];
+    await findWorkspacesByName("living faith worldwide");
+    expect(store.orCalls).toEqual([{ table: "workspaces", expr: "name.ilike.%living%,name.ilike.%faith%,name.ilike.%worldwide%" }]);
+  });
+
+  it("returns [] for an all-filler or too-short query, and with no db", async () => {
     expect(await findWorkspacesByName("ab")).toEqual([]);
+    expect(store.orCalls).toEqual([]); // no usable tokens → raw branch, too short → no query
     store.dbNull = true;
     expect(await findWorkspacesByName("grace")).toEqual([]);
   });

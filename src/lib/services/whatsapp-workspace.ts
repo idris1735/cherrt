@@ -531,20 +531,56 @@ export async function findWorkspaceByUsername(username: string): Promise<{ id: s
   return (data as { id: string; slug: string; name: string; city: string } | null) ?? null;
 }
 
-// P3-A: fuzzy church lookup by name — for members who know their church's
-// name but not its code. Capped; the caller disambiguates when there are
-// several matches.
-export async function findWorkspacesByName(query: string): Promise<Array<{ id: string; slug: string; name: string; city: string }>> {
+// A church match with the identifying details the connect rail shows on the
+// confirm screen so a member is sure it's really their church.
+export type WorkspaceMatch = {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  state: string | null;
+  username: string | null;
+  website: string | null;
+};
+
+// Filler words that carry no church-name signal — so a natural sentence like
+// "I'm unsure but I go to daystar" searches on "daystar", not the whole string.
+const CHURCH_QUERY_STOPWORDS = new Set([
+  "im", "the", "my", "our", "a", "an", "of", "and", "to", "at", "in", "on", "is", "are", "its",
+  "go", "goes", "going", "attend", "attending", "member", "church", "churches", "assembly",
+  "name", "named", "call", "called", "code", "have", "dont", "know", "knows", "unsure", "sure",
+  "think", "maybe", "this", "that", "for", "with", "am", "was", "but", "well", "actually",
+  "really", "yes", "no", "not", "it", "we", "us", "you", "he", "she", "they",
+]);
+
+// Meaningful lookup tokens from free text: alphanumeric words ≥3 chars that
+// aren't filler. Capped so the OR filter stays small. Tokens are alnum-only
+// (punctuation stripped), so they're safe to interpolate into the or() string.
+function churchQueryTokens(text: string): string[] {
+  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  const toks = words.filter((w) => w.length >= 3 && !CHURCH_QUERY_STOPWORDS.has(w));
+  return Array.from(new Set(toks)).slice(0, 5);
+}
+
+// P3-A: church lookup by name — for members who know their church's name but
+// not its code. Robust to natural language ("I go to daystar" → daystar): it
+// searches on the meaningful words, OR-matched, rather than the raw sentence.
+// Capped; the caller disambiguates when there are several matches.
+export async function findWorkspacesByName(query: string): Promise<WorkspaceMatch[]> {
   const db = getSupabaseServerClient();
   if (!db) return [];
-  const q = query.trim();
-  if (q.length < 3) return [];
-  const { data } = await db
-    .from("workspaces")
-    .select("id, slug, name, city")
-    .ilike("name", `%${q}%`)
-    .limit(6);
-  return (data as Array<{ id: string; slug: string; name: string; city: string }>) ?? [];
+  const cols = "id, slug, name, city, state, username, website";
+  const tokens = churchQueryTokens(query);
+  if (tokens.length) {
+    const orFilter = tokens.map((t) => `name.ilike.%${t}%`).join(",");
+    const { data } = await db.from("workspaces").select(cols).or(orFilter).limit(6);
+    return (data as WorkspaceMatch[]) ?? [];
+  }
+  // No usable tokens (e.g. all filler) — fall back to the raw phrase.
+  const raw = query.trim();
+  if (raw.length < 3) return [];
+  const { data } = await db.from("workspaces").select(cols).ilike("name", `%${raw}%`).limit(6);
+  return (data as WorkspaceMatch[]) ?? [];
 }
 
 // Subscription/active gate for the connect rail (Kola's "Verify Church

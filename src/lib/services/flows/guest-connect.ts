@@ -44,6 +44,34 @@ async function lookupChurch(text: string) {
   return null;
 }
 
+// One place that maps a resolved church → the confirm-screen fields, so a code
+// hit, a single name hit, and a picked list row all carry the same detail.
+function churchPatch(m: {
+  id: string; slug: string; name: string;
+  city?: string | null; state?: string | null; username?: string | null; website?: string | null;
+}): FlowData {
+  return {
+    workspaceId: m.id,
+    workspaceSlug: m.slug,
+    workspaceName: m.name,
+    workspaceCity: m.city ?? "",
+    workspaceState: m.state ?? "",
+    workspaceUsername: m.username ?? "",
+    workspaceWebsite: m.website ?? "",
+  };
+}
+
+// The identifying lines under the church name on the confirm screen — city ·
+// state, @handle, website — only the ones we actually have.
+function churchDetailLines(data: FlowData): string {
+  const lines: string[] = [];
+  const loc = [data.workspaceCity, data.workspaceState].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ");
+  if (loc) lines.push(`📍 ${loc}`);
+  if (data.workspaceUsername) lines.push(`🔗 @${String(data.workspaceUsername)}`);
+  if (data.workspaceWebsite) lines.push(`🌐 ${String(data.workspaceWebsite)}`);
+  return lines.length ? "\n" + lines.join("\n") : "";
+}
+
 export const guestConnectFlow: FlowDefinition = {
   name: "guest_connect",
   firstStep: "who_are_you",
@@ -131,16 +159,15 @@ export const guestConnectFlow: FlowDefinition = {
       onInput: async (input): Promise<Transition> => {
         const church = await lookupChurch(input.text);
         if (church) {
-          return { to: "confirm", patch: { workspaceId: church.id, workspaceSlug: church.slug, workspaceName: church.name, workspaceCity: church.city ?? "" } };
+          return { to: "confirm", patch: churchPatch(church) };
         }
-        // P3-A: no code/@username hit — try the church's NAME too.
+        // P3-A: no code/@username hit — try the church's NAME too (sentence-aware).
         const matches = await findWorkspacesByName(input.text);
         if (matches.length === 1) {
-          const m = matches[0];
-          return { to: "confirm", patch: { workspaceId: m.id, workspaceSlug: m.slug, workspaceName: m.name, workspaceCity: m.city ?? "" } };
+          return { to: "confirm", patch: churchPatch(matches[0]) };
         }
         if (matches.length > 1) {
-          return { to: "pick_church", patch: { candidates: matches.map((m) => ({ id: m.id, slug: m.slug, name: m.name, city: m.city ?? "" })) } };
+          return { to: "pick_church", patch: { candidates: matches } };
         }
         return { stay: { type: "text", text: "Hmm, I couldn't find that — send your church's *code* or `@username`, or type the church's name again." } };
       },
@@ -148,17 +175,21 @@ export const guestConnectFlow: FlowDefinition = {
 
     pick_church: {
       render: (data) => {
-        const cands = (data.candidates as Array<{ id: string; name: string; city: string }>) ?? [];
+        const cands = (data.candidates as Array<{ id: string; name: string; city?: string; state?: string }>) ?? [];
         return {
           type: "list",
           header: "Which church?",
           text: "I found a few — which one is yours?",
           buttonLabel: "Choose",
-          rows: cands.map((c, i) => ({ id: `pick_${i}`, title: c.name.slice(0, 24), description: c.city || "" })),
+          rows: cands.map((c, i) => ({
+            id: `pick_${i}`,
+            title: c.name.slice(0, 24),
+            description: [c.city, c.state].map((x) => (x ?? "").trim()).filter(Boolean).join(", "),
+          })),
         };
       },
       onInput: (input, data): Transition => {
-        const cands = (data.candidates as Array<{ id: string; slug: string; name: string; city: string }>) ?? [];
+        const cands = (data.candidates as Array<{ id: string; slug: string; name: string; city?: string; state?: string; username?: string; website?: string }>) ?? [];
         const m = /^pick_(\d+)$/.exec(input.buttonId ?? "");
         const chosen = m ? cands[Number(m[1])] : undefined;
         if (!chosen) {
@@ -166,30 +197,38 @@ export const guestConnectFlow: FlowDefinition = {
             stay: {
               type: "list", header: "Which church?", text: "Tap one of the churches below.",
               buttonLabel: "Choose",
-              rows: cands.map((c, i) => ({ id: `pick_${i}`, title: c.name.slice(0, 24), description: c.city || "" })),
+              rows: cands.map((c, i) => ({
+                id: `pick_${i}`,
+                title: c.name.slice(0, 24),
+                description: [c.city, c.state].map((x) => (x ?? "").trim()).filter(Boolean).join(", "),
+              })),
             },
           };
         }
-        return { to: "confirm", patch: { workspaceId: chosen.id, workspaceSlug: chosen.slug, workspaceName: chosen.name, workspaceCity: chosen.city ?? "" } };
+        return { to: "confirm", patch: churchPatch(chosen) };
       },
     },
 
     confirm: {
-      render: (data) => {
-        const city = data.workspaceCity ? `, ${String(data.workspaceCity)}` : "";
-        return {
-          type: "buttons",
-          header: "Connect to church",
-          text: `That's *${String(data.workspaceName)}*${city}. Shall I connect you?`,
-          buttons: [
-            { id: "connect_yes", title: "✅ Yes, connect me" },
-            { id: "connect_no", title: "❌ No" },
-          ],
-        };
-      },
+      render: (data) => ({
+        type: "buttons",
+        header: "Is this your church?",
+        text: `*${String(data.workspaceName)}*${churchDetailLines(data)}\n\nShall I connect you?`,
+        buttons: [
+          { id: "connect_yes", title: "✅ Yes, that's it" },
+          { id: "connect_no", title: "❌ No, not this" },
+        ],
+      }),
       onInput: async (input, data, ctx): Promise<Transition> => {
         if (input.buttonId === "connect_no") {
-          return { to: "connect_code", patch: { workspaceId: undefined, workspaceName: undefined, workspaceCity: undefined } };
+          return {
+            to: "connect_code",
+            patch: {
+              workspaceId: undefined, workspaceSlug: undefined, workspaceName: undefined,
+              workspaceCity: undefined, workspaceState: undefined,
+              workspaceUsername: undefined, workspaceWebsite: undefined,
+            },
+          };
         }
         if (input.buttonId !== "connect_yes" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return {
