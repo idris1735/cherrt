@@ -92,7 +92,7 @@ describe("guest_connect flow", () => {
   });
 
   it("an unknown code reprompts and stays on connect_code", async () => {
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "ZZZZ9999" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "ZZZZ9999" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("couldn't find") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code" });
     expect(provisionMock).not.toHaveBeenCalled();
@@ -100,7 +100,7 @@ describe("guest_connect flow", () => {
 
   it("@username path resolves through findWorkspaceByUsername", async () => {
     findUserMock.mockResolvedValue(GRACE);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "@gracechapel" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "@gracechapel" }]);
     expect(findUserMock).toHaveBeenCalledWith("gracechapel");
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Assembly") });
     expect(session.activeFlow).toMatchObject({ step: "confirm" });
@@ -109,7 +109,7 @@ describe("guest_connect flow", () => {
   it("No at confirm returns to the code step with workspace fields cleared", async () => {
     findCodeMock.mockResolvedValue(GRACE);
     const { out, session } = await drive([
-      { buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_no" },
+      { buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_no" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("church's *code*") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code", data: { workspaceId: undefined } });
@@ -139,7 +139,7 @@ describe("guest_connect flow", () => {
 
   it("P3-A — a church NAME with one match goes straight to confirm", async () => {
     findNameMock.mockResolvedValue([GRACE]);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Grace chapel" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "Grace chapel" }]);
     expect(findNameMock).toHaveBeenCalledWith("Grace chapel");
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Grace Chapel Assembly") });
     expect(session.activeFlow).toMatchObject({ step: "confirm", data: { workspaceId: "ws-grace" } });
@@ -151,7 +151,7 @@ describe("guest_connect flow", () => {
       { id: "w2", slug: "grace-abuja", name: "Grace Chapel Abuja", city: "Abuja" },
       { id: "w3", slug: "grace-ph", name: "Grace Chapel PH", city: "Port Harcourt" },
     ]);
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Grace" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "Grace" }]);
     expect(out).toMatchObject({ type: "list", text: expect.stringContaining("I found a few") });
     expect(out?.type === "list" ? out.rows.length : 0).toBe(3);
     expect(session.activeFlow).toMatchObject({ step: "pick_church" });
@@ -167,7 +167,7 @@ describe("guest_connect flow", () => {
   });
 
   it("P3-A — zero matches on any identifier gives the gentle reprompt", async () => {
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "Nowhere Church" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "Nowhere Church" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("couldn't find that") });
     expect(session.activeFlow).toMatchObject({ step: "connect_code" });
     expect(provisionMock).not.toHaveBeenCalled();
@@ -187,8 +187,19 @@ describe("guest_connect flow", () => {
     }));
   });
 
+  it("full name — a lone first name is nudged for a surname", async () => {
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Idris" }]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("surname") });
+    expect(session.activeFlow).toMatchObject({ step: "ask_surname", data: { firstName: "Idris" } });
+  });
+
+  it("full name — first + surname combine into the full name, then ask_email", async () => {
+    const { session } = await drive([{ buttonId: "who_attend" }, { text: "Idris" }, { text: "Bello" }]);
+    expect(session.activeFlow).toMatchObject({ step: "ask_email", data: { fullName: "Idris Bello" } });
+  });
+
   it("basic bio — a non-email reprompts on ask_email with Skip still offered", async () => {
-    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada" }, { text: "not-an-email" }]);
+    const { out, session } = await drive([{ buttonId: "who_attend" }, { text: "Ada Obi" }, { text: "not-an-email" }]);
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("doesn't look like an email") });
     expect(out?.type === "buttons" ? out.buttons[0].id : "").toBe("email_skip");
     expect(session.activeFlow).toMatchObject({ step: "ask_email" });
@@ -198,7 +209,7 @@ describe("guest_connect flow", () => {
     findCodeMock.mockResolvedValue(GRACE);
     subActiveMock.mockResolvedValue(false);
     const { out, session } = await drive([
-      { buttonId: "who_attend" }, { text: "Ada" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_yes" },
+      { buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_yes" },
     ]);
     expect(subActiveMock).toHaveBeenCalledWith("ws-grace");
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("isn't active") });

@@ -116,11 +116,25 @@ export const guestConnectFlow: FlowDefinition = {
     },
 
     ask_name: {
-      render: () => ({ type: "text", text: "Lovely 🙏 What's your name?" }),
+      render: () => ({ type: "text", text: "Lovely 🙏 What's your *full name*?" }),
       onInput: (input): Transition => {
-        const name = input.text.trim();
-        if (!looksLikeName(name)) return { stay: { type: "text", text: "Just your name, please — first and last is perfect." } };
+        const name = input.text.trim().replace(/\s+/g, " ");
+        if (!looksLikeName(name)) return { stay: { type: "text", text: "Just your name, please 🙏" } };
+        // The church wants your full name — nudge once for a surname if we only
+        // got one word. ask_surname combines them (and never walls a one-name member).
+        if (name.split(" ").length < 2) return { to: "ask_surname", patch: { firstName: name } };
         return { to: "ask_email", patch: { fullName: name } };
+      },
+    },
+
+    ask_surname: {
+      render: (data) => ({ type: "text", text: `Thanks, ${String(data.firstName ?? "")} 🙏 And your *surname* (last name)?` }),
+      onInput: (input, data): Transition => {
+        const surname = input.text.trim().replace(/\s+/g, " ");
+        const first = String(data.firstName ?? "").trim();
+        const fullName = surname ? `${first} ${surname}`.trim() : first;
+        if (!looksLikeName(fullName)) return { stay: { type: "text", text: "Your surname, please 🙏" } };
+        return { to: "ask_email", patch: { fullName } };
       },
     },
 
