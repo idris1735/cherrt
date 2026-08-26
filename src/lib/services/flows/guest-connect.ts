@@ -7,6 +7,7 @@
 import type { FlowDefinition, FlowInput, FlowData, FlowRunContext, Transition } from "@/lib/services/flows/engine";
 import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName, isWorkspaceSubscriptionActive } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { startMemberEmailVerification } from "@/lib/services/identity/email-verify";
 import { startSignupFlow } from "@/lib/services/onboarding-flow";
 import { menuForRole } from "@/lib/services/agent/menu";
 import { updateSession } from "@/lib/services/whatsapp-session";
@@ -280,13 +281,20 @@ export const guestConnectFlow: FlowDefinition = {
         });
         // Remember the name so we never ask again.
         if (fullName) await updateSession(ctx.phone, { userName: fullName });
+        // Async, non-blocking email verification: fire a code, tell them how to
+        // confirm whenever they like. Never delays landing in the menu.
+        let emailNote = "";
+        if (data.email) {
+          void startMemberEmailVerification(String(data.email));
+          emailNote = `\n\n📧 I've emailed a code to ${String(data.email)} — reply *verify 123456* anytime to confirm it.`;
+        }
         // Land them straight in the member menu — the journey completes here.
         const rows = menuForRole("member", 1);
         return {
           done: {
             type: "list",
             header: String(data.workspaceName),
-            text: `🎉 You're connected to *${String(data.workspaceName)}*! What do you need?`,
+            text: `🎉 You're connected to *${String(data.workspaceName)}*!${emailNote}\n\nWhat do you need?`,
             buttonLabel: "Open menu",
             rows,
           },

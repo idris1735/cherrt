@@ -54,6 +54,7 @@ import { persistChatAttachment } from "@/lib/services/chat-attachments";
 // Side-effect import: registers every deterministic task flow with the engine.
 import "@/lib/services/flows";
 import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
+import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -1137,6 +1138,25 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       await sendFlowOutput(from, out);
       return;
     }
+  }
+
+  // ── Async member email verification: "verify <code>" ──
+  // Non-blocking confirmation of the email captured on the connect rail. Placed
+  // after the flow block (an active rail still owns the turn) so it only fires
+  // for a standalone "verify 123456" when the member isn't mid-flow. Optional —
+  // a wrong/expired code is reassuring, never alarming.
+  const verifyMatch = trimmed.match(/^verify\s+(\d{3,8})$/i);
+  if (verifyMatch) {
+    const res = await confirmMemberEmail(from, verifyMatch[1]);
+    const reply =
+      res.status === "verified"
+        ? `✅ Email confirmed${res.email ? ` — ${res.email}` : ""}. Thank you! 🙏`
+        : res.status === "no_email"
+          ? "I don't have an email on file for you yet — you can add one when you connect to your church."
+          : "That code didn't match or has expired. No worries — it's optional, and you're already connected. 🙏";
+    await addToHistory(from, "user", trimmed);
+    await sendTextMessage(from, reply);
+    return;
   }
 
   // ── Member join-by-code ──

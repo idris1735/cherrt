@@ -26,6 +26,11 @@ vi.mock("@/lib/services/identity/provisioning", () => ({
   ensureVerifiedPerson: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/services/identity/email-verify", () => ({
+  confirmMemberEmail: vi.fn().mockResolvedValue({ status: "verified", email: "you@example.com" }),
+  startMemberEmailVerification: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
@@ -77,6 +82,7 @@ import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMes
 import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode, findWorkspaceByUsername } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 import { flagMessage } from "@/lib/services/safety/flags";
 import { persistChatAttachment } from "@/lib/services/chat-attachments";
@@ -844,7 +850,7 @@ describe("processWhatsAppMessage", () => {
   it("P2 — a guest mid-rail who taps who_attend advances to the name question", async () => {
     await updateSession(PHONE, { welcomed: true, activeFlow: { name: "guest_connect", step: "who_are_you", data: {} } });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "who_attend" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("your name"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("full name"));
     const s = await getSession(PHONE);
     expect(s.activeFlow).toMatchObject({ step: "ask_name" });
   });
@@ -867,6 +873,21 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
     const s = await getSession(PHONE);
     expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
+  });
+
+  it("verify <code> confirms the member's email and replies", async () => {
+    await skipWelcome();
+    (confirmMemberEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: "verified", email: "you@example.com" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "verify 123456" });
+    expect(confirmMemberEmail).toHaveBeenCalledWith(PHONE, "123456");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Email confirmed"));
+  });
+
+  it("verify <code> with a wrong code stays reassuring, not alarming", async () => {
+    await skipWelcome();
+    (confirmMemberEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: "bad_code" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "verify 000000" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("already connected"));
   });
 
   it("P3 — typing 'I want to give 5000' starts give seeded with the amount", async () => {

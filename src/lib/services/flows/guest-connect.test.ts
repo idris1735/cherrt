@@ -4,12 +4,13 @@ import type { FlowOutput, FlowRunContext } from "@/lib/services/flows/engine";
 import { guestConnectFlow } from "@/lib/services/flows/guest-connect";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 
-const { findCodeMock, findUserMock, findNameMock, subActiveMock, provisionMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
+const { findCodeMock, findUserMock, findNameMock, subActiveMock, provisionMock, verifyStartMock, signupMock, menuMock, updateSessionMock } = vi.hoisted(() => ({
   findCodeMock: vi.fn(),
   findUserMock: vi.fn(),
   findNameMock: vi.fn(),
   subActiveMock: vi.fn(),
   provisionMock: vi.fn(),
+  verifyStartMock: vi.fn(),
   signupMock: vi.fn(),
   menuMock: vi.fn(),
   updateSessionMock: vi.fn(),
@@ -22,6 +23,9 @@ vi.mock("@/lib/services/whatsapp-workspace", () => ({
 }));
 vi.mock("@/lib/services/identity/provisioning", () => ({
   provisionPersonMembership: provisionMock,
+}));
+vi.mock("@/lib/services/identity/email-verify", () => ({
+  startMemberEmailVerification: verifyStartMock,
 }));
 vi.mock("@/lib/services/onboarding-flow", () => ({
   startSignupFlow: signupMock,
@@ -62,6 +66,7 @@ beforeEach(() => {
   findNameMock.mockResolvedValue([]);
   subActiveMock.mockResolvedValue(true);
   provisionMock.mockResolvedValue(true);
+  verifyStartMock.mockResolvedValue(undefined);
   updateSessionMock.mockResolvedValue(undefined);
   menuMock.mockReturnValue([{ id: "menu:checkin", title: "👶 Check in a child", description: "Pickup code + QR pass" }]);
 });
@@ -185,6 +190,16 @@ describe("guest_connect flow", () => {
     expect(provisionMock).toHaveBeenCalledWith(expect.objectContaining({
       fullName: "Ada Obi", email: "ada@example.com", workspaceId: "ws-grace", role: "member",
     }));
+    // async, non-blocking verification fires for the captured email
+    expect(verifyStartMock).toHaveBeenCalledWith("ada@example.com");
+  });
+
+  it("email verification does NOT fire when the member skipped email", async () => {
+    findCodeMock.mockResolvedValue(GRACE);
+    await drive([
+      { buttonId: "who_attend" }, { text: "Ada Obi" }, { buttonId: "email_skip" }, { text: "GRACE001" }, { buttonId: "connect_yes" },
+    ]);
+    expect(verifyStartMock).not.toHaveBeenCalled();
   });
 
   it("full name — a lone first name is nudged for a surname", async () => {

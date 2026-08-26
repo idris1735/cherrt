@@ -8,6 +8,15 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-08-26 — Async email verification + full name at the door
+
+**From live feedback:** "email isn't verified — that's a security issue" and "name + email shouldn't be the only data." Decisions (asked): async non-blocking email verify (no OTP loop — phone is already the verified anchor); progressive profiling but **capture full name**.
+
+- **Full name:** `ask_name` now asks for the full name; a lone first name routes to a one-time `ask_surname` nudge that combines first+last — never walls a one-name member.
+- **Async email verification (WhatsApp-native):** on connect we fire a code to the email (fire-and-forget, `startMemberEmailVerification` → reuses KYC `sendEmailOtp`) and the member confirms anytime by replying `verify <code>`. Processor handles it after the flow block (an active rail still wins); `confirmMemberEmail` resolves phone→person→email, checks the code, stamps **`people.email_verified_at`** (new migration `20260825100000_member_email_verify`). Non-blocking: the rail never waits, wrong/expired code is reassuring not alarming.
+- **Framing:** email is not a credential (no login/privilege), so unverified was a deliverability/privacy gap, not a takeover risk — now closed without adding friction. Founder-path OTP stays on the KYC audit.
+- **Tests:** +6 email-verify unit, +2 processor (`verify` verified/bad-code), +2 flow (verify fires on email / not on skip), full-name flow tests. **Full suite 722/91 green**, `tsc` 0.
+
 ### 2026-08-25 — Sentence-aware church search + richer confirm
 
 **Live-test finding:** a real user typed *"I'm unsure. But I go to daystar"* → "couldn't find that". The name search was matching the **whole sentence** literally, so "daystar" was never tried.
