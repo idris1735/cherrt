@@ -1,5 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
-import { isSubscriptionActive, PLACEHOLDER_PLAN, type Subscription, type SubscriptionStatus } from "@/lib/services/billing/subscription";
+import { isSubscriptionActive, demoBillingEnabled, PLACEHOLDER_PLAN, type Subscription, type SubscriptionStatus } from "@/lib/services/billing/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -66,11 +66,13 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
               <div style={{ fontSize: 40 }}>✅</div>
               <p style={{ color: "#9aa4b1", margin: "8px 0 0" }}>Subscription is active. Your members can connect. You can close this page.</p>
             </div>
-          ) : (
+          ) : demoBillingEnabled() ? (
             <form action="/api/billing/activate" method="POST" style={{ marginTop: 18 }}>
               <input type="hidden" name="org" value={org} />
               <button type="submit" style={btn}>Activate subscription</button>
             </form>
+          ) : (
+            <p style={{ color: "#9aa4b1", textAlign: "center", marginTop: 18 }}>Contact Chertt to activate this church's subscription.</p>
           )}
           <p style={{ color: "#6b7482", fontSize: 12, textAlign: "center", marginTop: 14 }}>Demo billing — no real card is charged. With payments enabled, this is where card/bank/transfer happens.</p>
         </div>

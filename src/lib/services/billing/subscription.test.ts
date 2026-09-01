@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const { store } = vi.hoisted(() => ({
@@ -22,7 +22,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
   },
 }));
 
-import { getSubscription, activateSubscriptionDemo, isSubscriptionActive, getWorkspaceBilling, PLACEHOLDER_PLAN } from "@/lib/services/billing/subscription";
+import { getSubscription, activateSubscriptionDemo, isSubscriptionActive, getWorkspaceBilling, demoBillingEnabled, PLACEHOLDER_PLAN } from "@/lib/services/billing/subscription";
 
 beforeEach(() => {
   store.single = {};
@@ -62,6 +62,28 @@ describe("activateSubscriptionDemo", () => {
   it("returns null on a write error", async () => {
     store.updateError = { message: "boom" };
     expect(await activateSubscriptionDemo("org1")).toBeNull();
+  });
+});
+
+describe("demoBillingEnabled — production is off by default", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is OFF in production unless explicitly allowed", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_DEMO_BILLING", "");
+    expect(demoBillingEnabled()).toBe(false);
+  });
+
+  it("is ON in production when ALLOW_DEMO_BILLING=true", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_DEMO_BILLING", "true");
+    expect(demoBillingEnabled()).toBe(true);
+  });
+
+  it("is ON outside production (dev/preview/test)", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ALLOW_DEMO_BILLING", "");
+    expect(demoBillingEnabled()).toBe(true);
   });
 });
 

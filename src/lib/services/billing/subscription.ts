@@ -13,6 +13,16 @@ export type Subscription = { status: SubscriptionStatus; plan: string | null; ex
 export const PLACEHOLDER_PLAN = "Chertt Standard";
 const DEMO_PERIOD_DAYS = 30;
 
+// The demo activation writes org billing state with NO per-user auth (the
+// /billing page is reached by an unauthenticated link). So it's OFF in
+// production unless ALLOW_DEMO_BILLING=true is explicitly set — safe by default,
+// still demoable in dev/preview. Once real Paystack billing exists, this whole
+// demo path is replaced by an authenticated + webhook-verified flow.
+export function demoBillingEnabled(): boolean {
+  if (process.env.ALLOW_DEMO_BILLING === "true") return true;
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function getSubscription(organizationId: string): Promise<Subscription | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
