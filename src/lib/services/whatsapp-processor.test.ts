@@ -919,6 +919,41 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
+  it("multi-church: 'switch' shows a tap-to-switch list of the member's churches", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace HQ", userName: "Ada", userRole: "member" },
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws2", workspaceSlug: "daystar", workspaceName: "Daystar", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "switch" });
+    expect(mockList).toHaveBeenCalled();
+    const rows = (mockList.mock.calls[0] as unknown[])[3] as Array<{ id: string }>;
+    expect(rows.map((r) => r.id)).toEqual(["switch:ws1", "switch:ws2"]);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("multi-church: tapping a switch row sets the active church", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace HQ", userName: "Ada", userRole: "member" },
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws2", workspaceSlug: "daystar", workspaceName: "Daystar", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "switch:ws2" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar"));
+    const s = await getSession(PHONE);
+    expect(s.activeWorkspaceId).toBe("ws2");
+  });
+
+  it("single-church member typing 'switch' is told they're only in one church", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace HQ", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "switch church" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("only connected to"));
+    expect(mockList).not.toHaveBeenCalled();
+  });
+
   it("P3 — typing 'I want to give 5000' starts give seeded with the amount", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },

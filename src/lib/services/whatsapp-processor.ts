@@ -729,6 +729,17 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     return;
   }
 
+  // ── Switch active church (pick from the switch-church list) ──
+  if (buttonId.startsWith("switch:")) {
+    const wsId = buttonId.slice("switch:".length);
+    const links = await lookupAllPhoneLinks(from);
+    const target = links.find((l) => l.workspaceId === wsId);
+    if (!target) { await sendTextMessage(from, "Couldn't switch just now — send the church's code to connect."); return; }
+    await updateSession(from, { activeWorkspaceId: wsId });
+    await sendTextMessage(from, `✅ You're now in *${target.workspaceName}*. What do you need?`);
+    return;
+  }
+
   // ── Menu button — available to any linked member ──
   if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
 
@@ -1167,6 +1178,28 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
         ? `✅ *${link.workspaceName}* — subscription active (${billing.sub.plan ?? "Chertt Standard"}). Manage it here:\n${link_}\n\n_(Demo — no real charge.)_`
         : `⚠️ *${link.workspaceName}* — subscription is *${billing.sub.status}*. Activate it here so your members can connect:\n${link_}\n\n_(Demo — no real charge.)_`,
     );
+    return;
+  }
+
+  // ── Switch active church (multi-church members) ──
+  // Once a multi-church member is resolved to one church, this is how they move
+  // to another (otherwise they'd be stuck until #reset). Tap-to-switch list.
+  if (link && /^switch( church(es)?)?$|^switch to\b|^change church(es)?$/i.test(trimmed)) {
+    await addToHistory(from, "user", trimmed);
+    if (allLinks.length <= 1) {
+      await sendTextMessage(from, `You're only connected to *${link.workspaceName}*. Send another church's code to join a second one.`);
+      return;
+    }
+    const rows = allLinks.map((l) => ({
+      id: `switch:${l.workspaceId}`,
+      title: l.workspaceName.slice(0, 24),
+      description: l.workspaceId === link!.workspaceId ? "Current" : "",
+    }));
+    try {
+      await sendInteractiveList(from, "Which church do you want to switch to?", "Choose", rows, "Switch church");
+    } catch {
+      await sendTextMessage(from, `You're in *${link.workspaceName}*. Your churches: ${allLinks.map((l) => l.workspaceName).join(", ")}.`);
+    }
     return;
   }
 
