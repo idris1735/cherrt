@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
+import { isSubscriptionActive, type SubscriptionStatus } from "@/lib/services/billing/subscription";
 import { buildKnowledgeContextString, demoKnowledgeArticles, type KnowledgeArticle } from "@/lib/data/knowledge";
 import { slugifyWorkspaceName } from "@/lib/services/onboarding-draft";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
@@ -584,11 +585,10 @@ export async function findWorkspacesByName(query: string): Promise<WorkspaceMatc
 }
 
 // Subscription/active gate for the connect rail (Kola's "Verify Church
-// Subscription" step). A member must not join a church that isn't active.
-// Today "active subscription" == the parent organization's status === "active";
-// this is the exact seam where real billing status slots in later. Fails OPEN
-// for standalone/demo workspaces (no organization_id) and when storage is
-// unavailable, so a legitimate church is never wrongly turned away.
+// Subscription" step). A member must not join a church that isn't active — both
+// its KYC lifecycle (organizations.status) AND its billing subscription must be
+// good. Fails OPEN for standalone/demo workspaces (no organization_id) and when
+// storage is unavailable, so a legitimate church is never wrongly turned away.
 export async function isWorkspaceSubscriptionActive(workspaceId: string): Promise<boolean> {
   const db = getSupabaseServerClient();
   if (!db) return true;
@@ -603,11 +603,19 @@ export async function isWorkspaceSubscriptionActive(workspaceId: string): Promis
 
   const { data: org } = await db
     .from("organizations")
-    .select("status")
+    .select("status, subscription_status, subscription_plan, subscription_expires_at")
     .eq("id", orgId)
     .maybeSingle();
   if (!org) return true;
-  return (org as { status?: string }).status === "active";
+  const o = org as { status?: string; subscription_status?: SubscriptionStatus; subscription_plan?: string | null; subscription_expires_at?: string | null };
+  // KYC lifecycle: a not-yet-approved or rejected org is never connectable.
+  if (o.status !== "active") return false;
+  // Billing (placeholder): canceled / past_due / expired subscription blocks.
+  return isSubscriptionActive({
+    status: o.subscription_status ?? "active",
+    plan: o.subscription_plan ?? null,
+    expiresAt: o.subscription_expires_at ?? null,
+  });
 }
 
 export async function createPendingOrganization(fields: {

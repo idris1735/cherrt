@@ -39,7 +39,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
   },
 }));
 
-import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
+import { findWorkspaceByJoinCode, findWorkspaceByUsername, findWorkspacesByName, isWorkspaceSubscriptionActive, getWorkspaceJoinCode, codeFromWorkspaceId } from "@/lib/services/whatsapp-workspace";
 
 beforeEach(() => {
   store.eqCalls.length = 0;
@@ -110,6 +110,37 @@ describe("findWorkspacesByName — P3-A church lookup", () => {
     expect(store.orCalls).toEqual([]); // no usable tokens → raw branch, too short → no query
     store.dbNull = true;
     expect(await findWorkspacesByName("grace")).toEqual([]);
+  });
+});
+
+describe("isWorkspaceSubscriptionActive — connect gate", () => {
+  it("allows a standalone workspace with no organization (fails open)", async () => {
+    store.single["workspaces"] = { organization_id: null };
+    expect(await isWorkspaceSubscriptionActive("ws1")).toBe(true);
+  });
+
+  it("allows an active org with an active subscription", async () => {
+    store.single["workspaces"] = { organization_id: "org1" };
+    store.single["organizations"] = { status: "active", subscription_status: "active", subscription_expires_at: null };
+    expect(await isWorkspaceSubscriptionActive("ws1")).toBe(true);
+  });
+
+  it("blocks a not-yet-approved org (KYC lifecycle)", async () => {
+    store.single["workspaces"] = { organization_id: "org1" };
+    store.single["organizations"] = { status: "pending_approval", subscription_status: "active", subscription_expires_at: null };
+    expect(await isWorkspaceSubscriptionActive("ws1")).toBe(false);
+  });
+
+  it("blocks an active org whose subscription is canceled", async () => {
+    store.single["workspaces"] = { organization_id: "org1" };
+    store.single["organizations"] = { status: "active", subscription_status: "canceled", subscription_expires_at: null };
+    expect(await isWorkspaceSubscriptionActive("ws1")).toBe(false);
+  });
+
+  it("blocks an active org whose subscription has expired", async () => {
+    store.single["workspaces"] = { organization_id: "org1" };
+    store.single["organizations"] = { status: "active", subscription_status: "active", subscription_expires_at: new Date(Date.now() - 8.64e7).toISOString() };
+    expect(await isWorkspaceSubscriptionActive("ws1")).toBe(false);
   });
 });
 

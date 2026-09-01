@@ -55,6 +55,7 @@ import { persistChatAttachment } from "@/lib/services/chat-attachments";
 import "@/lib/services/flows";
 import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
+import { getWorkspaceBilling, isSubscriptionActive } from "@/lib/services/billing/subscription";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -1156,6 +1157,29 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
           : "That code didn't match or has expired. No worries — it's optional, and you're already connected. 🙏";
     await addToHistory(from, "user", trimmed);
     await sendTextMessage(from, reply);
+    return;
+  }
+
+  // ── Subscription status / billing (PLACEHOLDER) ──
+  // A connected member checks their church's Chertt subscription and gets the
+  // demo activation link. No real charge — the link opens the placeholder
+  // billing page. Only for linked users (a guest has no church to bill).
+  if (link && /^(subscription|billing|renew|my subscription)$/i.test(trimmed)) {
+    const billing = await getWorkspaceBilling(link.workspaceId);
+    await addToHistory(from, "user", trimmed);
+    if (!billing) {
+      await sendTextMessage(from, "There's no subscription to manage for this church yet.");
+      return;
+    }
+    const active = isSubscriptionActive(billing.sub);
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://chertt.app").replace(/\/$/, "");
+    const link_ = `${appUrl}/billing/${billing.organizationId}`;
+    await sendTextMessage(
+      from,
+      active
+        ? `✅ *${link.workspaceName}* — subscription active (${billing.sub.plan ?? "Chertt Standard"}). Manage it here:\n${link_}\n\n_(Demo — no real charge.)_`
+        : `⚠️ *${link.workspaceName}* — subscription is *${billing.sub.status}*. Activate it here so your members can connect:\n${link_}\n\n_(Demo — no real charge.)_`,
+    );
     return;
   }
 

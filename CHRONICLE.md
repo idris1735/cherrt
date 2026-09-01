@@ -8,6 +8,15 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Payment placeholders + KYC-path audit
+
+**KYC-path audit (verdict: real, not stubbed).** Traced the whole chain: `startSignupFlow` → single-use token (24h) → `/onboard/[token]` (handles expired) → form → live CAC badge + email OTP + submit (server re-validates, uploads selfie/CAC, runs Mono CAC+NIN+trustee — all guarded, lands `pending`, pings church WhatsApp) → admin console (Supabase-JWT + email allowlist) → approve (creates org+workspace+founder, records consent, resumes post-approval setup in WhatsApp) → join code. Every external call degrades gracefully. **Findings (config/ops, not code bugs):** (1) ⚠️ 24h-window risk — the approval notice falls back to plain text, which WhatsApp blocks outside the 24h session window; needs the Meta templates approved + env vars set, else an approved-but-not-notified founder stalls (post-approval setup only resumes on their next message). (2) BVN not wired (NIN is). (3) Confirm config before go-live: `MONO_SECRET_KEY`, KYC storage bucket+RLS, `PLATFORM_ADMIN_EMAILS`.
+
+**Payment placeholders (both giving + subscription).**
+- **Subscription billing (NEW placeholder):** the church→Chertt side, kept separate from `organizations.status` (KYC lifecycle). Migration `20260901100000_subscription_placeholder` adds `subscription_status`/`plan`/`expires_at` (default active, so nothing breaks). `billing/subscription.ts` (`getSubscription`, `activateSubscriptionDemo` — no real charge, `isSubscriptionActive`, `getWorkspaceBilling`). Connect gate now checks KYC status AND billing (canceled/past_due/expired blocks). Demo billing page `/billing/[org]` + `/api/billing/activate` (mirrors giving's `/pay`). WhatsApp entry: a connected member types `subscription` → status + demo link. This is the seam where real Paystack-subscription/bank slots in.
+- **Giving (already placeholdered):** demo mode + `/pay` page were already clearly labeled; added a `(demo — no real charge)` note to the give-flow confirm too.
+- **Tests:** +billing unit (isSubscriptionActive/activate/getWorkspaceBilling), +5 gate tests, +1 processor (`subscription` command). **Full suite 740/92 green**, `tsc` 0.
+
 ### 2026-08-26 — Async email verification + full name at the door
 
 **From live feedback:** "email isn't verified — that's a security issue" and "name + email shouldn't be the only data." Decisions (asked): async non-blocking email verify (no OTP loop — phone is already the verified anchor); progressive profiling but **capture full name**.

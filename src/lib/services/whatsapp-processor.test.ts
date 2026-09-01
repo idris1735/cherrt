@@ -31,6 +31,11 @@ vi.mock("@/lib/services/identity/email-verify", () => ({
   startMemberEmailVerification: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/services/billing/subscription", () => ({
+  getWorkspaceBilling: vi.fn().mockResolvedValue({ organizationId: "org1", sub: { status: "active", plan: "Chertt Standard", expiresAt: null } }),
+  isSubscriptionActive: vi.fn().mockReturnValue(true),
+}));
+
 vi.mock("@/lib/services/ai-service", () => ({
   runCherttCommand: vi.fn().mockResolvedValue({ reply: "Done." }),
 }));
@@ -83,6 +88,7 @@ import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode, findWorkspaceByUsername } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
+import { getWorkspaceBilling } from "@/lib/services/billing/subscription";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
 import { flagMessage } from "@/lib/services/safety/flags";
 import { persistChatAttachment } from "@/lib/services/chat-attachments";
@@ -888,6 +894,17 @@ describe("processWhatsAppMessage", () => {
     (confirmMemberEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: "bad_code" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "verify 000000" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("already connected"));
+  });
+
+  it("a connected member typing 'subscription' gets status + the demo billing link", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "subscription" });
+    expect(getWorkspaceBilling).toHaveBeenCalledWith("ws1");
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("/billing/org1"));
+    expect(mockRun).not.toHaveBeenCalled();
   });
 
   it("P3 — typing 'I want to give 5000' starts give seeded with the amount", async () => {

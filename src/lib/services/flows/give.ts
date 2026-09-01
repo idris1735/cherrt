@@ -3,9 +3,12 @@
 // Seeded with an amount, it never re-asks it.
 import type { FlowDefinition, FlowInput, FlowData, Transition } from "@/lib/services/flows/engine";
 import { getAgentTool } from "@/lib/services/agent/runtime";
+import { paystackConfigured } from "@/lib/services/payments/paystack";
 import type { Role } from "@/lib/types";
 
 const GIVING_TYPES = ["Tithe", "Offering", "Donation", "Pledge"];
+// Placeholder note until real Paystack keys are wired — keeps the confirm honest.
+const DEMO_NOTE = () => (paystackConfigured() ? "" : " _(demo — no real charge)_");
 
 export const giveFlow: FlowDefinition = {
   name: "give",
@@ -43,7 +46,7 @@ export const giveFlow: FlowDefinition = {
       render: (data) => ({
         type: "buttons",
         header: "Confirm giving",
-        text: `Give *₦${Number(data.amount).toLocaleString("en-NG")}* as *${String(data.givingType)}*? I'll send a secure payment link.`,
+        text: `Give *₦${Number(data.amount).toLocaleString("en-NG")}* as *${String(data.givingType)}*? I'll send a secure payment link.${DEMO_NOTE()}`,
         buttons: [{ id: "give_go", title: "✅ Send link" }, { id: "give_cancel", title: "❌ Cancel" }],
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
