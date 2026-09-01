@@ -691,29 +691,12 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // continuing, recorded on the person (Slice B).
   if (buttonId === "guest_member") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    // P0-1 — the next bare code they send IS a join attempt, even if welcomed.
+    // Route into the connect rail — the single guest front door. (Replaces the
+    // old give/prayer/ministry sub-menu that dead-ended in "send your code".)
+    const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
     await updateSession(from, { awaitingJoinCode: true });
-    // WS5 — people tap, they don't type: follow the welcome with tappable
-    // next steps instead of "reply X".
-    await sendInteractiveButtons(from, "Welcome! 🙌 If your church gave you a code, just send it here and I'll connect you. What do you need today?", [
-      { id: "guest_give", title: "Give" },
-      { id: "guest_prayer", title: "Prayer request" },
-      { id: "guest_ministry", title: "Join a ministry" },
-    ]);
-    return;
-  }
-  if (buttonId === "guest_give") {
-    await updateSession(from, { awaitingJoinCode: true });
-    await sendTextMessage(from, "Giving runs through your church's own secure flow. Send your church's code here and I'll connect you so you can give safely. 🙏");
-    return;
-  }
-  if (buttonId === "guest_prayer") {
-    await sendTextMessage(from, "Send your prayer request here — I'll pass it straight to the prayer team. What would you like them to pray about?");
-    return;
-  }
-  if (buttonId === "guest_ministry") {
-    await updateSession(from, { awaitingJoinCode: true });
-    await sendTextMessage(from, "Love that! Tell me which ministry (choir, ushering, media, children, prayer band…) and once you're connected to your church I'll note you down. 🎶🙌");
+    await sendTextMessage(from, "Send your church's *code* or *@username* here and I'll connect you. 🙏");
     return;
   }
   if (buttonId === "guest_child") {

@@ -996,24 +996,18 @@ describe("WS5 — tappable follow-ups after guest persona buttons", () => {
     mockSend.mockClear();
   });
 
-  it("guest taps 'member' → gets tappable Give / Prayer / Join ministry", async () => {
+  it("guest taps 'member' → starts the connect rail (single front door, no wandering sub-menu)", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "guest_member" });
     expect(mockButtons).toHaveBeenCalled();
     const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(buttons.map((b) => b.id)).toEqual(["guest_give", "guest_prayer", "guest_ministry"]);
+    expect(buttons.map((b) => b.id)).toEqual(["who_attend", "who_child", "who_lead"]);
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "guest_connect", step: "who_are_you" });
   });
 
   it("guest taps 'here for my child' → gets tappable code / talk-to-leader", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "guest_child" });
     const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(buttons.map((b) => b.id)).toEqual(["guest_code", "guest_help"]);
-  });
-
-  it("the follow-up taps each get a natural reply", async () => {
-    for (const id of ["guest_give", "guest_prayer", "guest_ministry"]) {
-      mockSend.mockClear();
-      await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: id });
-      expect(mockSend).toHaveBeenCalledWith(PHONE, expect.any(String));
-    }
   });
 });
