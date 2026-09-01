@@ -6,7 +6,7 @@
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import type { AgentTool } from "@/lib/services/agent/tools";
 import { churchApproved } from "@/lib/services/kyc/tiered-access";
-import { ensurePerson } from "@/lib/services/identity/people";
+import { ensurePerson, resolvePersonIdByNameInWorkspace } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
 import { recordMilestone } from "@/lib/services/church/milestones";
 import { recordConsent } from "@/lib/services/privacy/consent";
@@ -20,22 +20,6 @@ function newId(): string {
 
 function profilePatchKeys(patch: Record<string, unknown>): boolean {
   return Object.keys(patch).length > 0;
-}
-
-/** WS1 — resolve a person already on this church's roster by name (case-insensitive). */
-async function findPersonByName(db: ReturnType<typeof getSupabaseServerClient>, workspaceId: string, name: string): Promise<string | null> {
-  if (!db) return null;
-  const needle = name.trim().toLowerCase();
-  if (!needle) return null;
-  const { data: memberships } = await db
-    .from("branch_memberships")
-    .select("person_id")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "active");
-  const personIds = [...new Set(((memberships ?? []) as any[]).map((m) => m.person_id))];
-  if (!personIds.length) return null;
-  const { data: people } = await db.from("people").select("id, full_name").in("id", personIds);
-  return ((people ?? []) as any[]).find((p) => String(p.full_name ?? "").toLowerCase() === needle)?.id ?? null;
 }
 
 const GIVING_TYPES = ["tithe", "offering", "donation", "pledge"] as const;
@@ -388,7 +372,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
       const role = roleMap[asked] ?? "member";
 
       // WS1 — already registered? Reuse the stored record, apply only what's new.
-      const existingPersonId = await findPersonByName(db, ctx.workspaceId, name);
+      const existingPersonId = await resolvePersonIdByNameInWorkspace(ctx.workspaceId, name);
       if (existingPersonId) {
         const existingMembership = await db
           .from("branch_memberships")

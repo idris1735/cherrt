@@ -8,6 +8,14 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Cross-tenant name-lookup fix (security) + helper consolidation
+
+**Bug (cross-tenant data leak):** `record_milestone` and `list_milestones` (journey-tools) resolved a person by `full_name` against the whole `people` table — which is the cross-workspace identity spine — so a leader in one church could attach/read a milestone on a same-named person in ANOTHER church. Fixed by scoping the lookup through `branch_memberships`.
+
+- New shared `resolvePersonIdByNameInWorkspace(workspaceId, name)` in `identity/people.ts` — case-insensitive, scoped to active members of the workspace (no cross-tenant match). Both journey-tools sites now use it.
+- **Consolidated:** church-tools had a private, correctly-scoped `findPersonByName` (the very logic journey-tools reinvented unscoped). Removed it; church-tools now uses the shared helper too — one source of truth for tenant-safe name lookups, so the bug can't be reintroduced.
+- **Tests:** +4 in `people.test.ts` incl. the security assertion — two same-named people in different churches never cross. Audited all `.from("people")` sites: the rest scope by trusted id or workspace-scoped id sets. **Full suite 769/96 green**, `tsc` 0.
+
 ### 2026-09-01 — Tightening Phase 1 & 2: KYC template fix + child-registration rail
 
 Owners' four-phase plan status audited against code: capability breadth spans all four phases, but only 5 of 22 menu rows were on deterministic rails (rest tap → wandering agent). Started tightening Phase 1 & 2.

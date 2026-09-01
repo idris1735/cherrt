@@ -6,6 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
+import { resolvePersonIdByNameInWorkspace } from "@/lib/services/identity/people";
 import type { AgentTool, AgentContext } from "@/lib/services/agent/tools";
 
 type JourneyType = "bereavement" | "marriage_prep" | "baptism" | "discipleship";
@@ -167,9 +168,8 @@ export const JOURNEY_TOOLS: AgentTool[] = [
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
 
-      // Find the person
-      const { data: personRows } = await db.from("people").select("id").eq("full_name", personName).limit(1);
-      const personId = (personRows?.[0] as { id?: string })?.id;
+      // Find the person — SCOPED to this workspace (people is cross-tenant).
+      const personId = await resolvePersonIdByNameInWorkspace(ctx.workspaceId, personName);
       if (!personId) return { error: `No person named "${personName}" found. Try registering them first.` };
 
       const { error } = await db.from("person_milestones").insert({
@@ -200,9 +200,8 @@ export const JOURNEY_TOOLS: AgentTool[] = [
       if (!db) return { count: 0, milestones: [] };
       let query = db.from("person_milestones").select("person_id, type, occurred_on, details, created_at").eq("workspace_id", ctx.workspaceId).order("occurred_on", { ascending: false }).limit(50);
       if (typeof args.personName === "string" && args.personName.trim()) {
-        // Resolve person name to ID
-        const { data: p } = await db.from("people").select("id").eq("full_name", args.personName.trim()).limit(1);
-        const pid = (p?.[0] as { id?: string })?.id;
+        // Resolve person name to ID — SCOPED to this workspace (people is cross-tenant).
+        const pid = await resolvePersonIdByNameInWorkspace(ctx.workspaceId, args.personName.trim());
         if (pid) query = query.eq("person_id", pid);
       }
       const { data } = await query;

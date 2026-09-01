@@ -63,6 +63,34 @@ export async function getKnownProfile(personId: string): Promise<KnownProfile | 
 }
 
 /**
+ * Resolve a person by name, SCOPED to a workspace (via active membership).
+ *
+ * The `people` table is the cross-workspace identity spine — a bare
+ * `.eq("full_name", name)` can match a same-named person in ANOTHER church, so
+ * every tenant name lookup MUST be scoped through `branch_memberships`. Returns
+ * the person id, or null when no active member of this workspace has that name.
+ */
+export async function resolvePersonIdByNameInWorkspace(workspaceId: string, fullName: string): Promise<string | null> {
+  const db = getSupabaseServerClient();
+  if (!db) return null;
+  const needle = fullName.trim().toLowerCase();
+  if (!needle) return null;
+
+  const { data: mems } = await db
+    .from("branch_memberships")
+    .select("person_id")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active");
+  const ids = [...new Set(((mems ?? []) as Array<{ person_id?: string }>).map((m) => m.person_id).filter(Boolean) as string[])];
+  if (!ids.length) return null;
+
+  // Case-insensitive match within the workspace's members (no cross-tenant leak).
+  const { data: people } = await db.from("people").select("id, full_name").in("id", ids);
+  return ((people ?? []) as Array<{ id: string; full_name?: string }>)
+    .find((p) => String(p.full_name ?? "").trim().toLowerCase() === needle)?.id ?? null;
+}
+
+/**
  * Find-or-create a person row linked to a phone contact.
  * Idempotent per (phone): if the phone already points to a person,
  * returns that person. If given a name and the existing person has an

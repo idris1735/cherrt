@@ -45,7 +45,7 @@ vi.mock("@/lib/services/supabase-server", () => ({
   }),
 }));
 
-import { ensurePerson, getKnownProfile } from "@/lib/services/identity/people";
+import { ensurePerson, getKnownProfile, resolvePersonIdByNameInWorkspace } from "@/lib/services/identity/people";
 
 beforeEach(() => {
   peopleRows.length = 0;
@@ -102,6 +102,36 @@ describe("ensurePerson", () => {
     const contact = contactsRows.find((c) => c.person_id === id);
     expect(contact).toBeDefined();
     expect(contact!.verified_at).toBeFalsy(); // null = unverified
+  });
+});
+
+describe("resolvePersonIdByNameInWorkspace — tenant-scoped name lookup", () => {
+  beforeEach(() => {
+    // Two DIFFERENT people with the SAME name, in two different churches.
+    peopleRows.push({ id: "p1", full_name: "John Smith" });
+    peopleRows.push({ id: "p2", full_name: "John Smith" });
+    membershipsRows.push({ person_id: "p1", workspace_id: "ws1", status: "active" });
+    membershipsRows.push({ person_id: "p2", workspace_id: "ws2", status: "active" });
+  });
+
+  it("resolves the name to the person in THIS workspace, not another's", async () => {
+    expect(await resolvePersonIdByNameInWorkspace("ws1", "John Smith")).toBe("p1");
+    expect(await resolvePersonIdByNameInWorkspace("ws2", "John Smith")).toBe("p2");
+  });
+
+  it("never returns a same-named person from another church (cross-tenant guard)", async () => {
+    // ws1's lookup must never surface ws2's John Smith (p2), and vice-versa.
+    expect(await resolvePersonIdByNameInWorkspace("ws1", "John Smith")).not.toBe("p2");
+    expect(await resolvePersonIdByNameInWorkspace("ws2", "John Smith")).not.toBe("p1");
+  });
+
+  it("is case-insensitive", async () => {
+    expect(await resolvePersonIdByNameInWorkspace("ws1", "  john smith ")).toBe("p1");
+  });
+
+  it("returns null when no active member of the workspace has that name", async () => {
+    expect(await resolvePersonIdByNameInWorkspace("ws3", "John Smith")).toBeNull();
+    expect(await resolvePersonIdByNameInWorkspace("ws1", "Nobody Here")).toBeNull();
   });
 });
 
