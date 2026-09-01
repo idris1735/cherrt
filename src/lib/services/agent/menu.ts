@@ -31,7 +31,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "prayer", tool: "capture_prayer_request", group: "care", title: "🕊️ Ask for prayer", description: "Private — to the prayer team only", prompt: "I'd like to submit a prayer request" },
   { id: "pastoral", tool: "request_pastoral_care", group: "care", title: "🤲 See a pastor", description: "Counselling, visits, support", prompt: "I need to see a pastor" },
   { id: "pastoral_form", tool: "submit_pastoral_form", group: "care", title: "📜 Pastoral forms", description: "Dedication · naming · pre-marital · house", prompt: "I want to submit a pastoral form" },
-  { id: "life_journey", tool: "register_baptism", group: "care", title: "🌱 Life journeys", description: "Baptism · marriage prep · new believer · loss", prompt: "I'd like to start a life journey" },
+  { id: "life_journey", tool: "register_baptism", group: "care", title: "🌱 Life journeys", description: "Baptism · new believer · bereavement", prompt: "I'd like to start a life journey" },
   // ── children ──
   { id: "checkin", tool: "check_in_child", group: "children", title: "👶 Check in a child", description: "Pickup code + QR pass", prompt: "Check my child in for children's church" },
   { id: "register_child", tool: "register_child", group: "children", title: "🧒 Register a child", description: "Guardian-consented child profile", prompt: "I want to register my child" },

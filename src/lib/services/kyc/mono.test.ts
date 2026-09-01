@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { monoCacLookup, monoNinLookup, monoCacTrustees } from "@/lib/services/kyc/mono";
+import { monoCacLookup, monoNinLookup, monoBvnLookup, monoCacTrustees } from "@/lib/services/kyc/mono";
 
 const origKey = process.env.MONO_SECRET_KEY;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -37,6 +37,23 @@ describe("monoNinLookup", () => {
     expect(url).toBe("https://api.withmono.com/v3/lookup/nin");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ nin: "12345678901" });
+  });
+});
+
+describe("monoBvnLookup", () => {
+  it("POSTs /v3/lookup/bvn with the bvn and maps the person (snake_case tolerated)", async () => {
+    fetchMock.mockReturnValue(ok({ data: { first_name: "Ada", last_name: "Obi", dob: "1990-01-01", phone_number: "234800" } }));
+    const res = await monoBvnLookup("12345678901");
+    expect(res).toEqual({ ok: true, data: { firstname: "Ada", surname: "Obi", middlename: undefined, birthdate: "1990-01-01", phone: "234800", photoBase64: undefined } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.withmono.com/v3/lookup/bvn");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ bvn: "12345678901" });
+  });
+
+  it("returns an error result on a non-200 (→ manual review upstream)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: () => Promise.resolve({}), text: () => Promise.resolve("bvn requires otp") } as Response);
+    expect(await monoBvnLookup("12345678901")).toMatchObject({ ok: false });
   });
 });
 

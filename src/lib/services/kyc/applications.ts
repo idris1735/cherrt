@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
-import { monoCacLookup, monoCacTrustees, monoNinLookup } from "@/lib/services/kyc/mono";
+import { monoCacLookup, monoCacTrustees, monoNinLookup, monoBvnLookup } from "@/lib/services/kyc/mono";
 import { matchTrustee } from "@/lib/services/kyc/trustee-match";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -89,10 +89,10 @@ export async function runKycChecks(app: {
   }
   patch.trustee_match = trustee;
 
-  // ID lookup — guarded
+  // ID lookup — guarded. NIN and BVN both resolve through Mono now.
   let idOk = false;
   try {
-    const idRes = app.idType === "nin" ? await monoNinLookup(app.idNumber) : { ok: false as const, error: "BVN not yet wired" };
+    const idRes = app.idType === "nin" ? await monoNinLookup(app.idNumber) : await monoBvnLookup(app.idNumber);
     idOk = idRes.ok;
     patch.id_result = idRes.ok ? idRes.data : { error: idRes.error };
   } catch {

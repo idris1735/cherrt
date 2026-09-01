@@ -42,3 +42,23 @@ export function monoNinLookup(nin: string): Promise<MonoResult<MonoNin>> {
     return { firstname: d.firstname ?? "", surname: d.surname ?? "", middlename: d.middlename ?? undefined, birthdate: d.birthdate ?? undefined, phone: d.telephoneno ?? undefined, photoBase64: d.photo ?? undefined };
   });
 }
+
+// BVN lookup — returns the same core identity fields as NIN (BVN carries no
+// photo). Field names are handled defensively (snake_case / camelCase) since
+// Mono's BVN payload differs slightly from NIN. NOTE: if the account's Mono plan
+// gates BVN behind the initiate/verify OTP flow, this basic lookup returns an
+// error and the KYC check degrades to manual review (it's guarded) — that OTP
+// flow is a follow-up if needed.
+export function monoBvnLookup(bvn: string): Promise<MonoResult<MonoNin>> {
+  return call(`${BASE}/v3/lookup/bvn`, { method: "POST", headers: headers(), body: JSON.stringify({ bvn }) }, (raw) => {
+    const d = raw as any;
+    return {
+      firstname: d.firstname ?? d.first_name ?? "",
+      surname: d.surname ?? d.last_name ?? "",
+      middlename: d.middlename ?? d.middle_name ?? undefined,
+      birthdate: d.birthdate ?? d.dob ?? d.date_of_birth ?? undefined,
+      phone: d.telephoneno ?? d.phone ?? d.phone_number ?? undefined,
+      photoBase64: d.photo ?? d.image ?? undefined,
+    };
+  });
+}

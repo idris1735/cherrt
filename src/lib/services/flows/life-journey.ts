@@ -6,12 +6,14 @@ import type { FlowDefinition, FlowInput, FlowData, FlowRunContext, Transition } 
 import { getAgentTool } from "@/lib/services/agent/runtime";
 import type { Role } from "@/lib/types";
 
-type JourneyType = "baptism" | "discipleship" | "marriage_prep" | "bereavement";
+// Marriage counselling intentionally lives in the pastoral-FORM rail
+// (pre_marital), alongside the other intake forms — not here — so there's one
+// canonical entry per intent. Life-journeys stay about spiritual-state journeys.
+type JourneyType = "baptism" | "discipleship" | "bereavement";
 
 const TYPES: Array<{ id: JourneyType; label: string }> = [
   { id: "baptism", label: "💧 Baptism" },
   { id: "discipleship", label: "🙌 New believer" },
-  { id: "marriage_prep", label: "💍 Marriage prep" },
   { id: "bereavement", label: "🕊️ Bereavement" },
 ];
 
@@ -21,7 +23,6 @@ const typeRows = () => TYPES.map((t) => ({ id: `lj_${t.id}`, title: t.label }));
 const DETAIL: Record<JourneyType, { text: string; button: { id: string; title: string } }> = {
   baptism: { text: "Who's being baptised? Type a name, or tap *Me*.", button: { id: "lj_me", title: "Me" } },
   discipleship: { text: "Who's the new believer? Type a name, or tap *Me*.", button: { id: "lj_me", title: "Me" } },
-  marriage_prep: { text: "Your partner's name (and wedding date, if set)? Type it, or tap *Skip*.", button: { id: "flow_skip", title: "Skip" } },
   bereavement: { text: "Anything you'd like to share — who passed, and your relationship? Type it, or tap *Skip*.", button: { id: "flow_skip", title: "Skip" } },
 };
 
@@ -31,7 +32,6 @@ async function commit(journeyType: JourneyType, detail: string, ctx: FlowRunCont
   const toolByType: Record<JourneyType, string> = {
     baptism: "register_baptism",
     discipleship: "enroll_discipleship",
-    marriage_prep: "register_marriage_prep",
     bereavement: "start_bereavement_support",
   };
   const tool = getAgentTool(toolByType[journeyType]);
@@ -40,7 +40,6 @@ async function commit(journeyType: JourneyType, detail: string, ctx: FlowRunCont
   const argsByType: Record<JourneyType, Record<string, unknown>> = {
     baptism: { candidate: d || undefined },
     discipleship: { convert: d || undefined },
-    marriage_prep: { partner: d || undefined },
     bereavement: { notes: d || undefined },
   };
   const res = (await tool.handler(

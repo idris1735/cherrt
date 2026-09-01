@@ -59,11 +59,6 @@ describe("life_journey flow", () => {
     expect(handlerMock).toHaveBeenCalledWith("enroll_discipleship", { convert: "John Ade" }, expect.objectContaining({ workspaceId: "ws1" }));
   });
 
-  it("marriage prep + typed detail → register_marriage_prep with the partner text", async () => {
-    await drive([{ buttonId: "lj_marriage_prep" }, { text: "Jane, wedding Dec 12" }]);
-    expect(handlerMock).toHaveBeenCalledWith("register_marriage_prep", { partner: "Jane, wedding Dec 12" }, expect.objectContaining({ workspaceId: "ws1" }));
-  });
-
   it("bereavement + Skip → start_bereavement_support with no notes", async () => {
     const { out } = await drive([{ buttonId: "lj_bereavement" }, { buttonId: "flow_skip" }]);
     expect(handlerMock).toHaveBeenCalledWith("start_bereavement_support", { notes: undefined }, expect.objectContaining({ workspaceId: "ws1" }));
