@@ -44,6 +44,7 @@ const MENU_ITEMS: MenuItem[] = [
   // ── church ops (rank-gated rows land here) ──
   { id: "first_timer", tool: "capture_first_timer", group: "ops", title: "👋 First-timer", description: "Log a visitor for follow-up", prompt: "I have a first-timer with me" },
   { id: "issue", tool: "report_issue", group: "ops", title: "🛠️ Report an issue", description: "Broken light? Leaking roof?", prompt: "I want to report a facility issue" },
+  { id: "record_service", tool: "record_service_summary", group: "ops", title: "📝 Record service", description: "Attendance, offering, sermon", prompt: "I want to record today's service" },
   { id: "announce", tool: "create_announcement", group: "ops", title: "📣 Announce", description: "Message the whole church", prompt: "I want to announce something to everyone" },
   { id: "members", tool: "list_members", group: "ops", title: "👥 Members", description: "Roster with roles", prompt: "Show me our members" },
   { id: "first_timers_list", tool: "list_first_timers", group: "ops", title: "📋 First-timer follow-ups", description: "Who still needs a call", prompt: "Show me first-timers needing follow-up" },

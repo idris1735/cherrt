@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Rail the action tasks (batch 2 & 3): announce, add-member, QR, service report
+
+- **announce** (minRank 4): title → message → confirm (broadcasts to all) → `create_announcement`.
+- **add-member** (minRank 4): name → phone (skip) → role → confirm → `add_member`.
+- **QR** rail: pick kind → `send_qr` (in-chat image).
+- **service_record** (Phase 3, minRank 2): service type → adults → children/first-timers/salvations/offering/preacher/topic (skippable) → confirm → `record_service_summary`. New `menu:record_service` row.
+- Every rank-gated rail (announce, add-member, service_record) re-checks `toolAccessError` before committing — members blocked (security tests each).
+
+**All action menu rows are now railed (16).** What remains agent-driven is only the **read** rows (giving summary, checked-in, events list, members, first-timer/prayer lists, birthdays) — single-shot lookups, intentionally not railed. Paystack stays demo. **794/104 green**, `tsc` 0.
+
 ### 2026-09-01 — Rail the action tasks (batch 1) + rank-guard for rails
 
 Railing the remaining agent-driven ACTION tasks across phases (Paystack stays demo; read rows stay single-shot, not railed).
