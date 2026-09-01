@@ -169,7 +169,7 @@ export const guestConnectFlow: FlowDefinition = {
     connect_code: {
       render: (data) => ({
         type: "text",
-        text: `Thanks${data.fullName ? ", " + String(data.fullName).split(" ")[0] : ""}! What's your church's *code*? Send it here — it's the short code or @username your church shares.\n\n_Don't have it? Ask a church leader — they can send it to you._`,
+        text: `Thanks${data.fullName ? ", " + String(data.fullName).split(" ")[0] : ""}! What's your church's *code* or *@username*?\n\n_Don't have it? Just type your church's *name* and I'll search for it._`,
       }),
       onInput: async (input): Promise<Transition> => {
         const church = await lookupChurch(input.text);
@@ -286,7 +286,7 @@ export const guestConnectFlow: FlowDefinition = {
         let emailNote = "";
         if (data.email) {
           void startMemberEmailVerification(String(data.email));
-          emailNote = `\n\n📧 I've emailed a code to ${String(data.email)} — reply *verify 123456* anytime to confirm it.`;
+          emailNote = `\n\n📧 I've emailed a 6-digit code to ${String(data.email)}. To confirm it's yours, open that email and reply the code here — e.g. *verify 204815* (optional, no rush).`;
         }
         // Land them straight in the member menu — the journey completes here.
         const rows = menuForRole("member", 1);
