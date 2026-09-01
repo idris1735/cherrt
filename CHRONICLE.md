@@ -8,6 +8,14 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Tightening Phase 1 & 2: KYC template fix + child-registration rail
+
+Owners' four-phase plan status audited against code: capability breadth spans all four phases, but only 5 of 22 menu rows were on deterministic rails (rest tap → wandering agent). Started tightening Phase 1 & 2.
+
+- **P1a — KYC 24h-window fix (config deliverable):** `docs/kyc-whatsapp-templates.md` — the three onboarding templates (org approved/rejected, new-signup alert) with exact bodies matching code param order + Meta submission steps + env vars, so an approved founder is notified even outside the 24h session window. Documented the template + payment env vars in `.env.example`. (Meta approval is the owner's action.)
+- **P2a — Child-registration rail** (`flows/child-register.ts`): name → age → allergies → **guardian-consent gate** → confirm → `register_child`. The consent step is mandatory (the tool rejects `guardianConsent !== true`); the rail only ever calls with `true`, and an ambiguous reply re-asks rather than proceeds. Wired `menu:register_child` + a typed-intent matcher ("register my child", before the check-in matcher). 6 of 22 rows now on rails.
+- **Tests:** +7 child-register flow (incl. two SAFETY cases: cancel-consent + ambiguous-consent never register) + 1 processor. **Full suite 751/93 green**, `tsc` 0.
+
 ### 2026-09-01 — Payment placeholders + KYC-path audit
 
 **KYC-path audit (verdict: real, not stubbed).** Traced the whole chain: `startSignupFlow` → single-use token (24h) → `/onboard/[token]` (handles expired) → form → live CAC badge + email OTP + submit (server re-validates, uploads selfie/CAC, runs Mono CAC+NIN+trustee — all guarded, lands `pending`, pings church WhatsApp) → admin console (Supabase-JWT + email allowlist) → approve (creates org+workspace+founder, records consent, resumes post-approval setup in WhatsApp) → join code. Every external call degrades gracefully. **Findings (config/ops, not code bugs):** (1) ⚠️ 24h-window risk — the approval notice falls back to plain text, which WhatsApp blocks outside the 24h session window; needs the Meta templates approved + env vars set, else an approved-but-not-notified founder stalls (post-approval setup only resumes on their next message). (2) BVN not wired (NIN is). (3) Confirm config before go-live: `MONO_SECRET_KEY`, KYC storage bucket+RLS, `PLATFORM_ADMIN_EMAILS`.

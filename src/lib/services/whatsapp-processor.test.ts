@@ -881,6 +881,18 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
   });
 
+  it("P2a — tapping menu:register_child starts the child-registration rail, not the agent", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:register_child" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("full name"));
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "child_register", step: "child_name" });
+  });
+
   it("verify <code> confirms the member's email and replies", async () => {
     await skipWelcome();
     (confirmMemberEmail as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ status: "verified", email: "you@example.com" });

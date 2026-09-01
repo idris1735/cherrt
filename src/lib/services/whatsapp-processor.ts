@@ -782,6 +782,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // Menu rows that map to a deterministic flow start the flow, not the agent.
   const MENU_FLOW: Record<string, string> = {
     "menu:checkin": "child_checkin",
+    "menu:register_child": "child_register",
     "menu:give": "give",
     "menu:prayer": "prayer",
     "menu:pastoral": "pastoral",
@@ -1474,7 +1475,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     const t = trimmed.toLowerCase();
     let flow: string | null = null;
     let seed: Record<string, unknown> | undefined;
-    if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
+    if (/\b(register|add|enrol|enroll|sign\s*up)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_register";
+    else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
     else if (/\b(give|giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t)) {
       flow = "give";
       const amt = Number((t.match(/(?:₦|ngn|n)?\s*([\d,]{2,})/)?.[1] ?? "").replace(/,/g, ""));
