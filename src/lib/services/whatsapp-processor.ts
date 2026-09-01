@@ -56,6 +56,7 @@ import "@/lib/services/flows";
 import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { getWorkspaceBilling, isSubscriptionActive } from "@/lib/services/billing/subscription";
+import { runMenuRead } from "@/lib/services/agent/read-menu";
 import type { AgentContext } from "@/lib/services/agent/tools";
 import type { Role } from "@/lib/types";
 import {
@@ -121,7 +122,7 @@ function buildHelpText(link: PhoneLink | null, session: WhatsAppSession): string
   return [
     name ? "*Hi " + name + "! Here's everything I can help with.*" : "*Here's everything I can help with.*",
     "",
-    "Just talk to me normally — type or send a voice note:",
+    "Tap *Menu* for buttons — or just talk to me (type or send a voice note):",
     "",
     "💰 *Give* — \"I want to give ₦5,000 tithe\"",
     "🕊️ *Prayer* — \"Please pray for my mum, she's unwell\"",
@@ -661,7 +662,15 @@ async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
 }
 
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
-  if (await handleHelpButton(from, buttonId)) return;  if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
+  // Help-card buttons: for a linked member, tap straight into the rail instead of
+  // a "just type it" guide. Guests (no link) still get the guide (fallback below).
+  const HELP_FLOW: Record<string, string> = { help_give: "give", help_prayer: "prayer", help_checkin: "child_checkin" };
+  if (link && HELP_FLOW[buttonId]) {
+    const out = await startFlow(HELP_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+    if (out) { await sendFlowOutput(from, out); return; }
+  }
+  if (await handleHelpButton(from, buttonId)) return;
+  if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
   if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
 
   // ── Consent gate (must agree before anything is stored/used) ──
@@ -795,6 +804,11 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   if (link && MENU_FLOW[buttonId]) {
     const out = await startFlow(MENU_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
+  }
+  // Direct reads — tapping a read row calls the tool and formats it, no agent.
+  if (link) {
+    const readReply = await runMenuRead(buttonId, agentCtx(link, from, personId ?? undefined));
+    if (readReply !== null) { await addToHistory(from, "user", `[tap] ${buttonId}`); await sendTextMessage(from, readReply); return; }
   }
   if (buttonId.startsWith("menu:")) {
     const prompt = menuPromptFor(buttonId.slice(5));

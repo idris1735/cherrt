@@ -8,6 +8,12 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Direct reads + help-card rails: the whole menu is now LLM-free
+
+- **Direct reads** (`agent/read-menu.ts`): tapping a read row (Giving this month · Checked-in children · Events · Members · First-timers · Prayer requests · Birthdays) now calls the tool **directly** and formats deterministically — no Gemini in the loop. Same `toolAccessError` guard (rank/dataSensitive preserved). `runMenuRead` wired in the processor between MENU_FLOW and the old agent-prompt fallback.
+- **Help-card buttons** (Give / Prayer / Check-in) now **start the rails** for a linked member instead of a "just type it" guide; help text points to *Menu*. (Guests still get the guide.)
+- **Milestone:** every menu row is now deterministic — actions = rails, reads = direct calls. The LLM agent is only reached for genuinely off-script typed messages (its intended edge role). +read-menu unit tests, processor tests updated (the last "menu row → agent" test flipped to assert direct). **801/104 green**, `tsc` 0.
+
 ### 2026-09-01 — Rail the action tasks (batch 2 & 3): announce, add-member, QR, service report
 
 - **announce** (minRank 4): title → message → confirm (broadcasts to all) → `create_announcement`.

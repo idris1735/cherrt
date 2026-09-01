@@ -610,15 +610,15 @@ describe("processWhatsAppMessage", () => {
     expect(allIds).not.toContain("menu:announce");
   });
 
-  it("tapping a non-rail menu row feeds its prompt through the normal agent path", async () => {
+  it("tapping a read row is served DIRECTLY (deterministic), never through the agent", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "pastor" },
     ]);
     await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
-    // menu:birthdays is a read row — NOT rail-backed — so it still feeds the agent.
+    // menu:birthdays is a direct read now — calls the tool + formats, no LLM.
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:birthdays" });
-    // runAgentQuery is stubbed to null (no Gemini) so it falls through to the creator.
-    expect(runCherttCommand).toHaveBeenCalledWith("Whose birthdays are coming up?", expect.anything(), false);
+    expect(runCherttCommand).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("🎂"));
   });
 
   it("'More actions' opens menu page 2 with the overflow rows", async () => {
@@ -877,6 +877,17 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:give" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("How much would you like to give"));
     expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
+  });
+
+  it("help-card 'Give' starts the give rail for a linked member (not a type-it guide)", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_give" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("How much"));
     const s = await getSession(PHONE);
     expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
   });
