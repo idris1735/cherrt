@@ -286,7 +286,7 @@ export const guestConnectFlow: FlowDefinition = {
         let emailNote = "";
         if (data.email) {
           void startMemberEmailVerification(String(data.email));
-          emailNote = `\n\n📧 I've emailed a 6-digit code to ${String(data.email)}. To confirm it's yours, open that email and reply the code here — e.g. *verify 204815* (optional, no rush).`;
+          emailNote = `\n\n📧 I've emailed a 6-digit code to ${String(data.email)}. Reply *verify [code]* to confirm it's yours — putting the number from that email in place of *[code]* (optional, no rush).`;
         }
         // Land them straight in the member menu — the journey completes here.
         const rows = menuForRole("member", 1);
