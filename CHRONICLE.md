@@ -15,6 +15,7 @@ Owners' four-phase plan status audited against code: capability breadth spans al
 - **P1a — KYC 24h-window fix (config deliverable):** `docs/kyc-whatsapp-templates.md` — the three onboarding templates (org approved/rejected, new-signup alert) with exact bodies matching code param order + Meta submission steps + env vars, so an approved founder is notified even outside the 24h session window. Documented the template + payment env vars in `.env.example`. (Meta approval is the owner's action.)
 - **P2a — Child-registration rail** (`flows/child-register.ts`): name → age → allergies → **guardian-consent gate** → confirm → `register_child`. The consent step is mandatory (the tool rejects `guardianConsent !== true`); the rail only ever calls with `true`, and an ambiguous reply re-asks rather than proceeds. Wired `menu:register_child` + a typed-intent matcher ("register my child", before the check-in matcher). 6 of 22 rows now on rails.
 - **Tests:** +7 child-register flow (incl. two SAFETY cases: cancel-consent + ambiguous-consent never register) + 1 processor. **Full suite 751/93 green**, `tsc` 0.
+- **P2b — Pastoral-form rail** (`flows/pastoral-form.ts`): pick form (baby dedication / child naming / house dedication / pre-marital / training school) → optional details → `submit_pastoral_form`. Wired `menu:pastoral_form` + a typed-intent matcher (dedication/naming/pre-marital/training school, ordered before the pastoral-care matcher). 7 of 22 rows on rails. +4 tests, **755/94 green**, `tsc` 0.
 
 ### 2026-09-01 — Payment placeholders + KYC-path audit
 

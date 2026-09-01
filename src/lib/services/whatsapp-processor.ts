@@ -786,6 +786,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:give": "give",
     "menu:prayer": "prayer",
     "menu:pastoral": "pastoral",
+    "menu:pastoral_form": "pastoral_form",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1483,6 +1484,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       if (Number.isFinite(amt) && amt > 0) seed = { amount: Math.round(amt) };
     }
     else if (/\b(pray|prayer)\b/.test(t)) flow = "prayer";
+    else if (/\b(dedicat(e|ion)|child naming|naming ceremony|pre.?marital|marital counsel|training school)\b/.test(t)) flow = "pastoral_form";
     else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
     else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
     if (flow) {
