@@ -13,6 +13,8 @@ import { lifeJourneyFlow } from "@/lib/services/flows/life-journey";
 import { reportIssueFlow } from "@/lib/services/flows/report-issue";
 import { eventRegisterFlow } from "@/lib/services/flows/event-register";
 import { recordGivingFlow } from "@/lib/services/flows/record-giving";
+import { announceFlow } from "@/lib/services/flows/announce";
+import { addMemberFlow } from "@/lib/services/flows/add-member";
 import { joinFlow } from "@/lib/services/flows/join";
 
-[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, joinFlow].forEach(registerFlow);
+[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, joinFlow].forEach(registerFlow);

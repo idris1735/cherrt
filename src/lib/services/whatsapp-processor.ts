@@ -786,6 +786,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:issue": "issue",
     "menu:register_event": "event_register",
     "menu:record_giving": "record_giving",
+    "menu:announce": "announce",
+    "menu:add_member": "add_member",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1512,6 +1514,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
     else if (/\bfirst.?timer\b/.test(t) || /\b(new|first.?time)\s+(visitor|guest|comer)\b/.test(t)) flow = "first_timer";
     else if (/\breport (an? )?(issue|fault|problem)\b|\b(broken|leaking|not working|faulty)\b/.test(t)) flow = "issue";
+    else if (/\b(announce|announcement|broadcast)\b/.test(t)) flow = "announce";
+    else if (/\b(add|register)\b/.test(t) && /\bmember\b/.test(t)) flow = "add_member";
     else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
     if (flow) {
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
