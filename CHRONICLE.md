@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Dedup + BVN + switch-church rail + tenant-scoping audit
+
+- **#7 De-dup marriage counselling:** removed "Marriage prep" from the life-journey rail; pre-marital now has one home (pastoral-form rail). No data migration.
+- **#6 BVN wired:** `monoBvnLookup` + KYC ID check routes NIN→nin, BVN→bvn (was hard-coded "not wired"). Guarded → manual review if Mono's BVN OTP flow applies. +2 mono tests.
+- **#3 Switch-church rail:** multi-church members were stuck on one church until #reset; "switch"/"switch church" now shows a tap-to-switch list → sets activeWorkspaceId. +3 processor tests.
+- **#8 Tenant-scoping audit (result: CLEAN):** swept every agent-tool write + by-id/name lookup. All workspace-scoped (directly or via a row fetched with the workspace filter); number-migration also minRank-4. The only cross-tenant hole was the people-table name lookups — already fixed. No new changes needed.
+- **Meta templates (#5):** doc `docs/kyc-whatsapp-templates.md` holds the 3 template bodies + Meta steps; code reads names from `WHATSAPP_TEMPLATE_*` env (defaults match the doc's names). Owner action = create/approve in Meta + set env in Vercel.
+
+**772/96 green**, `tsc` 0 throughout.
+
 ### 2026-09-01 — Live-feedback fixes: verify copy, name-search prompt, guest-path retire
 
 From live testing:
