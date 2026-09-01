@@ -9,6 +9,7 @@ import { prayerFlow } from "@/lib/services/flows/prayer";
 import { pastoralFlow } from "@/lib/services/flows/pastoral";
 import { pastoralFormFlow } from "@/lib/services/flows/pastoral-form";
 import { firstTimerFlow } from "@/lib/services/flows/first-timer";
+import { lifeJourneyFlow } from "@/lib/services/flows/life-journey";
 import { joinFlow } from "@/lib/services/flows/join";
 
-[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, joinFlow].forEach(registerFlow);
+[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, joinFlow].forEach(registerFlow);

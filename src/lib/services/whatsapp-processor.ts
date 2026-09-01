@@ -788,6 +788,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:pastoral": "pastoral",
     "menu:pastoral_form": "pastoral_form",
     "menu:first_timer": "first_timer",
+    "menu:life_journey": "life_journey",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1485,6 +1486,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       if (Number.isFinite(amt) && amt > 0) seed = { amount: Math.round(amt) };
     }
     else if (/\b(pray|prayer)\b/.test(t)) flow = "prayer";
+    else if (/\b(baptis|bereave|passed away|new believer|gave (my|his|her) life|discipleship)\b/.test(t)) flow = "life_journey";
     else if (/\b(dedicat(e|ion)|child naming|naming ceremony|pre.?marital|marital counsel|training school)\b/.test(t)) flow = "pastoral_form";
     else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
     else if (/\bfirst.?timer\b/.test(t) || /\b(new|first.?time)\s+(visitor|guest|comer)\b/.test(t)) flow = "first_timer";

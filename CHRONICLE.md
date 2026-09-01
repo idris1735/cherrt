@@ -17,6 +17,7 @@ Owners' four-phase plan status audited against code: capability breadth spans al
 - **Tests:** +7 child-register flow (incl. two SAFETY cases: cancel-consent + ambiguous-consent never register) + 1 processor. **Full suite 751/93 green**, `tsc` 0.
 - **P2b — Pastoral-form rail** (`flows/pastoral-form.ts`): pick form (baby dedication / child naming / house dedication / pre-marital / training school) → optional details → `submit_pastoral_form`. Wired `menu:pastoral_form` + a typed-intent matcher (dedication/naming/pre-marital/training school, ordered before the pastoral-care matcher). 7 of 22 rows on rails. +4 tests, **755/94 green**, `tsc` 0.
 - **P2c — First-timer rail** (`flows/first-timer.ts`): name → phone (skip) → who invited (skip) → `capture_first_timer`. Works for a visitor or an usher capturing on their behalf. Wired `menu:first_timer` + a typed-intent matcher (first-timer / new visitor / first-time guest). 8 of 22 rows on rails. +4 tests, **759/95 green**, `tsc` 0.
+- **P2d — Life-journey rail** (`flows/life-journey.ts`): one rail branching by type → baptism / new-believer / marriage-prep / bereavement, each routed to its tool (`register_baptism` / `enroll_discipleship` / `register_marriage_prep` / `start_bereavement_support`). Added a **new `life_journey` menu row** (these had no menu entry before) + a typed-intent matcher (baptism / new believer / bereavement, before pastoral-form). **9 of 22 rows on rails; Phase-2 member tasks all converted.** +6 tests, **765/96 green**, `tsc` 0.
 
 ### 2026-09-01 — Payment placeholders + KYC-path audit
 
