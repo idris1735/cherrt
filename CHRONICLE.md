@@ -8,6 +8,13 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Live-feedback fixes: verify copy, name-search prompt, guest-path retire
+
+From live testing:
+- **Verify copy bug:** the connect message showed a literal `verify 123456`, so members typed *that* instead of the real emailed code. Now: `verify [code]` with instruction to use the number from the email. (Design confirmed: email stored on entry, code auto-sent, reply stamps `email_verified_at` — verified-or-not is tracked; no separate "send code" button needed.)
+- **Connect prompt** now invites "just type your church's *name* and I'll search" (name search worked but wasn't advertised).
+- **Retired the wandering guest sub-menu:** "Member/visiting" now starts the `guest_connect` rail instead of the old give/prayer/ministry buttons that dead-ended in "send your code"; removed those 3 handlers. The rail is the single guest front door. **768/96 green**, `tsc` 0.
+
 ### 2026-09-01 — Cross-tenant name-lookup fix (security) + helper consolidation
 
 **Bug (cross-tenant data leak):** `record_milestone` and `list_milestones` (journey-tools) resolved a person by `full_name` against the whole `people` table — which is the cross-workspace identity spine — so a leader in one church could attach/read a milestone on a same-named person in ANOTHER church. Fixed by scoping the lookup through `branch_memberships`.
