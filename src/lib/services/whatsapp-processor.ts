@@ -783,6 +783,9 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:pastoral_form": "pastoral_form",
     "menu:first_timer": "first_timer",
     "menu:life_journey": "life_journey",
+    "menu:issue": "issue",
+    "menu:register_event": "event_register",
+    "menu:record_giving": "record_giving",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1496,6 +1499,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let seed: Record<string, unknown> | undefined;
     if (/\b(register|add|enrol|enroll|sign\s*up)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_register";
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
+    else if (/\bregister\b/.test(t) && /\bevent\b/.test(t)) flow = "event_register";
+    else if (/\b(record|log|enter)\b/.test(t) && /\b(giving|tithe|offering|donation|seed)\b/.test(t)) flow = "record_giving";
     else if (/\b(give|giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t)) {
       flow = "give";
       const amt = Number((t.match(/(?:₦|ngn|n)?\s*([\d,]{2,})/)?.[1] ?? "").replace(/,/g, ""));
@@ -1506,6 +1511,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(dedicat(e|ion)|child naming|naming ceremony|pre.?marital|marital counsel|training school)\b/.test(t)) flow = "pastoral_form";
     else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
     else if (/\bfirst.?timer\b/.test(t) || /\b(new|first.?time)\s+(visitor|guest|comer)\b/.test(t)) flow = "first_timer";
+    else if (/\breport (an? )?(issue|fault|problem)\b|\b(broken|leaking|not working|faulty)\b/.test(t)) flow = "issue";
     else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
     if (flow) {
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);

@@ -615,10 +615,10 @@ describe("processWhatsAppMessage", () => {
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
     await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
-    // menu:record_giving is NOT rail-backed — it still feeds the agent.
-    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:record_giving" });
+    // menu:birthdays is a read row — NOT rail-backed — so it still feeds the agent.
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:birthdays" });
     // runAgentQuery is stubbed to null (no Gemini) so it falls through to the creator.
-    expect(runCherttCommand).toHaveBeenCalledWith("Record giving we received", expect.anything(), false);
+    expect(runCherttCommand).toHaveBeenCalledWith("Whose birthdays are coming up?", expect.anything(), false);
   });
 
   it("'More actions' opens menu page 2 with the overflow rows", async () => {

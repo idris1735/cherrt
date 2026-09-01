@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-01 — Rail the action tasks (batch 1) + rank-guard for rails
+
+Railing the remaining agent-driven ACTION tasks across phases (Paystack stays demo; read rows stay single-shot, not railed).
+
+- **Report-issue rail** (`issue`): describe → where (skip) → urgency buttons → `report_issue`.
+- **Event-register rail** (`event_register`): type the event name → `register_for_event` (fuzzy-matches; stays on rail if not found).
+- **Record-giving rail** (`record_giving`, finance): amount → type → donor (skip = anonymous) → confirm → `record_giving`.
+- **SECURITY — rank-guard for rails:** rails call tool handlers directly, which **bypasses the minRank check** the agent path enforces. `record_giving` is finance-only (minRank 3), so its rail now re-checks `toolAccessError` before committing — a plain member is blocked (tested). This guard is the pattern for every rank-gated rail (announce/add-member next).
+- Wired `menu:issue`/`menu:register_event`/`menu:record_giving` + typed intents (record-giving ordered before the give matcher; issue keywords). **782/99 green**, `tsc` 0.
+
+**Still to rail (batch 2):** create_announcement (minRank 4, broadcast-confirm), add_member (minRank 4), record_service_summary (Sunday), send_qr. Reads (summaries/lists/birthdays) stay agent-driven by design.
+
 ### 2026-09-01 — Dedup + BVN + switch-church rail + tenant-scoping audit
 
 - **#7 De-dup marriage counselling:** removed "Marriage prep" from the life-journey rail; pre-marital now has one home (pastoral-form rail). No data migration.
