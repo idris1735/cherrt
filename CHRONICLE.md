@@ -8,6 +8,15 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
+
+Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).
+- **Member:** `set_birthday` (parses "12 May" / "12/05"), `volunteer_signup` (type the team/role), `lost_found` (lost/found → describe → where).
+- **Leader:** `create_event` (title → date → venue → confirm), `request_volunteers` (need → when → slots → confirm), `office_guest` (name → host → purpose → sign-in code).
+- New menu rows for all six; typed intents added (request-volunteers before volunteer-signup; create-event distinct from register-event). Fixed the menu-page-2 pagination test (rows shifted). **818/113 green**, `tsc` 0.
+
+**Phase 4 status:** ops (facilities, volunteers, lost&found, office guests, birthdays, events, announcements) + safe kids' check-in are all built and on rails. Remaining gaps: advanced classroom check-in (capacity/labels/teacher-acceptance) and proactive messaging (blocked on the WhatsApp-template/billing decision).
+
 ### 2026-09-01 — Direct reads + help-card rails: the whole menu is now LLM-free
 
 - **Direct reads** (`agent/read-menu.ts`): tapping a read row (Giving this month · Checked-in children · Events · Members · First-timers · Prayer requests · Birthdays) now calls the tool **directly** and formats deterministically — no Gemini in the loop. Same `toolAccessError` guard (rank/dataSensitive preserved). `runMenuRead` wired in the processor between MENU_FLOW and the old agent-prompt fallback.

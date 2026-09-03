@@ -799,6 +799,12 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:add_member": "add_member",
     "menu:qr": "qr",
     "menu:record_service": "service_record",
+    "menu:volunteer": "volunteer_signup",
+    "menu:my_birthday": "set_birthday",
+    "menu:lost_found": "lost_found",
+    "menu:create_event": "create_event",
+    "menu:request_volunteers": "request_volunteers",
+    "menu:office_guest": "office_guest",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1518,6 +1524,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     if (/\b(register|add|enrol|enroll|sign\s*up)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_register";
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
     else if (/\bregister\b/.test(t) && /\bevent\b/.test(t)) flow = "event_register";
+    else if (/\b(create|new|set up|add)\b/.test(t) && /\bevent\b/.test(t)) flow = "create_event";
     else if (/\b(record|log|submit)\b/.test(t) && /\b(service|attendance|sunday report|service report)\b/.test(t)) flow = "service_record";
     else if (/\b(record|log|enter)\b/.test(t) && /\b(giving|tithe|offering|donation|seed)\b/.test(t)) flow = "record_giving";
     else if (/\b(give|giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t)) {
@@ -1535,6 +1542,11 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(add|register)\b/.test(t) && /\bmember\b/.test(t)) flow = "add_member";
     else if (/\bqr( code)?s?\b/.test(t)) flow = "qr";
     else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
+    else if (/\b(need|request|call for|looking for)\b/.test(t) && /\bvolunteers?\b/.test(t)) flow = "request_volunteers";
+    else if (/\b(volunteer|serve|help out)\b/.test(t)) flow = "volunteer_signup";
+    else if (/\bmy birthday\b|\bbirthday is\b|\bset .*birthday\b/.test(t)) flow = "set_birthday";
+    else if (/\blost (and|&) found\b|\b(i )?(lost|found)\b.*\b(item|phone|bag|wallet|keys|something)\b/.test(t)) flow = "lost_found";
+    else if (/\b(sign.?in|office)\b/.test(t) && /\b(visitor|guest)\b/.test(t)) flow = "office_guest";
     if (flow) {
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
       if (out) { await sendFlowOutput(from, out); return; }

@@ -38,8 +38,14 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
   // ── belong & community ──
   { id: "join_dept", tool: "join_department", group: "belong", title: "🤝 Join a ministry", description: "Choir, ushering, media, more", prompt: "I want to join a department or ministry" },
+  { id: "volunteer", tool: "volunteer_signup", group: "belong", title: "🙋 Volunteer", description: "Offer to serve where there's a need", prompt: "I want to volunteer to serve" },
+  { id: "my_birthday", tool: "set_birthday", group: "belong", title: "🎂 My birthday", description: "So your church can celebrate you", prompt: "I want to set my birthday" },
+  { id: "lost_found", tool: "report_lost_or_found", group: "ops", title: "🔎 Lost & found", description: "Report a lost or found item", prompt: "I lost or found something" },
+  { id: "request_volunteers", tool: "request_volunteers", group: "ops", title: "📣 Request volunteers", description: "Put out a call to serve", prompt: "I need volunteers" },
+  { id: "office_guest", tool: "register_office_guest", group: "ops", title: "🪪 Office visitor", description: "Sign in someone visiting the office", prompt: "Sign in an office visitor" },
   { id: "events", tool: "list_events", group: "belong", title: "📅 Events", description: "See what's coming up", prompt: "What events are coming up?" },
   { id: "register_event", tool: "register_for_event", group: "belong", title: "🎟️ Register for an event", description: "Save your seat", prompt: "I want to register for an event" },
+  { id: "create_event", tool: "create_event", group: "belong", title: "➕ Create an event", description: "Add something to the calendar", prompt: "I want to create an event" },
   { id: "qr", tool: "send_qr", group: "belong", title: "🔗 QR codes", description: "Join, giving, kids, parking", prompt: "Send me the QR codes" },
   // ── church ops (rank-gated rows land here) ──
   { id: "first_timer", tool: "capture_first_timer", group: "ops", title: "👋 First-timer", description: "Log a visitor for follow-up", prompt: "I have a first-timer with me" },

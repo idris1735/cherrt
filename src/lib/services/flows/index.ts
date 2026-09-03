@@ -17,6 +17,12 @@ import { announceFlow } from "@/lib/services/flows/announce";
 import { addMemberFlow } from "@/lib/services/flows/add-member";
 import { qrFlow } from "@/lib/services/flows/qr";
 import { recordServiceFlow } from "@/lib/services/flows/record-service";
+import { setBirthdayFlow } from "@/lib/services/flows/set-birthday";
+import { volunteerSignupFlow } from "@/lib/services/flows/volunteer-signup";
+import { lostFoundFlow } from "@/lib/services/flows/lost-found";
+import { createEventFlow } from "@/lib/services/flows/create-event";
+import { requestVolunteersFlow } from "@/lib/services/flows/request-volunteers";
+import { officeGuestFlow } from "@/lib/services/flows/office-guest";
 import { joinFlow } from "@/lib/services/flows/join";
 
-[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, joinFlow].forEach(registerFlow);
+[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, setBirthdayFlow, volunteerSignupFlow, lostFoundFlow, createEventFlow, requestVolunteersFlow, officeGuestFlow, joinFlow].forEach(registerFlow);
