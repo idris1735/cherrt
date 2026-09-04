@@ -140,8 +140,9 @@ export const CHILD_TOOLS: AgentTool[] = [
       // release can later bind to the real guardian (can_pickup), not the code.
       const guardianPersonId = ctx.personId ?? null;
       const childPersonId = guardianPersonId ? await findGuardianChild(db, guardianPersonId, childName) : null;
+      const checkinId = newId();
       const { error } = await db.from("child_checkins").insert({
-        id: newId(),
+        id: checkinId,
         workspace_id: ctx.workspaceId,
         child_name: childName,
         age: Number.isFinite(ageNum) && ageNum > 0 ? Math.floor(ageNum) : null,
@@ -170,7 +171,7 @@ export const CHILD_TOOLS: AgentTool[] = [
       return {
         ok: true,
         pickupCode: code,
-        message: `✅ ${childName} is checked in. Pickup code: *${code}* — show this at collection.`,
+        message: `✅ ${childName} is checked in. Pickup code: *${code}* — show this at collection.\n🖨️ Print a name label: ${appUrl()}/label/${checkinId}`,
       };
     },
   },

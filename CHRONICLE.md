@@ -18,6 +18,13 @@
 
 **Next of the advanced check-in:** printable labels → teacher-acceptance → seat-hold (foundation now in place).
 
+### 2026-09-04 — Phase 4: printable check-in labels
+
+- **`/label/[id]` page** — a print-ready name tag for a checked-in child: big name, classroom, **allergies flagged in red**, pickup code + scannable QR, guardian. Client `PrintButton` (window.print), `@media print` hides chrome.
+- `check_in_child` now returns the label link in its success message and captures the check-in id. Foundation status widened earlier supports the rest.
+- **Deferred (client, 2026-09-04, post-Phase-4):** (A) ≤3 options → buttons not a modal list; (B) typed intent should seed the choice & skip the picker ("I want to be baptized" shouldn't re-ask). Logged to memory `post_phase4_ux_backlog`.
+- **827/112 green**, `tsc` 0. (Label page is a view — no unit test, same as /pay & /billing.)
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).
