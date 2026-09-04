@@ -5,13 +5,14 @@ import { childCheckinFlow } from "@/lib/services/flows/child-checkin";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { PhoneLink } from "@/lib/services/whatsapp-workspace";
 
-const { handlerMock } = vi.hoisted(() => ({ handlerMock: vi.fn() }));
+const { handlerMock, classroomsMock } = vi.hoisted(() => ({ handlerMock: vi.fn(), classroomsMock: vi.fn() }));
 vi.mock("@/lib/services/agent/runtime", () => ({
   getAgentTool: (name: string) =>
     name === "check_in_child"
       ? { name: "check_in_child", description: "", parameters: { type: "object", properties: {} }, mutates: true, handler: handlerMock }
       : undefined,
 }));
+vi.mock("@/lib/services/children/classrooms", () => ({ listClassroomsWithOccupancy: classroomsMock }));
 
 const link: PhoneLink = {
   phoneNumber: "2348012345678", userId: null, workspaceId: "ws1", workspaceSlug: "daystar",
@@ -31,6 +32,7 @@ function harness() {
 beforeEach(() => {
   vi.clearAllMocks();
   registerFlow(childCheckinFlow);
+  classroomsMock.mockResolvedValue([]); // default: no classrooms → step is skipped
 });
 
 // Drives the flow turn-by-turn; returns the output of the last turn.
@@ -99,5 +101,26 @@ describe("child_checkin flow", () => {
     const { out, session } = await drive([{ text: "42" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("child's name") });
     expect(session.activeFlow).toMatchObject({ step: "child_name" });
+  });
+
+  it("when classrooms exist, inserts a classroom step and passes classroomId to check-in", async () => {
+    classroomsMock.mockResolvedValue([{ id: "A", name: "Nursery", capacity: 10, occupancy: 2, full: false }]);
+    handlerMock.mockResolvedValue({ message: "✅ Timmy is checked in. Pickup code: *111111*" });
+    const { out, session } = await drive([{ text: "Timmy" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }, { buttonId: "room_0" }, { buttonId: "flow_commit" }]);
+    // classroom step appears after allergies
+    expect(handlerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ childName: "Timmy", classroomId: "A" }),
+      expect.objectContaining({ workspaceId: "ws1" }),
+    );
+    expect(out).toMatchObject({ type: "text" });
+    expect(session.activeFlow).toBeUndefined();
+  });
+
+  it("a full classroom can't be picked", async () => {
+    classroomsMock.mockResolvedValue([{ id: "A", name: "Nursery", capacity: 2, occupancy: 2, full: true }]);
+    const { out, session } = await drive([{ text: "Zoe" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }, { buttonId: "room_0" }]);
+    expect(out).toMatchObject({ type: "list", text: expect.stringContaining("full") });
+    expect(session.activeFlow).toMatchObject({ step: "classroom" });
+    expect(handlerMock).not.toHaveBeenCalled();
   });
 });

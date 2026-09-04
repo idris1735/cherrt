@@ -23,6 +23,7 @@ import { lostFoundFlow } from "@/lib/services/flows/lost-found";
 import { createEventFlow } from "@/lib/services/flows/create-event";
 import { requestVolunteersFlow } from "@/lib/services/flows/request-volunteers";
 import { officeGuestFlow } from "@/lib/services/flows/office-guest";
+import { createClassroomFlow } from "@/lib/services/flows/create-classroom";
 import { joinFlow } from "@/lib/services/flows/join";
 
-[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, setBirthdayFlow, volunteerSignupFlow, lostFoundFlow, createEventFlow, requestVolunteersFlow, officeGuestFlow, joinFlow].forEach(registerFlow);
+[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, setBirthdayFlow, volunteerSignupFlow, lostFoundFlow, createEventFlow, requestVolunteersFlow, officeGuestFlow, createClassroomFlow, joinFlow].forEach(registerFlow);

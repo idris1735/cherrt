@@ -36,6 +36,8 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "checkin", tool: "check_in_child", group: "children", title: "👶 Check in a child", description: "Pickup code + QR pass", prompt: "Check my child in for children's church" },
   { id: "register_child", tool: "register_child", group: "children", title: "🧒 Register a child", description: "Guardian-consented child profile", prompt: "I want to register my child" },
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
+  { id: "classrooms", tool: "list_classrooms", group: "children", title: "🏫 Classrooms", description: "Rooms with occupancy & capacity", prompt: "Show the classrooms" },
+  { id: "add_classroom", tool: "create_classroom", group: "children", title: "🏫 Add classroom", description: "Set up a room + capacity", prompt: "I want to add a classroom" },
   // ── belong & community ──
   { id: "join_dept", tool: "join_department", group: "belong", title: "🤝 Join a ministry", description: "Choir, ushering, media, more", prompt: "I want to join a department or ministry" },
   { id: "volunteer", tool: "volunteer_signup", group: "belong", title: "🙋 Volunteer", description: "Offer to serve where there's a need", prompt: "I want to volunteer to serve" },
@@ -81,7 +83,7 @@ export function menuForRole(role: string, page = 1): Array<{ id: string; title: 
   const hasMore = start + PAGE_SIZE < visible.length;
   rows.push(
     hasMore
-      ? { id: "menu_more", title: "💡 More actions →", description: "See the rest of what you can do" }
+      ? { id: `menu_more:${page + 1}`, title: "💡 More actions →", description: "See the rest of what you can do" }
       : { id: "help_more", title: "💡 Help & guides", description: "Everything else Chertt can do" },
   );
   return rows;

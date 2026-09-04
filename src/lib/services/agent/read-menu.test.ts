@@ -3,7 +3,7 @@ import type { AgentContext } from "@/lib/services/agent/tools";
 
 const { handlerMock } = vi.hoisted(() => ({ handlerMock: vi.fn() }));
 // Known read tools with their minRank; anything else → undefined (row hidden).
-const RANKS: Record<string, number> = { list_events: 0, list_birthdays: 2, get_giving_summary: 3, list_prayer_requests: 4 };
+const RANKS: Record<string, number> = { list_events: 0, list_birthdays: 2, get_giving_summary: 3, list_prayer_requests: 4, list_classrooms: 1 };
 vi.mock("@/lib/services/agent/runtime", () => ({
   getAgentTool: (name: string) =>
     name in RANKS ? { name, description: "", parameters: { type: "object", properties: {} }, minRank: RANKS[name], handler: handlerMock } : undefined,
@@ -45,6 +45,13 @@ describe("runMenuRead", () => {
     const out = await runMenuRead("menu:birthdays", ctx("pastor"));
     expect(out).toContain("🎂");
     expect(handlerMock).toHaveBeenCalled();
+  });
+
+  it("formats classrooms with occupancy/capacity", async () => {
+    handlerMock.mockResolvedValue({ count: 2, classrooms: [{ name: "Nursery", capacity: 10, occupancy: 8, full: false }, { name: "Primary", capacity: 5, occupancy: 5, full: true }] });
+    const out = await runMenuRead("menu:classrooms", ctx("pastor"));
+    expect(out).toContain("Nursery — 8/10");
+    expect(out).toContain("Primary — 5/5 (FULL)");
   });
 
   it("formats the giving summary in Naira", async () => {

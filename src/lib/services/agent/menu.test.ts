@@ -3,8 +3,8 @@
 import { describe, it, expect } from "vitest";
 import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
 
-const ids = (role: string, pages = 3) =>
-  [1, 2, 3].slice(0, pages).flatMap((p) => menuForRole(role, p).map((r) => r.id));
+const ids = (role: string, pages = 5) =>
+  Array.from({ length: pages }, (_, i) => i + 1).flatMap((p) => menuForRole(role, p).map((r) => r.id));
 
 describe("menuForRole", () => {
   it("member menu: self-service only — no finance or leadership rows on any page", () => {
@@ -53,7 +53,8 @@ describe("menuForRole", () => {
     for (const role of ["member", "finance", "pastor", "creator", "it_technical"]) {
       const page1 = menuForRole(role, 1);
       expect(page1.length).toBeLessThanOrEqual(10);
-      expect(["menu_more", "help_more"]).toContain(page1[page1.length - 1].id);
+      const navId = page1[page1.length - 1].id;
+      expect(navId === "help_more" || navId.startsWith("menu_more")).toBe(true);
       const page2 = menuForRole(role, 2);
       expect(page2.length).toBeLessThanOrEqual(10);
     }
@@ -61,7 +62,7 @@ describe("menuForRole", () => {
 
   it("creator page 1 ends with 'More actions' and page 2 exists", () => {
     const p1 = menuForRole("creator", 1);
-    expect(p1[p1.length - 1].id).toBe("menu_more");
+    expect(p1[p1.length - 1].id).toMatch(/^menu_more/); // carries the next page
     expect(menuForRole("creator", 2).some((r) => r.id.startsWith("menu:"))).toBe(true);
   });
 });

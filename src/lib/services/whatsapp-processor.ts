@@ -781,7 +781,11 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     await handleDepartmentDecision(from, requestId, verb === "approve_dept" ? "approve" : "decline");
     return;
   }
-  if (buttonId === "menu_more") { await sendMainMenu(from, link, 2); return; }
+  if (buttonId === "menu_more" || buttonId.startsWith("menu_more:")) {
+    const page = Number(buttonId.split(":")[1]) || 2;
+    await sendMainMenu(from, link, page);
+    return;
+  }
   // Menu rows that map to a deterministic flow start the flow, not the agent.
   const MENU_FLOW: Record<string, string> = {
     "menu:checkin": "child_checkin",
@@ -805,6 +809,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:create_event": "create_event",
     "menu:request_volunteers": "request_volunteers",
     "menu:office_guest": "office_guest",
+    "menu:add_classroom": "create_classroom",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1547,6 +1552,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\bmy birthday\b|\bbirthday is\b|\bset .*birthday\b/.test(t)) flow = "set_birthday";
     else if (/\blost (and|&) found\b|\b(i )?(lost|found)\b.*\b(item|phone|bag|wallet|keys|something)\b/.test(t)) flow = "lost_found";
     else if (/\b(sign.?in|office)\b/.test(t) && /\b(visitor|guest)\b/.test(t)) flow = "office_guest";
+    else if (/\b(add|create|new|set up)\b/.test(t) && /\bclass\s?room\b/.test(t)) flow = "create_classroom";
     if (flow) {
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
       if (out) { await sendFlowOutput(from, out); return; }

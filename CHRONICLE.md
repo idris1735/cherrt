@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-04 — Phase 4: advanced check-in foundation (classrooms + capacity)
+
+- **New `classrooms` table** (migration `20260904100000_classrooms`) + `child_checkins.classroom_id`. `children/classrooms.ts`: `listClassroomsWithOccupancy` (live occupancy from checked_in/in_class), `classroomHasSpace` (commit-time capacity gate), `createClassroom`.
+- **check_in_child** now takes `classroomId` and **enforces capacity** at commit (guards races). The **check-in rail** gained a conditional classroom-pick step: if the church has rooms, it shows them with `occupancy/capacity` and blocks full ones; if none set up, it's skipped (backward compatible).
+- **create_classroom** + **list_classrooms** tools; a **create-classroom rail** (leader, rank-guarded) and a **classrooms direct read** (menu rows added).
+- **Pagination bug fixed:** the menu grew past 2 pages this session but `menu_more` was hardcoded to page 2 — pages 3+ were unreachable. The "More" row now carries the next page (`menu_more:<n>`); the handler navigates to any page.
+- **Tests:** classrooms service (occupancy/capacity/create), check-in classroom step (+ full-room block), create-classroom (+ security), read-menu classrooms, menu pagination. **827/112 green**, `tsc` 0.
+
+**Next of the advanced check-in:** printable labels → teacher-acceptance → seat-hold (foundation now in place).
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).

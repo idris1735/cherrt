@@ -5,6 +5,7 @@
 // not duplicate any of that.
 import type { FlowDefinition, FlowInput, FlowData, Transition } from "@/lib/services/flows/engine";
 import { getAgentTool } from "@/lib/services/agent/runtime";
+import { listClassroomsWithOccupancy, type ClassroomInfo } from "@/lib/services/children/classrooms";
 import type { Role } from "@/lib/types";
 
 function looksLikeName(s: string): boolean {
@@ -17,7 +18,16 @@ function summary(data: FlowData): string {
   const bits = [`*${name}*`];
   if (data.age != null) bits.push(`age ${data.age}`);
   if (data.allergies) bits.push(`allergies: ${data.allergies}`);
+  if (data.classroomName) bits.push(`room: ${String(data.classroomName)}`);
   return bits.join(", ");
+}
+
+function roomRows(rooms: ClassroomInfo[]) {
+  return rooms.map((r, i) => ({
+    id: `room_${i}`,
+    title: r.name.slice(0, 24),
+    description: r.capacity != null ? `${r.occupancy}/${r.capacity}${r.full ? " · FULL" : ""}` : `${r.occupancy} in`,
+  }));
 }
 
 export const childCheckinFlow: FlowDefinition = {
@@ -69,11 +79,32 @@ export const childCheckinFlow: FlowDefinition = {
         text: "Any *allergies or medical notes* the children's team should know? Type them, or tap *None*.",
         buttons: [{ id: "flow_none", title: "None" }],
       }),
-      onInput: (input): Transition => {
-        if (input.buttonId === "flow_none") return { to: "confirm", patch: { allergies: null } };
-        const notes = input.text.trim();
-        if (!notes) return { to: "confirm", patch: { allergies: null } };
-        return { to: "confirm", patch: { allergies: notes } };
+      onInput: async (input, _data, ctx): Promise<Transition> => {
+        const allergies = input.buttonId === "flow_none" ? null : input.text.trim() || null;
+        // If the church has set up classrooms, pick one (with live capacity);
+        // otherwise skip straight to confirm (backward compatible).
+        const rooms = ctx.link ? await listClassroomsWithOccupancy(ctx.link.workspaceId) : [];
+        if (!rooms.length) return { to: "confirm", patch: { allergies } };
+        return { to: "classroom", patch: { allergies, classrooms: rooms } };
+      },
+    },
+
+    classroom: {
+      render: (data) => {
+        const rooms = (data.classrooms as ClassroomInfo[]) ?? [];
+        return { type: "list", header: "Which classroom?", text: `Where should ${String(data.childName)} go?`, buttonLabel: "Choose", rows: roomRows(rooms) };
+      },
+      onInput: (input, data): Transition => {
+        const rooms = (data.classrooms as ClassroomInfo[]) ?? [];
+        const m = /^room_(\d+)$/.exec(input.buttonId ?? "");
+        const chosen = m ? rooms[Number(m[1])] : undefined;
+        if (!chosen) {
+          return { stay: { type: "list", header: "Which classroom?", text: "Tap a classroom below.", buttonLabel: "Choose", rows: roomRows(rooms) } };
+        }
+        if (chosen.full) {
+          return { stay: { type: "list", header: "Which classroom?", text: `*${chosen.name}* is full — pick another room.`, buttonLabel: "Choose", rows: roomRows(rooms) } };
+        }
+        return { to: "confirm", patch: { classroomId: chosen.id, classroomName: chosen.name } };
       },
     },
 
@@ -89,7 +120,7 @@ export const childCheckinFlow: FlowDefinition = {
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
         if (input.buttonId === "flow_restart") {
-          return { to: "child_name", patch: { childName: undefined, age: undefined, allergies: undefined } };
+          return { to: "child_name", patch: { childName: undefined, age: undefined, allergies: undefined, classroomId: undefined, classroomName: undefined, classrooms: undefined } };
         }
         if (input.buttonId !== "flow_commit" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return {
@@ -116,7 +147,7 @@ export const childCheckinFlow: FlowDefinition = {
           return { done: { type: "text", text: "Sorry — check-in is unavailable right now. Please try again shortly." } };
         }
         const res = (await tool.handler(
-          { childName: data.childName, age: data.age ?? undefined, allergies: data.allergies ?? undefined },
+          { childName: data.childName, age: data.age ?? undefined, allergies: data.allergies ?? undefined, classroomId: data.classroomId ?? undefined },
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't complete the check-in: ${res.error}` } };

@@ -10,6 +10,7 @@ import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { recordConsent } from "@/lib/services/privacy/consent";
 import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
+import { classroomHasSpace, createClassroom, listClassroomsWithOccupancy } from "@/lib/services/children/classrooms";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -118,6 +119,7 @@ export const CHILD_TOOLS: AgentTool[] = [
         age: { type: "number", description: "Child's age (optional)" },
         allergies: { type: "string", description: "Allergies or notes (optional)" },
         guardianName: { type: "string", description: "Guardian's name (optional; defaults to the sender)" },
+        classroomId: { type: "string", description: "Classroom to check into (optional; capacity is enforced)" },
       },
       required: ["childName"],
     },
@@ -127,6 +129,11 @@ export const CHILD_TOOLS: AgentTool[] = [
       if (!childName) return { error: "Need the child's name." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
+      // Capacity gate (guards races between showing availability and committing).
+      const classroomId = String(args.classroomId ?? "").trim() || null;
+      if (classroomId && !(await classroomHasSpace(ctx.workspaceId, classroomId))) {
+        return { error: "That classroom is full — please pick another room." };
+      }
       const ageNum = Number(args.age);
       const code = pickupCode();
       // WS-D: link the check-in to identity when the sender is registered, so
@@ -143,6 +150,7 @@ export const CHILD_TOOLS: AgentTool[] = [
         guardian_phone: null,
         child_person_id: childPersonId,
         guardian_person_id: guardianPersonId,
+        classroom_id: classroomId,
         pickup_code: code,
         status: "checked_in",
       });
@@ -431,6 +439,40 @@ export const CHILD_TOOLS: AgentTool[] = [
       }));
 
       return { count: children.length, children };
+    },
+  },
+  {
+    name: "create_classroom",
+    description: "Create a children's classroom with a capacity, so check-in can assign kids to a room and respect the limit.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Classroom name, e.g. Nursery or Primary" },
+        capacity: { type: "number", description: "Max children (optional; leave blank for no limit)" },
+      },
+      required: ["name"],
+    },
+    minRank: 4, // leaders set up classrooms
+    mutates: true,
+    handler: async (args, ctx) => {
+      const name = String(args.name ?? "").trim();
+      if (!name) return { error: "What's the classroom called?" };
+      const capNum = Number(args.capacity);
+      const capacity = Number.isFinite(capNum) && capNum > 0 ? Math.floor(capNum) : null;
+      const res = await createClassroom({ workspaceId: ctx.workspaceId, name, capacity });
+      if (!res) return { error: "Couldn't create that classroom — please try again." };
+      return { ok: true, message: `✅ Classroom *${name}*${capacity ? ` (capacity ${capacity})` : ""} created.` };
+    },
+  },
+  {
+    name: "list_classrooms",
+    description: "List the children's classrooms with current occupancy and capacity.",
+    parameters: { type: "object", properties: {} },
+    minRank: 1, // children's team / leaders
+    dataSensitive: true,
+    handler: async (_args, ctx) => {
+      const classrooms = await listClassroomsWithOccupancy(ctx.workspaceId);
+      return { count: classrooms.length, classrooms };
     },
   },
 ];

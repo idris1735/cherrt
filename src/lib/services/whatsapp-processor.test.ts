@@ -630,7 +630,7 @@ describe("processWhatsAppMessage", () => {
     const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string }>];
     const allIds = rows.map((r) => r.id);
     expect(allIds).toContain("menu:join_dept"); // overflow begins on page 2
-    expect(allIds).toContain("menu:events");
+    expect(allIds).toContain("menu:volunteer");
   });
 
   it("'help first-timer' button sends a first-timer guide", async () => {

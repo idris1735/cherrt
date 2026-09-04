@@ -82,6 +82,15 @@ const READS: Record<string, Reader> = {
         ...b.slice(0, 20).map((x) => `• ${x.name} — ${x.day}/${x.month}`)].join("\n");
     },
   },
+  classrooms: {
+    tool: "list_classrooms",
+    format: (r) => {
+      const c = (r.classrooms ?? []) as any[];
+      if (!c.length) return "🏫 No classrooms set up yet. Tap *Add classroom* to create one.";
+      return [`🏫 *Classrooms (${r.count ?? c.length})*`,
+        ...c.map((x) => `• ${x.name} — ${x.capacity != null ? `${x.occupancy}/${x.capacity}${x.full ? " (FULL)" : ""}` : `${x.occupancy} in`}`)].join("\n");
+    },
+  },
 };
 
 // Returns the formatted reply for a read menu row, an access-denied message, or
