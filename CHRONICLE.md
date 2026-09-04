@@ -25,6 +25,14 @@
 - **Deferred (client, 2026-09-04, post-Phase-4):** (A) ≤3 options → buttons not a modal list; (B) typed intent should seed the choice & skip the picker ("I want to be baptized" shouldn't re-ask). Logged to memory `post_phase4_ux_backlog`.
 - **827/112 green**, `tsc` 0. (Label page is a view — no unit test, same as /pay & /billing.)
 
+### 2026-09-04 — Phase 4: teacher-acceptance + label access-window (security)
+
+- **Teacher-acceptance:** migration `20260904110000_child_acceptance` adds `accepted_by/at` and widens status to `held → checked_in → in_class → picked_up`. `children/checkins.ts` (`listPendingArrivals`, `acceptArrival`). New `accept_arrival` tool + **accept-arrivals rail** (children's team): a neutral first step gates access via `toolAccessError` BEFORE any child PII is listed, then a tap-to-accept loop moves kids `checked_in → in_class`. Menu row + typed intent.
+- **Security (flagged by commit review):** the `/label/[id]` page exposed child PII + pickup code with no auth (IDOR). It must stay openable by an un-logged-in check-in desk, so added a tight **validity window** — the label only renders for an *active, same-day* check-in (inert after pickup or ~12h); the id is already an unguessable UUID and the pickup code is guardian-gated at release.
+- **Tests:** checkins service (pending/accept), accept-arrivals flow (loop + no-pending + member-denied-before-PII). **833/114 green**, `tsc` 0.
+
+**Advanced check-in remaining:** just **seat-hold / pre-check-in** left (status `held` already in place).
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).

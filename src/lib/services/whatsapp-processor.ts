@@ -810,6 +810,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:request_volunteers": "request_volunteers",
     "menu:office_guest": "office_guest",
     "menu:add_classroom": "create_classroom",
+    "menu:accept_arrivals": "accept_arrivals",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1553,6 +1554,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\blost (and|&) found\b|\b(i )?(lost|found)\b.*\b(item|phone|bag|wallet|keys|something)\b/.test(t)) flow = "lost_found";
     else if (/\b(sign.?in|office)\b/.test(t) && /\b(visitor|guest)\b/.test(t)) flow = "office_guest";
     else if (/\b(add|create|new|set up)\b/.test(t) && /\bclass\s?room\b/.test(t)) flow = "create_classroom";
+    else if (/\baccept\b.*\b(arrival|child|kid|class)\b|\barrivals\b/.test(t)) flow = "accept_arrivals";
     if (flow) {
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
       if (out) { await sendFlowOutput(from, out); return; }

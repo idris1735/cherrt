@@ -11,6 +11,7 @@ import { ensurePerson } from "@/lib/services/identity/people";
 import { recordConsent } from "@/lib/services/privacy/consent";
 import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
 import { classroomHasSpace, createClassroom, listClassroomsWithOccupancy } from "@/lib/services/children/classrooms";
+import { acceptArrival } from "@/lib/services/children/checkins";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -474,6 +475,21 @@ export const CHILD_TOOLS: AgentTool[] = [
     handler: async (_args, ctx) => {
       const classrooms = await listClassroomsWithOccupancy(ctx.workspaceId);
       return { count: classrooms.length, classrooms };
+    },
+  },
+  {
+    name: "accept_arrival",
+    description: "A classroom teacher marks a checked-in child as arrived in class (checked_in → in_class).",
+    parameters: { type: "object", properties: { checkinId: { type: "string", description: "The check-in id" } }, required: ["checkinId"] },
+    minRank: 1, // children's team / leaders — child PII
+    dataSensitive: true,
+    mutates: true,
+    handler: async (args, ctx) => {
+      const checkinId = String(args.checkinId ?? "").trim();
+      if (!checkinId) return { error: "Which child?" };
+      const res = await acceptArrival(ctx.workspaceId, checkinId, ctx.userName ?? "");
+      if (!res.ok) return { error: "Couldn't accept that child — they may already be in class or picked up." };
+      return { ok: true, message: `✅ ${res.childName ?? "The child"} is now in class.` };
     },
   },
 ];

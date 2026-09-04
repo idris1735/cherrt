@@ -15,12 +15,19 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const db = getSupabaseServerClient();
   const { data } = db
-    ? await db.from("child_checkins").select("child_name, allergies, guardian_name, pickup_code, classroom_id, status").eq("id", id).maybeSingle()
+    ? await db.from("child_checkins").select("child_name, allergies, guardian_name, pickup_code, classroom_id, status, checked_in_at").eq("id", id).maybeSingle()
     : { data: null };
   const c = data as any;
 
-  if (!c) {
-    return <div style={wrap}><div style={card}><h2 style={{ margin: 0 }}>Label not found</h2><p style={{ color: "#666" }}>This check-in link is invalid or has expired.</p></div></div>;
+  // Access control: this page shows child PII + the pickup code with no login (the
+  // check-in desk prints it un-authenticated). The id is an unguessable UUID, and
+  // we further limit exposure to the ACTIVE, same-day check-in — a leaked link
+  // goes inert after pickup or ~12h.
+  const WINDOW_MS = 12 * 60 * 60 * 1000;
+  const stale = !!c && (c.status === "picked_up" || !c.checked_in_at || Date.now() - new Date(c.checked_in_at).getTime() > WINDOW_MS);
+
+  if (!c || stale) {
+    return <div style={wrap}><div style={card}><h2 style={{ margin: 0 }}>Label not available</h2><p style={{ color: "#666" }}>This check-in link is invalid, already collected, or has expired.</p></div></div>;
   }
 
   let classroom = "";

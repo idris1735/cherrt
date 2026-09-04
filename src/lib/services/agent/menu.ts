@@ -36,6 +36,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "checkin", tool: "check_in_child", group: "children", title: "👶 Check in a child", description: "Pickup code + QR pass", prompt: "Check my child in for children's church" },
   { id: "register_child", tool: "register_child", group: "children", title: "🧒 Register a child", description: "Guardian-consented child profile", prompt: "I want to register my child" },
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
+  { id: "accept_arrivals", tool: "accept_arrival", group: "children", title: "🙌 Accept arrivals", description: "Mark checked-in kids as arrived in class", prompt: "Accept children into class" },
   { id: "classrooms", tool: "list_classrooms", group: "children", title: "🏫 Classrooms", description: "Rooms with occupancy & capacity", prompt: "Show the classrooms" },
   { id: "add_classroom", tool: "create_classroom", group: "children", title: "🏫 Add classroom", description: "Set up a room + capacity", prompt: "I want to add a classroom" },
   // ── belong & community ──
