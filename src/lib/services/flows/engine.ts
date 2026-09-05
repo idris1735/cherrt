@@ -63,20 +63,24 @@ export function getFlow(name: string): FlowDefinition | undefined {
 // the processor BEFORE the engine is consulted.
 const CANCEL_RE = /^(cancel|exit|quit|menu|start over)$/i;
 
-// Begin a flow: persist state, return the first step's rendered output.
-// `seed` pre-fills fields (e.g. a typed "give 5000" seeds the amount) so the
-// flow never re-asks what the user already said.
+// Begin a flow: persist state, return the rendered output of the start step.
+// `seed` pre-fills fields (e.g. a typed "give 5000" seeds the amount) so the flow
+// never re-asks what the user already said. `startStep` begins the flow at a
+// later step — used when a typed intent already named a choice (e.g. "I want to
+// be baptized" jumps past the type picker straight to the baptism detail).
 export async function startFlow(
   name: string,
   ctx: FlowRunContext,
   update: (patch: { activeFlow: WhatsAppSession["activeFlow"] }) => Promise<void>,
   seed?: FlowData,
+  startStep?: string,
 ): Promise<FlowOutput | null> {
   const def = getFlow(name);
   if (!def) return null;
+  const step = startStep && def.steps[startStep] ? startStep : def.firstStep;
   const data = { ...(def.initialData ? def.initialData(ctx) : {}), ...(seed ?? {}) };
-  await update({ activeFlow: { name, step: def.firstStep, data } });
-  return def.steps[def.firstStep].render(data, ctx);
+  await update({ activeFlow: { name, step, data } });
+  return def.steps[step].render(data, ctx);
 }
 
 // Advance the active flow by one turn. Returns the output to send, or null if

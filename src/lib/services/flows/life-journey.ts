@@ -17,7 +17,8 @@ const TYPES: Array<{ id: JourneyType; label: string }> = [
   { id: "bereavement", label: "🕊️ Bereavement" },
 ];
 
-const typeRows = () => TYPES.map((t) => ({ id: `lj_${t.id}`, title: t.label }));
+// ≤3 options → tappable buttons (one tap, no modal), per the directness rule.
+const typeButtons = () => TYPES.map((t) => ({ id: `lj_${t.id}`, title: t.label }));
 
 // Per-type detail prompt + the button (Me for self-default types, Skip otherwise).
 const DETAIL: Record<JourneyType, { text: string; button: { id: string; title: string } }> = {
@@ -56,17 +57,16 @@ export const lifeJourneyFlow: FlowDefinition = {
   steps: {
     journey_type: {
       render: () => ({
-        type: "list",
+        type: "buttons",
         header: "Life journeys",
         text: "What would you like to start? A pastor will follow up with you.",
-        buttonLabel: "Choose",
-        rows: typeRows(),
+        buttons: typeButtons(),
       }),
       onInput: (input: FlowInput): Transition => {
         const m = /^lj_(\w+)$/.exec(input.buttonId ?? "");
         const chosen = m ? TYPES.find((t) => t.id === m[1]) : undefined;
         if (!chosen) {
-          return { stay: { type: "list", header: "Life journeys", text: "Tap one of the options below.", buttonLabel: "Choose", rows: typeRows() } };
+          return { stay: { type: "buttons", header: "Life journeys", text: "Tap one of the options below.", buttons: typeButtons() } };
         }
         return { to: "detail", patch: { journeyType: chosen.id } };
       },

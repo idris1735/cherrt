@@ -73,7 +73,7 @@ describe("life_journey flow", () => {
 
   it("an off-list tap at the type picker reprompts and never commits", async () => {
     const { out, session } = await drive([{ text: "hmm" }]);
-    expect(out).toMatchObject({ type: "list", text: expect.stringContaining("Tap one") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Tap one") });
     expect(session.activeFlow).toMatchObject({ step: "journey_type" });
     expect(handlerMock).not.toHaveBeenCalled();
   });

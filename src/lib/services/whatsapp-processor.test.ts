@@ -881,6 +881,30 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ name: "give", step: "amount" });
   });
 
+  it("typed 'I want to be baptized' jumps straight to baptism detail, skipping the picker", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to be baptized" });
+    // the baptism detail step (buttons with a "Me" option), not the type picker
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("baptised"), expect.anything(), expect.anything());
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "life_journey", step: "detail", data: { journeyType: "baptism" } });
+  });
+
+  it("typed 'dedicate my baby' jumps to the pastoral-form details, skipping the form picker", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to dedicate my baby" });
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "pastoral_form", step: "details", data: { formType: "baby_dedication" } });
+  });
+
   it("help-card 'Give' starts the give rail for a linked member (not a type-it guide)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },

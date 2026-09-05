@@ -1529,6 +1529,9 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     const t = trimmed.toLowerCase();
     let flow: string | null = null;
     let seed: Record<string, unknown> | undefined;
+    // When the typed intent already names the specific choice, jump past that
+    // flow's picker (don't re-ask what they said) — see post_phase4 UX issue B.
+    let startStep: string | undefined;
     if (/\b(register|add|enrol|enroll|sign\s*up)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_register";
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
     else if (/\b(reserve|hold|pre.?check)\b/.test(t) && /\b(seat|spot|child|kid)\b/.test(t)) flow = "hold_seat";
@@ -1543,8 +1546,17 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
       if (Number.isFinite(amt) && amt > 0) seed = { amount: Math.round(amt) };
     }
     else if (/\b(pray|prayer)\b/.test(t)) flow = "prayer";
-    else if (/\b(baptis|bereave|passed away|new believer|gave (my|his|her) life|discipleship)\b/.test(t)) flow = "life_journey";
-    else if (/\b(dedicat(e|ion)|child naming|naming ceremony|pre.?marital|marital counsel|training school)\b/.test(t)) flow = "pastoral_form";
+    // Life journeys — seed the type and skip the picker.
+    else if (/\bbapti[sz]/.test(t)) { flow = "life_journey"; seed = { journeyType: "baptism" }; startStep = "detail"; }
+    else if (/\b(new believer|gave (my|his|her) life|born again)\b/.test(t)) { flow = "life_journey"; seed = { journeyType: "discipleship" }; startStep = "detail"; }
+    else if (/\b(bereave|bereavement|passed away|lost (my|our))\b/.test(t)) { flow = "life_journey"; seed = { journeyType: "bereavement" }; startStep = "detail"; }
+    // Pastoral forms — seed the form type and skip the picker.
+    else if (/\bbaby dedicat|\bdedicate (my )?(baby|child)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "baby_dedication", formLabel: "Baby Dedication" }; startStep = "details"; }
+    else if (/\b(child naming|naming ceremony)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "child_naming", formLabel: "Child Naming" }; startStep = "details"; }
+    else if (/\bhouse dedicat/.test(t)) { flow = "pastoral_form"; seed = { formType: "house_dedication", formLabel: "House Dedication" }; startStep = "details"; }
+    else if (/\bpre.?marital|marital counsel|marriage counsel/.test(t)) { flow = "pastoral_form"; seed = { formType: "pre_marital", formLabel: "Pre-Marital Counselling" }; startStep = "details"; }
+    else if (/\btraining school\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "training_school", formLabel: "Training School" }; startStep = "details"; }
+    else if (/\b(dedicat(e|ion)|naming|form)\b/.test(t) && /\bpastoral\b/.test(t)) flow = "pastoral_form";
     else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
     else if (/\bfirst.?timer\b/.test(t) || /\b(new|first.?time)\s+(visitor|guest|comer)\b/.test(t)) flow = "first_timer";
     else if (/\breport (an? )?(issue|fault|problem)\b|\b(broken|leaking|not working|faulty)\b/.test(t)) flow = "issue";
@@ -1560,7 +1572,7 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(add|create|new|set up)\b/.test(t) && /\bclass\s?room\b/.test(t)) flow = "create_classroom";
     else if (/\baccept\b.*\b(arrival|child|kid|class)\b|\barrivals\b/.test(t)) flow = "accept_arrivals";
     if (flow) {
-      const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed);
+      const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed, startStep);
       if (out) { await sendFlowOutput(from, out); return; }
     }
   }

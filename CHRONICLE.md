@@ -43,6 +43,15 @@
 
 **NEXT (client-deferred, now unblocked):** the two directness issues in `post_phase4_ux_backlog` — (A) ≤3 options → buttons not list; (B) typed intent should seed the choice & skip the picker.
 
+### 2026-09-05 — Menu directness (1/2): seed-and-skip + ≤3-buttons start
+
+Client directness issues A & B (deferred from Phase 4):
+- **B — don't re-ask what you said:** `startFlow` gained an optional `startStep` so a typed intent can jump past a flow's picker. The router now seeds the specific choice: "I want to be baptized" → life-journey at the baptism *detail* (not the 3-way picker); same for new-believer/bereavement and all 5 pastoral-form types (baby/child-naming/house/pre-marital/training). Fixed the baptis**e**/baptis**z** spelling in the matcher.
+- **A — ≤3 options → buttons:** life-journey's type picker (now 3 options) renders as tappable *buttons* (one tap, no modal) instead of a list.
+- **Tests:** engine startStep, life-journey buttons, +2 processor (baptized-skips-picker, dedicate-baby-skips-picker). **841/116 green**, `tsc` 0.
+
+**Still to do (2/2):** the menu restructure — a creator sees ~40 rows / 5 pages; group into sub-menus (Children / Money / Care / Belong / Ops), with ≤3-item groups as buttons.
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).
