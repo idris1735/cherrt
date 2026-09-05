@@ -581,7 +581,7 @@ describe("processWhatsAppMessage", () => {
     }
   });
 
-  it("'menu' opens a role-aware interactive list for a linked member", async () => {
+  it("'menu' opens the top-level GROUP menu (not a flat 40-row list)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
     ]);
@@ -589,25 +589,26 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
     expect(mockList).toHaveBeenCalled();
     const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
-    expect(rows.some((r) => r.id === "menu:give")).toBe(true);
-    expect(rows.some((r) => r.id === "menu:giving_month")).toBe(true); // creator sees finance rows
-    expect(rows.some((r) => r.id === "menu:checkin")).toBe(true);
-    expect(rows.length).toBe(10);
-    expect(rows.some((r) => r.id === "role:menu")).toBe(false); // no demo role-switch
+    expect(rows.some((r) => r.id === "grp:children")).toBe(true);
+    expect(rows.some((r) => r.id === "grp:give")).toBe(true);
+    // top level is groups, not individual action rows
+    expect(rows.some((r) => r.id.startsWith("menu:"))).toBe(false);
+    expect(rows.length).toBeLessThanOrEqual(6); // ~5 groups, no 40-row scroll
   });
 
-  it("the menu is role-aware: a member never sees leadership rows", async () => {
+  it("group sub-menus are role-aware: a member's Giving group has Give but not the finance rows", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
     await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
-    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
-    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string }>];
-    const allIds = rows.map((r) => r.id);
-    expect(allIds).toContain("menu:give");
-    expect(allIds).not.toContain("menu:giving_month");
-    expect(allIds).not.toContain("menu:members");
-    expect(allIds).not.toContain("menu:announce");
+    // Member's Giving group is just "Give" (1 item) → rendered as buttons.
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "grp:give" });
+    expect(mockButtons).toHaveBeenCalled();
+    const buttons = (mockButtons.mock.calls[0] as unknown[])[2] as Array<{ id: string }>;
+    const ids = buttons.map((b) => b.id);
+    expect(ids).toContain("menu:give");
+    expect(ids).not.toContain("menu:giving_month");
+    expect(ids).not.toContain("menu:record_giving");
   });
 
   it("tapping a read row is served DIRECTLY (deterministic), never through the agent", async () => {
@@ -621,16 +622,18 @@ describe("processWhatsAppMessage", () => {
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("🎂"));
   });
 
-  it("'More actions' opens menu page 2 with the overflow rows", async () => {
+  it("tapping a group opens its sub-menu list with that group's items", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Idris", userRole: "creator" },
     ]);
     await updateSession(PHONE, { welcomed: true, onboarding: undefined, activeWorkspaceId: "ws1" });
-    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu_more" });
-    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string }>];
-    const allIds = rows.map((r) => r.id);
-    expect(allIds).toContain("menu:join_dept"); // overflow begins on page 2
-    expect(allIds).toContain("menu:volunteer");
+    // Children group has >3 items → a list.
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "grp:children" });
+    expect(mockList).toHaveBeenCalled();
+    const rows = (mockList.mock.calls[0] as unknown[])[3] as Array<{ id: string }>;
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain("menu:checkin");
+    expect(ids).toContain("menu:classrooms");
   });
 
   it("'help first-timer' button sends a first-timer guide", async () => {

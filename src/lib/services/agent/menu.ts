@@ -67,6 +67,62 @@ const MENU_ITEMS: MenuItem[] = [
 const BY_ID = new Map(MENU_ITEMS.map((m) => [m.id, m]));
 const PAGE_SIZE = 9; // 10th row is always the navigation row (WhatsApp list limit)
 
+// ── Two-level menu (2026-09-05) ──────────────────────────────────────────────
+// The flat menu grew to ~40 rows / several pages for a creator. The top level is
+// now a short list of GROUPS; tapping one opens its items — as tappable BUTTONS
+// when there are ≤3 (one tap, no modal), else a list. Addresses the client's
+// directness feedback: small menus shouldn't force a modal.
+export const MENU_GROUPS: Array<{ id: MenuItem["group"]; title: string; description: string }> = [
+  { id: "children", title: "👶 Children", description: "Check-in, classrooms, registration" },
+  { id: "give", title: "💰 Giving & money", description: "Give, record, reports" },
+  { id: "care", title: "🙏 Care & prayer", description: "Prayer, pastoral care, forms" },
+  { id: "belong", title: "🤝 Belong", description: "Ministries, events, QR codes" },
+  { id: "ops", title: "⚙️ Church ops", description: "Members, service, admin" },
+];
+
+function visibleItems(role: string, group?: MenuItem["group"]): MenuItem[] {
+  const ctx: AgentContext = { workspaceId: "", role: role as AgentContext["role"] };
+  return MENU_ITEMS.filter((m) => {
+    if (group && m.group !== group) return false;
+    const tool = getAgentTool(m.tool);
+    if (!tool) return false;
+    return !toolAccessError(tool, ctx);
+  });
+}
+
+/** Top-level menu: the groups this role has at least one visible item in. */
+export function menuGroupsForRole(role: string): Array<{ id: string; title: string; description: string }> {
+  return MENU_GROUPS
+    .filter((g) => visibleItems(role, g.id).length > 0)
+    .map((g) => ({ id: `grp:${g.id}`, title: g.title, description: g.description }));
+}
+
+/**
+ * A group's items for a role — as buttons when ≤3 (one tap, no modal), else a
+ * paginated list. Button titles are capped at 20 chars (WhatsApp limit).
+ */
+export function menuItemsForGroup(role: string, group: string, page = 1): {
+  asButtons: boolean;
+  header: string;
+  items: Array<{ id: string; title: string; description?: string }>;
+  hasMore: boolean;
+} {
+  const meta = MENU_GROUPS.find((g) => g.id === group);
+  const header = meta?.title ?? "Menu";
+  const visible = visibleItems(role, group as MenuItem["group"]);
+  if (visible.length <= 3) {
+    return { asButtons: true, header, items: visible.map((m) => ({ id: `menu:${m.id}`, title: m.title.slice(0, 20) })), hasMore: false };
+  }
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = visible.slice(start, start + PAGE_SIZE);
+  return {
+    asButtons: false,
+    header,
+    items: slice.map((m) => ({ id: `menu:${m.id}`, title: m.title, description: m.description })),
+    hasMore: start + PAGE_SIZE < visible.length,
+  };
+}
+
 /**
  * The tappable rows a role should be offered, page 1 or 2. Gating uses the
  * exact same `toolAccessError` the execution path enforces — a row shown is

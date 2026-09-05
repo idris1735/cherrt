@@ -52,6 +52,16 @@ Client directness issues A & B (deferred from Phase 4):
 
 **Still to do (2/2):** the menu restructure — a creator sees ~40 rows / 5 pages; group into sub-menus (Children / Money / Care / Belong / Ops), with ≤3-item groups as buttons.
 
+### 2026-09-05 — Menu directness (2/2): two-level grouped menu
+
+Replaced the flat ~40-row / 5-page menu with a **two-level** menu:
+- **Top level** = a short list of GROUPS (👶 Children · 💰 Giving & money · 🙏 Care & prayer · 🤝 Belong · ⚙️ Church ops), only those the role has items in.
+- **Sub-menu** (tap a group) = its items — as tappable **buttons when ≤3** (one tap, no modal — the client's exact complaint), else a paginated list (`grp:<group>:<page>`). Role-gated by the same `toolAccessError`.
+- `menu.ts`: `menuGroupsForRole` + `menuItemsForGroup`; `menuForRole` kept for compat. Processor: `sendMainMenu` → groups, new `sendGroupMenu`, `grp:` handler.
+- **Tests:** menu group functions + 3 rewritten processor tests (top=groups, member give-group=buttons, group→sub-menu list). **844/116 green**, `tsc` 0.
+
+**✅ Menu directness complete** (A: ≤3→buttons, B: seed-and-skip, + the grouped restructure). The `post_phase4_ux_backlog` items are done.
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).

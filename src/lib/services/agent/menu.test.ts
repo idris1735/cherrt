@@ -1,7 +1,7 @@
 // Role-aware menu: the tappable menu must honestly reflect what each role is
 // allowed to do — same permission machinery as execution.
 import { describe, it, expect } from "vitest";
-import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
+import { menuForRole, menuPromptFor, menuGroupsForRole, menuItemsForGroup } from "@/lib/services/agent/menu";
 
 const ids = (role: string, pages = 5) =>
   Array.from({ length: pages }, (_, i) => i + 1).flatMap((p) => menuForRole(role, p).map((r) => r.id));
@@ -75,5 +75,37 @@ describe("menuPromptFor", () => {
   it("returns null for nav rows and unknown ids", () => {
     expect(menuPromptFor("menu_more")).toBeNull();
     expect(menuPromptFor("nope")).toBeNull();
+  });
+});
+
+describe("two-level menu (groups + sub-menus)", () => {
+  it("top-level shows only groups the role has items in", () => {
+    const memberGroups = menuGroupsForRole("member").map((g) => g.id);
+    expect(memberGroups).toContain("grp:give");
+    expect(memberGroups).toContain("grp:children");
+    expect(memberGroups.length).toBeLessThanOrEqual(5);
+    // it_technical never sees data-reads: no members roster in its ops sub-menu
+    const itOps = menuItemsForGroup("it_technical", "ops").items.map((i) => i.id);
+    expect(itOps).not.toContain("menu:members");
+  });
+
+  it("≤3-item groups render as buttons; larger groups as a list", () => {
+    const memberGive = menuItemsForGroup("member", "give");
+    expect(memberGive.asButtons).toBe(true); // member: just 'Give'
+    expect(memberGive.items.map((i) => i.id)).toEqual(["menu:give"]);
+
+    const creatorGive = menuItemsForGroup("creator", "give");
+    expect(creatorGive.asButtons).toBe(true); // 3 items → still buttons
+    expect(creatorGive.items.map((i) => i.id)).toContain("menu:giving_month");
+
+    const creatorKids = menuItemsForGroup("creator", "children");
+    expect(creatorKids.asButtons).toBe(false); // >3 → list
+    expect(creatorKids.items.map((i) => i.id)).toContain("menu:checkin");
+  });
+
+  it("sub-menus are role-gated: a member's Care group has no leadership reads", () => {
+    const ids = menuItemsForGroup("member", "care").items.map((i) => i.id);
+    expect(ids).toContain("menu:prayer");
+    expect(ids).not.toContain("menu:prayer_list"); // pastoral-only read
   });
 });

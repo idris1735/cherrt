@@ -42,7 +42,7 @@ import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
-import { menuForRole, menuPromptFor } from "@/lib/services/agent/menu";
+import { menuPromptFor, menuGroupsForRole, menuItemsForGroup } from "@/lib/services/agent/menu";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
 import { resetSenderData } from "@/lib/services/demo-reset";
 import { resetSession } from "@/lib/services/whatsapp-session";
@@ -321,14 +321,31 @@ async function sendGuestWelcome(from: string): Promise<void> {
 // The main menu as a WhatsApp interactive list — role-aware (WS-menu): the rows
 // offered are exactly the tools this caller is allowed to use, derived from the
 // same permission machinery that guards execution. Page 2 holds the overflow.
-async function sendMainMenu(from: string, link: PhoneLink | null, page = 1): Promise<void> {
+async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1): Promise<void> {
   if (!link) { await sendGuestWelcome(from); return; }
-  const rows = menuForRole(link.userRole ?? "member", page);
+  // Top level: a short list of GROUPS (children / giving / care / belong / ops).
+  // Tapping one opens its items (buttons if ≤3, else a list) — see handleButtonReply.
+  const groups = menuGroupsForRole(link.userRole ?? "member");
   try {
-    await sendInteractiveList(from, "What do you need? 👇", "Open menu", rows, "Menu");
+    await sendInteractiveList(from, "What do you need? 👇", "Open menu", groups, "Menu");
   } catch {
     await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month · I'm new here · join a ministry · events");
   }
+}
+
+// A group's sub-menu: buttons when ≤3 items (one tap, no modal), else a list.
+async function sendGroupMenu(from: string, role: string, group: string, page = 1): Promise<void> {
+  const { asButtons, header, items, hasMore } = menuItemsForGroup(role, group, page);
+  if (!items.length) { await sendTextMessage(from, "Nothing here for you right now."); return; }
+  if (asButtons) {
+    try { await sendInteractiveButtons(from, `${header} — tap one 👇`, items.map((i) => ({ id: i.id, title: i.title })), header); }
+    catch { await sendTextMessage(from, `${header}: ` + items.map((i) => i.title).join(", ")); }
+    return;
+  }
+  const rows = items.map((i) => ({ id: i.id, title: i.title, description: i.description ?? "" }));
+  if (hasMore) rows.push({ id: `grp:${group}:${page + 1}`, title: "More →", description: "The rest of this section" });
+  try { await sendInteractiveList(from, `${header} 👇`, "Choose", rows, header); }
+  catch { await sendTextMessage(from, `${header}: ` + rows.map((r) => r.title).join(", ")); }
 }
 
 // Proactive, role-aware welcome. A first-time member shouldn't have to ask
@@ -751,6 +768,16 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
 
   // ── Menu button — available to any linked member ──
   if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
+
+  // ── Group sub-menu (two-level menu): grp:<group>[:<page>] ──
+  if (buttonId.startsWith("grp:")) {
+    const parts = buttonId.split(":");
+    const group = parts[1];
+    const page = Number(parts[2]) || 1;
+    if (link) await sendGroupMenu(from, link.userRole ?? "member", group, page);
+    else await sendGuestWelcome(from);
+    return;
+  }
 
   // ── P0-2 join confirmation ──
   if (buttonId === "join_yes") {
