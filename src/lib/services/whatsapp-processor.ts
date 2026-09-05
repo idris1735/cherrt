@@ -840,6 +840,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:accept_arrivals": "accept_arrivals",
     "menu:hold_seat": "hold_seat",
     "menu:arrive": "arrive",
+    "menu:pickup": "pickup",
+    "menu:convert_first_timer": "convert_first_timer",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1563,6 +1565,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
     else if (/\b(reserve|hold|pre.?check)\b/.test(t) && /\b(seat|spot|child|kid)\b/.test(t)) flow = "hold_seat";
     else if (/\b(arrived|we'?re here|we are here)\b/.test(t)) flow = "arrive";
+    else if (/\b(collect|pick.?up|picking up)\b.*\b(child|kid|son|daughter)\b|\bpickup code\b/.test(t)) flow = "pickup";
+    else if (/\bconvert\b.*\b(first.?timer|visitor)\b|\b(first.?timer|visitor)\b.*\b(join|become|convert)\b.*\bmember\b/.test(t)) flow = "convert_first_timer";
     else if (/\bregister\b/.test(t) && /\bevent\b/.test(t)) flow = "event_register";
     else if (/\b(create|new|set up|add)\b/.test(t) && /\bevent\b/.test(t)) flow = "create_event";
     else if (/\b(record|log|submit)\b/.test(t) && /\b(service|attendance|sunday report|service report)\b/.test(t)) flow = "service_record";

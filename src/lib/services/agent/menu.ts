@@ -39,6 +39,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "register_child", tool: "register_child", group: "children", title: "🧒 Register a child", description: "Guardian-consented child profile", prompt: "I want to register my child" },
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
   { id: "accept_arrivals", tool: "accept_arrival", group: "children", title: "🙌 Accept arrivals", description: "Mark checked-in kids as arrived in class", prompt: "Accept children into class" },
+  { id: "pickup", tool: "release_child", group: "children", title: "🎫 Pick up a child", description: "Collect your child with the pickup code", prompt: "I'm here to collect my child" },
   { id: "classrooms", tool: "list_classrooms", group: "children", title: "🏫 Classrooms", description: "Rooms with occupancy & capacity", prompt: "Show the classrooms" },
   { id: "add_classroom", tool: "create_classroom", group: "children", title: "🏫 Add classroom", description: "Set up a room + capacity", prompt: "I want to add a classroom" },
   // ── belong & community ──
@@ -59,6 +60,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "announce", tool: "create_announcement", group: "ops", title: "📣 Announce", description: "Message the whole church", prompt: "I want to announce something to everyone" },
   { id: "members", tool: "list_members", group: "ops", title: "👥 Members", description: "Roster with roles", prompt: "Show me our members" },
   { id: "first_timers_list", tool: "list_first_timers", group: "ops", title: "📋 First-timer follow-ups", description: "Who still needs a call", prompt: "Show me first-timers needing follow-up" },
+  { id: "convert_first_timer", tool: "convert_first_timer", group: "ops", title: "✅ Convert first-timer", description: "Turn a visitor into a member", prompt: "Convert a first-timer to a member" },
   { id: "prayer_list", tool: "list_prayer_requests", group: "ops", title: "🙏 Open prayer requests", description: "What the prayer team is carrying", prompt: "Show me the open prayer requests" },
   { id: "birthdays", tool: "list_birthdays", group: "ops", title: "🎂 Birthdays", description: "Who's celebrating soon", prompt: "Whose birthdays are coming up?" },
   { id: "add_member", tool: "add_member", group: "ops", title: "➕ Add a member", description: "Register someone new", prompt: "I want to add a new member" },

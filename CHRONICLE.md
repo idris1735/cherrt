@@ -52,6 +52,15 @@ Client directness issues A & B (deferred from Phase 4):
 
 **Still to do (2/2):** the menu restructure — a creator sees ~40 rows / 5 pages; group into sub-menus (Children / Money / Care / Belong / Ops), with ≤3-item groups as buttons.
 
+### 2026-09-05 — Polish tail: pickup + convert-first-timer rails; demo run-sheet
+
+- **Pickup rail** (`flows/pickup.ts`): a guardian collects their child — code → confirm → `release_child` (still guardian-gated: the code alone can't collect). Menu row + typed intent.
+- **Convert-first-timer rail** (`flows/convert-first-timer.ts`, leader): name → `convert_first_timer`, rank-guarded; not-found keeps them on the rail to retry.
+- **Demo run-sheet** artifact for the Saturday owner review — all four phases as WhatsApp chat threads with a live/demo/config legend.
+- **Tests:** pickup (release / guardian-gate error / bad code), convert (convert / not-found-retry / member-blocked). **850/118 green**, `tsc` 0.
+
+Remaining tail (low value): number-migration on a rail; assign/resolve pastoral; office-guest sign-out; volunteer roster; KYC selfie↔NIN face-match (a real feature, not polish).
+
 ### 2026-09-05 — Menu directness (2/2): two-level grouped menu
 
 Replaced the flat ~40-row / 5-page menu with a **two-level** menu:
