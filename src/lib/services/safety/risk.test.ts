@@ -26,6 +26,18 @@ describe("assessRisk — scam detection", () => {
     expect(assessRisk("What time is service on Sunday?").kind).toBeNull();
     expect(assessRisk("please add my prayer request for my exams").kind).toBeNull();
   });
+
+  it("does NOT flag ordinary church spending FROM the account (directional)", () => {
+    // Regression: "money + account + urgency" alone used to trip the scam flag,
+    // blocking a legit request. Spending FROM the account is not a scam shape.
+    expect(assessRisk("transfer ₦50k from the account urgently for diesel").kind).toBeNull();
+    expect(assessRisk("please pay the electrician now, it's urgent").kind).toBeNull();
+  });
+
+  it("still flags money going TO an account/number urgently", () => {
+    expect(assessRisk("send ₦50k to this account now, it's urgent").kind).toBe("scam");
+    expect(assessRisk("transfer ₦200k to 0123456789 immediately").kind).toBe("scam");
+  });
 });
 
 describe("assessRisk — safeguarding detection", () => {
@@ -50,5 +62,18 @@ describe("assessRisk — safeguarding detection", () => {
 
   it("safeguarding outranks scam when both present", () => {
     expect(assessRisk("they abused my child and now want money from my account").kind).toBe("safeguarding");
+  });
+
+  it("does NOT flag a child accidentally hurt at play (no intentional-harm word)", () => {
+    // Regression: "my son ... hurt" tripped the child-danger flag; an accidental
+    // sports injury with a prayer request must be handled as prayer, not a
+    // safeguarding disclosure.
+    expect(assessRisk("my son was hurt playing football, please pray for him").kind).toBeNull();
+    expect(assessRisk("my daughter fell and scraped her knee at the game").kind).toBeNull();
+  });
+
+  it("STILL flags a child hurt with an intentional-harm word even in a play context", () => {
+    // The accidental guard must not create a loophole.
+    expect(assessRisk("a man was hitting a child at the football game").kind).toBe("safeguarding");
   });
 });

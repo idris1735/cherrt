@@ -1028,6 +1028,23 @@ function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContex
   return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
 }
 
+// Typed-intent flows whose underlying action is rank-gated. A menu tap is
+// already visibility-filtered by role; a typed intent isn't, so the router
+// checks access before starting these (see the typed-intent router below).
+const FLOW_GATE_TOOL: Record<string, string> = {
+  announce: "create_announcement",
+  add_member: "add_member",
+  create_event: "create_event",
+  request_volunteers: "request_volunteers",
+  record_giving: "record_giving",
+  service_record: "record_service_summary",
+  convert_first_timer: "convert_first_timer",
+  create_classroom: "create_classroom",
+  accept_arrivals: "accept_arrival",
+  office_guest: "register_office_guest",
+  first_timer: "capture_first_timer",
+};
+
 // Deterministic service-report card. Accepts the full get_service_summary shape
 // or the lighter ServiceSnapshot; renders only the lines that have data.
 function formatServiceReport(s: any): string {
@@ -1698,14 +1715,20 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\bpre.?marital|marital counsel|marriage counsel/.test(t)) { flow = "pastoral_form"; seed = { formType: "pre_marital", formLabel: "Pre-Marital Counselling" }; startStep = "details"; }
     else if (/\btraining school\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "training_school", formLabel: "Training School" }; startStep = "details"; }
     else if (/\b(dedicat(e|ion)|naming|form)\b/.test(t) && /\bpastoral\b/.test(t)) flow = "pastoral_form";
-    else if (/\b(pastor|pastoral|counsel|counselling|see a pastor)\b/.test(t)) flow = "pastoral";
+    // Require a care-intent, not the bare word "pastor" — "is pastor preaching
+    // Sunday?" must NOT open a pastoral-care request.
+    else if (/\bsee a pastor\b|\bpastoral care\b|\bcounsel(l?ing)?\b|\b(see|need|want|speak to|speak with|talk to|meet|book|request|arrange)\b[^.?!]*\bpastor\b/.test(t)) flow = "pastoral";
     else if (/\bfirst.?timer\b/.test(t) || /\b(new|first.?time)\s+(visitor|guest|comer)\b/.test(t)) flow = "first_timer";
     else if (/\breport (an? )?(issue|fault|problem)\b|\b(broken|leaking|not working|faulty)\b/.test(t)) flow = "issue";
     else if (/\b(announce|announcement|broadcast)\b/.test(t)) flow = "announce";
     else if (/\b(add|register)\b/.test(t) && /\bmember\b/.test(t)) flow = "add_member";
     else if (/\bqr( code)?s?\b/.test(t)) flow = "qr";
+    // Leader broadcast ("we need people to join the ushering team") must win
+    // over the personal join rule below — check it first and match "people to
+    // join/serve/help", not just the literal word "volunteers".
+    else if (/\b(need|request|call for|looking for|recruit)\b/.test(t)
+      && (/\bvolunteers?\b/.test(t) || /\bpeople to (join|serve|help)\b/.test(t) || /\bmore (hands|help|ushers|servers|singers|volunteers)\b/.test(t))) flow = "request_volunteers";
     else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
-    else if (/\b(need|request|call for|looking for)\b/.test(t) && /\bvolunteers?\b/.test(t)) flow = "request_volunteers";
     else if (/\b(volunteer|serve|help out)\b/.test(t)) flow = "volunteer_signup";
     else if (/\bmy birthday\b|\bbirthday is\b|\bset .*birthday\b/.test(t)) flow = "set_birthday";
     else if (/\blost (and|&) found\b|\b(i )?(lost|found)\b.*\b(item|phone|bag|wallet|keys|something)\b/.test(t)) flow = "lost_found";
@@ -1713,6 +1736,14 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\b(add|create|new|set up)\b/.test(t) && /\bclass\s?room\b/.test(t)) flow = "create_classroom";
     else if (/\baccept\b.*\b(arrival|child|kid|class)\b|\barrivals\b/.test(t)) flow = "accept_arrivals";
     if (flow) {
+      // A menu tap is already visibility-gated (a member never sees the row); a
+      // TYPED intent is not, so gate rank-gated flows up front — don't walk a
+      // member through several turns only to reject them at the final step.
+      const gateTool = FLOW_GATE_TOOL[flow] ? getAgentTool(FLOW_GATE_TOOL[flow]) : null;
+      if (gateTool) {
+        const denied = toolAccessError(gateTool, { workspaceId: link.workspaceId, role: link.userRole as Role });
+        if (denied) { await sendTextMessage(from, denied); return; }
+      }
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed, startStep);
       if (out) { await sendFlowOutput(from, out); return; }
     }

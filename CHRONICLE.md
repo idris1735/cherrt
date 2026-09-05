@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-05 — Pre-client-test fault sweep (Fable-assisted) + fixes
+
+Client tests today; ran a Fable troubleshooting pass, reviewed every change, applied fixes:
+
+- **Stuck-session bug (P0, test-blocking) — FIXED & shipped (`1ecea35`).** After a pause the bot could sit in any of 4 independent sticky states (activeFlow, pendingAgentAction, pendingConfirmation, pendingApproval), each with its own incomplete escape logic — "menu" cancelled a flow but didn't render the menu; "exit"/"quit" fell through to the agent while a pending tool call stayed live (a later stray "yes" could fire a stale write). Added ONE universal escape hatch (after consent, gated on sticky-state so it can't bypass the welcome gate): cancel/exit/quit/menu/start over clears all four atomically; menu/start over renders the real menu same-turn. Wrapped the handler in try/catch so an uncaught throw can't produce total silence (webhook returns 200 to Meta regardless).
+- **Onboarding data corruption (P0) — FIXED.** Field steps (name/city/…) stored ANY input verbatim, so a leader typing "menu" mid-signup set their church city to "menu". The processor escape hatch covers the 4 flow states but NOT `session.onboarding`, so guarded field-storage directly in `advanceSignupFlow`: escape words cancel the signup instead of being saved.
+- **Risk-triage false positives (P0) — NARROWED, detection words unchanged.** (1) Scam rule was money+account+urgency → tripped on "transfer ₦50k FROM the account urgently for diesel"; now directional (money + urgency + TO an account/number), so spending FROM the account is fine. (2) Child-danger safeguarding tripped on "my son was hurt playing football, please pray"; now suppressed ONLY when accidental-injury context is present AND no intentional-harm word — real disclosures ("a man was hitting a child at the game") still fire.
+- **Typed-intent router (P1) — FIXED.** (a) bare word "pastor" no longer hijacks ("is pastor preaching Sunday?" ≠ pastoral-care request) — requires a care verb; (b) "we need people to join the ushering team" now routes to the leader volunteer-REQUEST, not personal join (broadcast rule checked first + broadened); (c) rank-gated flows (announce/add_member/create_event/request_volunteers/…) are now gated at flow START for typed intents (menu taps were already visibility-gated) via `FLOW_GATE_TOOL` — a member is refused up front, not walked through 3 turns then rejected.
+- **Pickup security (answered, no change needed):** the QR/code is NOT the key — `release_child` gates on registered-guardian identity (`can_pickup`), verified by WhatsApp number; a stranger with the code is blocked, and only volunteers can even look one up. The one real option (not a flaw): a "guardian authorizes a one-time non-guardian pickup" feature if wanted.
+- **Tests:** +~15 regression tests (escape hatch, onboarding guard, risk directional/accidental, router pastor/join/gate). Full suite green, `tsc` 0.
+- **Still open from the sweep (P2, not yet done):** assign-role-flow shares the onboarding escape gap (degrades safely, no corruption); `give.ts` ignores a corrected amount after a mis-parsed seed (cancel+restart only).
+
 ### 2026-09-05 — Hallucination fixes from client test screenshots (routing)
 
 - Client tested and hit the pre-rails **wandering agent**: "Give me the service report" → "How much would you like to give?", and "What is the service report for last week" → agent hallucinated a "Child Naming form submitted" / a giving prompt. Two were **still-live routing bugs**, now fixed:

@@ -1026,6 +1026,57 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ name: "pastoral_form", step: "details", data: { formType: "baby_dedication" } });
   });
 
+  it("P1 — 'is pastor preaching Sunday?' does NOT open a pastoral-care request", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "is pastor preaching Sunday?" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("P1 — 'I need to see a pastor' still opens the pastoral-care rail", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I need to see a pastor" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "pastoral" });
+  });
+
+  it("P1 — 'we need people to join the ushering team' is a leader volunteer-request, not personal join", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Pastor", userRole: "pastor" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "we need people to join the ushering team" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "request_volunteers" });
+  });
+
+  it("P1 — 'I want to join the choir' is a personal join", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to join the choir" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "join" });
+  });
+
+  it("P1 — a member typing 'announce something to everyone' is refused up front, no flow started", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "announce something to everyone" });
+    const s = await getSession(PHONE);
+    // Gated at flow start — the member is not walked through the announce rail.
+    expect(s.activeFlow).toBeUndefined();
+  });
+
   it("help-card 'Give' starts the give rail for a linked member (not a type-it guide)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },

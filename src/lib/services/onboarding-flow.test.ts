@@ -13,7 +13,7 @@ vi.mock("@/lib/services/whatsapp-workspace", () => ({
 }));
 vi.mock("@/lib/services/whatsapp-templates", () => ({ sendNewSignupAlertTemplate: vi.fn() }));
 
-import { startSignupFlow } from "@/lib/services/onboarding-flow";
+import { startSignupFlow, advanceSignupFlow } from "@/lib/services/onboarding-flow";
 
 beforeEach(() => { vi.clearAllMocks(); process.env.NEXT_PUBLIC_APP_URL = "https://chertt.test"; });
 
@@ -32,5 +32,31 @@ describe("startSignupFlow (web KYC)", () => {
     const reply = await startSignupFlow("2348001112222");
     expect(reply.text).toMatch(/try again/i);
     expect(reply.url).toBeNull();
+  });
+});
+
+describe("advanceSignupFlow — escape words never become field data", () => {
+  const sessionAt = (step: string) =>
+    ({ phoneNumber: "234800", onboarding: { flow: "new-church-signup", step, collected: { name: "Grace" } } } as any);
+
+  for (const word of ["menu", "cancel", "exit", "quit", "start over"]) {
+    it(`'${word}' at the city step cancels the signup instead of saving it as the city`, async () => {
+      const reply = await advanceSignupFlow("234800", sessionAt("city"), word);
+      expect(reply).toMatch(/cancelled/i);
+      // Signup cleared — and the escape word was NOT stored as the city.
+      expect(updateSessionMock).toHaveBeenCalledWith("234800", { onboarding: undefined });
+      expect(updateSessionMock).not.toHaveBeenCalledWith(
+        "234800",
+        expect.objectContaining({ onboarding: expect.objectContaining({ collected: expect.objectContaining({ city: word }) }) }),
+      );
+    });
+  }
+
+  it("still stores an ordinary city value", async () => {
+    await advanceSignupFlow("234800", sessionAt("city"), "Lagos");
+    expect(updateSessionMock).toHaveBeenCalledWith(
+      "234800",
+      expect.objectContaining({ onboarding: expect.objectContaining({ collected: expect.objectContaining({ city: "Lagos" }) }) }),
+    );
   });
 });

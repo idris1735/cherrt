@@ -148,6 +148,14 @@ export async function advanceSignupFlow(
     return 'Reply *YES* to submit, or *NO* to start over.\n\n' + promptFor("confirm", state.collected);
   }
 
+  // Escape words must never be stored as field data — a leader typing "menu",
+  // "cancel", "exit" etc. mid-signup would otherwise become their church name
+  // or city. (The confirm step's own yes/no/restart is handled above.)
+  if (/^(cancel|exit|quit|menu|start over)$/i.test(trimmed)) {
+    await updateSession(phoneNumber, { onboarding: undefined });
+    return "No problem — I've cancelled that signup. Send *hi* whenever you'd like to start again.";
+  }
+
   const collected: Collected = { ...state.collected };
   switch (state.step) {
     case "name":
