@@ -1068,7 +1068,23 @@ async function dispatchToAgent(from: string, prompt: string, ctx: AgentContext, 
   return false;
 }
 
+// Requirement 4 of the P0 sweep: the webhook route (src/app/api/whatsapp/webhook/route.ts)
+// swallows any exception from this function and still returns 200 to Meta —
+// by design, so Meta doesn't retry-storm a bad payload — but that means an
+// uncaught throw anywhere below (a DB call, a tool handler, etc.) previously
+// resulted in total silence: the user's message vanishes with no reply at
+// all, which reads exactly like the reported "stuck" bug. This thin wrapper
+// guarantees SOMETHING is always sent back.
 export async function processWhatsAppMessage(message: IncomingMessage): Promise<void> {
+  try {
+    await processWhatsAppMessageInner(message);
+  } catch (err) {
+    console.error("[whatsapp] unhandled error processing message:", err instanceof Error ? err.stack ?? err.message : err);
+    await sendTextMessage(message.from, "Sorry — something went wrong on my end. Please try that again in a moment. 🙏").catch(() => {});
+  }
+}
+
+async function processWhatsAppMessageInner(message: IncomingMessage): Promise<void> {
   const { from, type } = message;
   const claimed = await claimWhatsAppMessage(message.messageId, from, type);
   if (!claimed) return;
@@ -1206,12 +1222,54 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     return;
   }
 
+  // ── Universal escape hatch — cancel/exit/quit/menu/start over always win ──
+  // Root-cause fix for the reported bug: "there are times when we stop
+  // talking and Chertt will fail to send me the menu or to exit the chat."
+  // A pause can leave the conversation in ANY ONE of several independent
+  // sticky states — an active flow-engine rail, an agent tool call awaiting
+  // YES/NO, the single-shot creator's confirm gate, or a pending approval —
+  // and each used to have its own (incomplete) escape logic:
+  //   - mid-flow, the engine's own CANCEL_RE (flows/engine.ts) caught these
+  //     words and cleared activeFlow, but for "menu" it only replied "tap
+  //     Menu whenever you're ready" instead of actually sending the menu —
+  //     so the user had to ask a second time.
+  //   - pendingAgentAction only recognised "no/n/cancel"; "exit"/"quit" fell
+  //     through to the free-text agent while the pending action stayed live,
+  //     so a later unrelated "yes" could fire a stale tool call.
+  //   - pendingConfirmation/pendingApproval were left untouched entirely if
+  //     "menu" matched first (see MENU_RE below), for the same reason.
+  // Handling all four states in one place, before any of that per-state logic
+  // runs, guarantees these five words always get the user all the way out —
+  // never just one layer down — and that "menu"/"start over" hands back the
+  // actual menu in the same turn.
+  const ESCAPE_RE = /^(cancel|exit|quit|menu|start over)$/i;
+  const hasStickyState = Boolean(
+    session.activeFlow || session.pendingAgentAction || session.pendingConfirmation || session.pendingApproval,
+  );
+  if (!message.buttonReplyId && trimmed && ESCAPE_RE.test(trimmed) && hasStickyState) {
+    await updateSession(from, {
+      activeFlow: undefined,
+      pendingAgentAction: undefined,
+      pendingConfirmation: undefined,
+      pendingApproval: undefined,
+    });
+    await addToHistory(from, "user", trimmed);
+    if (/^(menu|start over)$/i.test(trimmed)) {
+      if (link) await sendMainMenu(from, link);
+      else await sendGuestWelcome(from);
+    } else {
+      await sendTextMessage(from, "Cancelled. What else can I help you with?");
+    }
+    return;
+  }
+
   // ── In-progress task flow (flow engine) ──
   // An active rail owns the turn — text OR button tap — for members AND guests,
   // so it wins over the ad-hoc join-code / admin-claim matchers below. Global
   // guards that must always win (message-claim, welcome/consent, risk triage,
-  // #reset, platform admin, multi-church disambiguation) all return above this.
-  // Opt-out keywords still escape (they fall through to the handler below).
+  // #reset, platform admin, multi-church disambiguation, the escape hatch
+  // above) all return above this. Opt-out keywords still escape (they fall
+  // through to the handler below).
   if (session.activeFlow && !/^(stop|unsubscribe|remove me)$/i.test(trimmed)) {
     const runCtx = { phone: from, link, personId: personId ?? undefined, session };
     const input = { text: trimmed, buttonId: message.buttonReplyId };

@@ -875,15 +875,81 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ step: "age", data: { childName: "Zoe" } });
   });
 
-  it("P1 — typing menu mid-flow exits the flow politely (never the main menu)", async () => {
+  it("P1 — typing menu mid-flow exits the flow AND shows the real menu in the same turn", async () => {
+    // Regression test for the reported bug: "there are times when we stop
+    // talking and Chertt will fail to send me the menu or to exit the chat."
+    // Root cause: the flow engine's CANCEL_RE cancelled the flow but replied
+    // with a generic "tap Menu whenever you're ready" instead of the menu
+    // itself, so the user had to send a second message. Now the escape hatch
+    // in whatsapp-processor.ts cancels AND renders the menu in one turn.
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
     ]);
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "age", data: { childName: "Zoe" } } });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("stopped that"));
+    // The actual role-aware menu (a group list), not just a "stopped" notice.
+    expect(mockList).toHaveBeenCalled();
+    const [, , , rows] = mockList.mock.calls[0] as [string, string, string, Array<{ id: string; title: string }>];
+    expect(rows.some((r) => r.id === "grp:children")).toBe(true);
     const s = await getSession(PHONE);
     expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("P1 — cancel/exit/quit mid-flow all exit politely without needing a second message", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    for (const word of ["cancel", "exit", "quit", "start over"]) {
+      mockSend.mockClear();
+      mockList.mockClear();
+      await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "age", data: { childName: "Zoe" } } });
+      await processWhatsAppMessage({ from: PHONE, type: "text", text: word });
+      const s = await getSession(PHONE);
+      expect(s.activeFlow).toBeUndefined();
+      if (word === "start over") {
+        expect(mockList).toHaveBeenCalled(); // renders the real menu too
+      } else {
+        expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
+      }
+    }
+  });
+
+  it("P1 — pendingAgentAction traps: exit/quit/menu all clear it, not just no/cancel", async () => {
+    // Before the fix, only "no"/"n"/"cancel" cleared pendingAgentAction; typing
+    // "exit" or "quit" fell through to the free-text agent while the pending
+    // tool call stayed live — a later unrelated "yes" could then fire a stale
+    // write. "menu" incidentally showed the menu (via MENU_RE) but left
+    // pendingAgentAction dangling too. All must clear it now.
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
+    ]);
+    for (const word of ["exit", "quit", "menu"]) {
+      await updateSession(PHONE, {
+        welcomed: true,
+        activeWorkspaceId: "ws1",
+        pendingAgentAction: { toolName: "give_now", args: { amount: 5000 } },
+      });
+      await processWhatsAppMessage({ from: PHONE, type: "text", text: word });
+      const s = await getSession(PHONE);
+      expect(s.pendingAgentAction).toBeUndefined();
+    }
+  });
+
+  it("P1 — pendingConfirmation is cleared by menu, not just left dangling for a later stray 'yes'", async () => {
+    await skipWelcome();
+    mockRun.mockResolvedValue({
+      reply: "",
+      pendingConfirmation: { summary: "Create letter", actionKey: "document", previewTitle: "Letter" },
+    });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Draft a letter" });
+    let s = await getSession(PHONE);
+    expect(s.pendingConfirmation).toBeDefined();
+
+    mockRun.mockClear();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    expect(mockRun).not.toHaveBeenCalled();
+    s = await getSession(PHONE);
+    expect(s.pendingConfirmation).toBeUndefined();
   });
 
   it("P1 — #reset still wins over an active flow", async () => {
