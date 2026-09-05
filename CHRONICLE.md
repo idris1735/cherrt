@@ -33,6 +33,16 @@
 
 **Advanced check-in remaining:** just **seat-hold / pre-check-in** left (status `held` already in place).
 
+### 2026-09-04 — Phase 4: seat-hold / pre-check-in → PHASE 4 COMPLETE
+
+- **Seat-hold:** `held` now reserves capacity (added to OCCUPYING). `hold_seat` tool + rail (name → classroom, capacity-aware → reserve). `children/checkins.ts`: `holdSeat`, `listHeldForGuardian`, `arriveHeld`.
+- **Arrive rail:** a guardian converts a held reservation to a real check-in on the day (held → checked_in, issues pickup code + label). Auto-converts a single held seat; offers a tap list for several. Menu rows (Reserve a seat / I've arrived) + typed intents.
+- **Tests:** hold-seat (no-room / room / full-room-blocked), arrive (single auto / multi pick / none). **839/116 green**, `tsc` 0.
+
+**✅ PHASE 4 COMPLETE.** Engagement & Church-Day Ops: facilities/volunteers/lost&found/office-guests/birthdays/events/announcements all railed; advanced kids' check-in done (classrooms+capacity, labels, teacher-acceptance, seat-hold+arrive). Safe pickup pre-existing. Only proactive messaging remains, blocked on the WhatsApp-template/billing decision (owner call).
+
+**NEXT (client-deferred, now unblocked):** the two directness issues in `post_phase4_ux_backlog` — (A) ≤3 options → buttons not list; (B) typed intent should seed the choice & skip the picker.
+
 ### 2026-09-03 — Phase 4: rail the ops actions (6 rails)
 
 Railed the Phase-4 ops actions that were still typed → agent. Each is a menu row + deterministic rail; the leader ones re-check `toolAccessError` (members blocked, security tests).

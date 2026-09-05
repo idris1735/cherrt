@@ -811,6 +811,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:office_guest": "office_guest",
     "menu:add_classroom": "create_classroom",
     "menu:accept_arrivals": "accept_arrivals",
+    "menu:hold_seat": "hold_seat",
+    "menu:arrive": "arrive",
     "menu:join_dept": "join",
   };
   if (link && MENU_FLOW[buttonId]) {
@@ -1529,6 +1531,8 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     let seed: Record<string, unknown> | undefined;
     if (/\b(register|add|enrol|enroll|sign\s*up)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_register";
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
+    else if (/\b(reserve|hold|pre.?check)\b/.test(t) && /\b(seat|spot|child|kid)\b/.test(t)) flow = "hold_seat";
+    else if (/\b(arrived|we'?re here|we are here)\b/.test(t)) flow = "arrive";
     else if (/\bregister\b/.test(t) && /\bevent\b/.test(t)) flow = "event_register";
     else if (/\b(create|new|set up|add)\b/.test(t) && /\bevent\b/.test(t)) flow = "create_event";
     else if (/\b(record|log|submit)\b/.test(t) && /\b(service|attendance|sunday report|service report)\b/.test(t)) flow = "service_record";

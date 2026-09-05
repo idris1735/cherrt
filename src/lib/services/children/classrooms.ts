@@ -11,8 +11,9 @@ export type ClassroomInfo = {
   full: boolean; // capacity set and reached
 };
 
-// Statuses that occupy a seat right now.
-const OCCUPYING = ["checked_in", "in_class"];
+// Statuses that occupy a seat right now — a held (pre-check-in) seat reserves
+// capacity too, so a room can't be over-booked ahead of Sunday.
+const OCCUPYING = ["held", "checked_in", "in_class"];
 
 export async function listClassroomsWithOccupancy(workspaceId: string): Promise<ClassroomInfo[]> {
   const db = getSupabaseServerClient();

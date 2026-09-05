@@ -34,6 +34,8 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "life_journey", tool: "register_baptism", group: "care", title: "🌱 Life journeys", description: "Baptism · new believer · bereavement", prompt: "I'd like to start a life journey" },
   // ── children ──
   { id: "checkin", tool: "check_in_child", group: "children", title: "👶 Check in a child", description: "Pickup code + QR pass", prompt: "Check my child in for children's church" },
+  { id: "hold_seat", tool: "hold_seat", group: "children", title: "🪑 Reserve a seat", description: "Pre-check-in a spot for Sunday", prompt: "I want to reserve a seat for my child" },
+  { id: "arrive", tool: "hold_seat", group: "children", title: "🙋 I've arrived", description: "Check in a reserved seat", prompt: "We've arrived — check in our reserved seat" },
   { id: "register_child", tool: "register_child", group: "children", title: "🧒 Register a child", description: "Guardian-consented child profile", prompt: "I want to register my child" },
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
   { id: "accept_arrivals", tool: "accept_arrival", group: "children", title: "🙌 Accept arrivals", description: "Mark checked-in kids as arrived in class", prompt: "Accept children into class" },

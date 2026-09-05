@@ -11,7 +11,7 @@ import { ensurePerson } from "@/lib/services/identity/people";
 import { recordConsent } from "@/lib/services/privacy/consent";
 import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
 import { classroomHasSpace, createClassroom, listClassroomsWithOccupancy } from "@/lib/services/children/classrooms";
-import { acceptArrival } from "@/lib/services/children/checkins";
+import { acceptArrival, holdSeat } from "@/lib/services/children/checkins";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -475,6 +475,30 @@ export const CHILD_TOOLS: AgentTool[] = [
     handler: async (_args, ctx) => {
       const classrooms = await listClassroomsWithOccupancy(ctx.workspaceId);
       return { count: classrooms.length, classrooms };
+    },
+  },
+  {
+    name: "hold_seat",
+    description: "Reserve (pre-check-in) a seat for a child in a classroom ahead of time; capacity is respected. Convert to a full check-in on arrival.",
+    parameters: {
+      type: "object",
+      properties: {
+        childName: { type: "string" },
+        classroomId: { type: "string", description: "Classroom to reserve (optional; capacity is enforced)" },
+      },
+      required: ["childName"],
+    },
+    mutates: true, // a parent reserving for their own child — no minRank
+    handler: async (args, ctx) => {
+      const childName = String(args.childName ?? "").trim();
+      if (!childName) return { error: "Need the child's name." };
+      const classroomId = String(args.classroomId ?? "").trim() || null;
+      if (classroomId && !(await classroomHasSpace(ctx.workspaceId, classroomId))) {
+        return { error: "That classroom is full — please pick another room." };
+      }
+      const res = await holdSeat({ workspaceId: ctx.workspaceId, childName, classroomId, guardianPersonId: ctx.personId ?? null, guardianName: ctx.userName ?? "", pickupCode: pickupCode() });
+      if (!res) return { error: "Couldn't reserve the seat — please try again." };
+      return { ok: true, message: `✅ Seat reserved for *${childName}*. On the day, tap *I've arrived* to check them in.` };
     },
   },
   {
