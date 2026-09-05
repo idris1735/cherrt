@@ -532,6 +532,58 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).not.toHaveBeenCalled();
   });
 
+  // Regression (client hallucination screenshots, 2026-09-05): "Give me the
+  // service report" was caught by the giving rail (the word "give") and replied
+  // "How much would you like to give?". A service-report READ must never start
+  // the giving flow, and must never reach the wandering agent.
+  it("routes 'give me the service report' to the deterministic service report, not giving", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Give me the service report for last Sunday" });
+    // No Supabase in tests → snapshot is null → the deterministic "no service yet"
+    // reply. The point: NOT a giving prompt, and the agent was never consulted.
+    const texts = mockSend.mock.calls.map((c) => String(c[1]));
+    expect(texts.some((t) => /service/i.test(t))).toBe(true);
+    expect(texts.some((t) => /how much would you like to give/i.test(t))).toBe(false);
+    expect(runAgentQuery).not.toHaveBeenCalled();
+  });
+
+  it("routes 'what is the service report for last week' to a report, not the agent", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "What is the service report for last week?" });
+    expect(runAgentQuery).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringMatching(/service/i));
+  });
+
+  it("still records a service when the intent is 'record' (not a read)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to record today's service" });
+    // The record rail starts (asks for a field) — it must NOT be swallowed by the
+    // read handler, which only fires for report/summary phrasing without a verb.
+    const texts = mockSend.mock.calls.map((c) => String(c[1])).concat(
+      mockButtons.mock.calls.map((c) => String(c[1])),
+      mockList.mock.calls.map((c) => String(c[1])),
+    );
+    expect(texts.some((t) => /no service has been recorded yet/i.test(t))).toBe(false);
+  });
+
+  it("a plain member cannot pull the service report", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
+    ]);
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "service report" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("church leaders"));
+  });
+
   it("stores a pending agent action on a gated proposal, then runs it on YES", async () => {
     const link = { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" };
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([link]).mockResolvedValueOnce([link]);

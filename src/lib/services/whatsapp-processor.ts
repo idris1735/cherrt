@@ -1028,6 +1028,26 @@ function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContex
   return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
 }
 
+// Deterministic service-report card. Accepts the full get_service_summary shape
+// or the lighter ServiceSnapshot; renders only the lines that have data.
+function formatServiceReport(s: any): string {
+  const date = s.date ?? s.dateLabel ?? "";
+  const adults = s.attendanceAdults ?? s.adults;
+  const children = s.attendanceChildren ?? s.children;
+  const lines = [`📝 *Service report${date ? ` — ${date}` : ""}*`];
+  if (s.serviceType) lines.push(s.serviceType);
+  const att: string[] = [];
+  if (adults != null) att.push(`Adults ${adults}`);
+  if (children != null) att.push(`Children ${children}`);
+  if (att.length) lines.push(`👥 ${att.join(" · ")}${s.childrenCheckedIn != null ? ` (checked in ${s.childrenCheckedIn})` : ""}`);
+  if (s.firstTimers != null) lines.push(`👋 First-timers: ${s.firstTimers}`);
+  if (s.salvations != null) lines.push(`✝️ Salvations: ${s.salvations}`);
+  if (s.offering != null) lines.push(`💰 Offering: ₦${Number(s.offering).toLocaleString("en-NG")}`);
+  if (s.preacher || s.topic) lines.push(`🎤 ${[s.preacher, s.topic].filter(Boolean).join(" — ")}`);
+  if (lines.length === 1) lines.push("Recorded, but no details captured yet.");
+  return lines.join("\n");
+}
+
 // Runs the agent and handles its outcome (text answer or a pending confirmation
 // proposal). Returns true if it handled the message, false to fall through to
 // the single-shot creator. Optional media makes it multimodal.
@@ -1519,6 +1539,32 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     }
   }
 
+  // ── Service report (deterministic — attendance/offering, never the agent) ──
+  // "service report for last Sunday", "how was the service", "last week's
+  // attendance". A READ, not "record service" — so it must beat both the give
+  // matcher (the word "give" in "give me the report") and the wandering agent.
+  if (trimmed && link
+    && !/\b(record|log|submit|enter)\b/.test(trimmed.toLowerCase())
+    && (/\bservice (report|summary)\b/i.test(trimmed)
+      || /\blast (sunday|week)('?s)? (service|report|summary|attendance)\b/i.test(trimmed)
+      || /\bhow (was|did)( last)? (sunday|the service)\b/i.test(trimmed))) {
+    if (roleRank(link.userRole) < 2) {
+      await sendTextMessage(from, "Service reports are for church leaders — please ask a leader or admin.");
+      return;
+    }
+    const snap = await getServiceSnapshot(link.workspaceId).catch(() => null);
+    if (!snap?.dateLabel) {
+      await sendTextMessage(from, "No service has been recorded yet. A leader can add one from *Menu → Church ops → Record service*.");
+      return;
+    }
+    const tool = getAgentTool("get_service_summary");
+    const full = tool
+      ? ((await tool.handler({ date: snap.dateLabel }, agentCtx(link, from, personId ?? undefined)).catch(() => null)) as any)
+      : null;
+    await sendTextMessage(from, formatServiceReport(full && full.found !== false ? full : snap));
+    return;
+  }
+
   // ── Report / query intents ──
   if (trimmed) {
     const reportKey = matchReportIntent(trimmed);
@@ -1571,7 +1617,13 @@ export async function processWhatsAppMessage(message: IncomingMessage): Promise<
     else if (/\b(create|new|set up|add)\b/.test(t) && /\bevent\b/.test(t)) flow = "create_event";
     else if (/\b(record|log|submit)\b/.test(t) && /\b(service|attendance|sunday report|service report)\b/.test(t)) flow = "service_record";
     else if (/\b(record|log|enter)\b/.test(t) && /\b(giving|tithe|offering|donation|seed)\b/.test(t)) flow = "record_giving";
-    else if (/\b(give|giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t)) {
+    // "give me the report/service/..." means SHOW me — not the giving rail. Only
+    // a money word (or an explicit give phrase/amount) starts the giving flow.
+    else if (
+      (!/\bgive (me|us|him|her|them|the report|the service|the summary|the list|the members|the breakdown)\b/.test(t)
+        && /\b(giving|tithe|offering|donate|donation|seed|pledge)\b/.test(t))
+      || /\bwant to give\b|\bi'?ll give\b|\bgive ₦?\s?\d/.test(t)
+    ) {
       flow = "give";
       const amt = Number((t.match(/(?:₦|ngn|n)?\s*([\d,]{2,})/)?.[1] ?? "").replace(/,/g, ""));
       if (Number.isFinite(amt) && amt > 0) seed = { amount: Math.round(amt) };

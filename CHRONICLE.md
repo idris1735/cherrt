@@ -8,6 +8,14 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-05 — Hallucination fixes from client test screenshots (routing)
+
+- Client tested and hit the pre-rails **wandering agent**: "Give me the service report" → "How much would you like to give?", and "What is the service report for last week" → agent hallucinated a "Child Naming form submitted" / a giving prompt. Two were **still-live routing bugs**, now fixed:
+  - **Give false-positive:** the giving rail matched the bare word *"give"*, catching "**give** me the service report". Now the give flow only starts on a money word (tithe/offering/seed/…), an explicit "want to give"/"i'll give", or "give ₦<amount>" — and never on "give me the report/service/summary/list/members/…".
+  - **No deterministic service-report read:** "service report / last Sunday / how was the service / last week's attendance" fell through to Gemini (which hallucinated). Added `formatServiceReport` + a deterministic block (before the give matcher AND the agent): pulls the latest real service via `getServiceSnapshot` → `get_service_summary`, renders attendance/first-timers/salvations/offering/preacher/topic, leader-gated. A "**record**/log/submit" verb excludes it so the record rail still wins.
+- **Pickup design (answered, no code change):** `release_child` is gated on **registered-guardian identity** (`can_pickup`), not the physical device — WhatsApp only exposes the number=person. So any co-guardian can collect (mum checks in, dad collects); the QR/code is the volunteer's verification tool. Stricter "exact check-in guardian only" is a one-line option if wanted.
+- **Tests:** 4 new processor cases (give-me→report, report→not-agent, record-verb still records, member gate). **854/118 green**, `tsc` 0.
+
 ### 2026-09-04 — Phase 4: advanced check-in foundation (classrooms + capacity)
 
 - **New `classrooms` table** (migration `20260904100000_classrooms`) + `child_checkins.classroom_id`. `children/classrooms.ts`: `listClassroomsWithOccupancy` (live occupancy from checked_in/in_class), `classroomHasSpace` (commit-time capacity gate), `createClassroom`.
