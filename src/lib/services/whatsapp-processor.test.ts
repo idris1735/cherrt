@@ -952,6 +952,20 @@ describe("processWhatsAppMessage", () => {
     expect(s.pendingConfirmation).toBeUndefined();
   });
 
+  it("P2 — 'exit' during an onboarding-based flow (assign-role) clears it, no data touched", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "pastor" },
+    ]);
+    await updateSession(PHONE, {
+      welcomed: true, activeWorkspaceId: "ws1",
+      onboarding: { flow: "assign-role", step: "pick_member", collected: { workspaceId: "ws1", actorRole: "pastor", candidates: [], roleOptions: [] } },
+    });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "exit" });
+    const s = await getSession(PHONE);
+    expect(s.onboarding).toBeUndefined();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
+  });
+
   it("P1 — #reset still wins over an active flow", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
@@ -1167,7 +1181,8 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to give 5000" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("₦5,000 — what type?"));
+    // Seeded amount shown, with the inline-correction affordance.
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Give ₦5,000?"));
     expect(mockRun).not.toHaveBeenCalled();
     const s = await getSession(PHONE);
     expect(s.activeFlow).toMatchObject({ name: "give", step: "amount", data: { amount: 5000 } });

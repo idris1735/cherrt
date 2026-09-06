@@ -132,4 +132,19 @@ describe("advanceAssignRoleFlow", () => {
     expect(reply).toMatch(/no change/i);
     expect(updateSession).toHaveBeenCalledWith(PHONE, { onboarding: undefined });
   });
+
+  it("exit/quit/menu/start over all bail out (not just 'cancel')", async () => {
+    for (const word of ["exit", "quit", "menu", "start over"]) {
+      vi.clearAllMocks();
+      const reply = await advanceAssignRoleFlow(
+        PHONE,
+        sessionWith({ flow: "assign-role", step: "pick_role", collected: baseCollected }),
+        word,
+      );
+      expect(reply).toMatch(/no change/i);
+      expect(updateSession).toHaveBeenCalledWith(PHONE, { onboarding: undefined });
+      // The escape word is NOT treated as a numeric pick.
+      expect(setMembershipRole).not.toHaveBeenCalled();
+    }
+  });
 });

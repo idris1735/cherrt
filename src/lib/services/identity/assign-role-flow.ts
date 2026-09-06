@@ -63,7 +63,7 @@ export async function advanceAssignRoleFlow(
   const trimmed = replyText.trim();
   const c = state.collected;
 
-  if (/^cancel$/i.test(trimmed)) {
+  if (/^(cancel|exit|quit|menu|start over)$/i.test(trimmed)) {
     await updateSession(phoneNumber, { onboarding: undefined });
     return "No change made. What else can I help you with?";
   }

@@ -71,6 +71,25 @@ describe("give flow", () => {
     expect(session.activeFlow).toMatchObject({ step: "giving_type", data: { amount: 2000 } });
   });
 
+  it("a mis-seeded amount can be corrected inline instead of cancel+restart", async () => {
+    const { out, session } = await drive([{ text: "1000" }], { amount: 5000 });
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("1,000") });
+    expect(session.activeFlow).toMatchObject({ step: "amount", data: { amount: 1000 } });
+    expect(handlerMock).not.toHaveBeenCalled();
+  });
+
+  it("the corrected amount is what gets committed", async () => {
+    const { session } = await drive(
+      [{ text: "1000" }, { text: "ok" }, { buttonId: "gt_tithe" }, { buttonId: "give_go" }],
+      { amount: 5000 },
+    );
+    expect(handlerMock).toHaveBeenCalledWith(
+      { amount: 1000, givingType: "tithe" },
+      expect.objectContaining({ workspaceId: "ws1" }),
+    );
+    expect(session.activeFlow).toBeUndefined();
+  });
+
   it("cancel at confirm ends with nothing charged", async () => {
     const { out, session } = await drive([{ text: "5000" }, { buttonId: "gt_tithe" }, { buttonId: "give_cancel" }]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("nothing was charged") });

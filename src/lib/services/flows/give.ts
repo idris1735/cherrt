@@ -17,12 +17,21 @@ export const giveFlow: FlowDefinition = {
     amount: {
       render: (data) => ({
         type: "text",
-        text: data.amount ? `Give ₦${Number(data.amount).toLocaleString("en-NG")} — what type?` : "How much would you like to give? Send the amount in Naira (e.g. 5000).",
+        text: data.amount
+          ? `Give ₦${Number(data.amount).toLocaleString("en-NG")}? Send a different number to change it, or reply *ok* to choose the type.`
+          : "How much would you like to give? Send the amount in Naira (e.g. 5000).",
       }),
       onInput: (input: FlowInput, data: FlowData): Transition => {
-        if (data.amount) return { to: "giving_type" }; // seeded — don't re-ask
-        const n = Number(input.text.replace(/[₦,\s]/g, ""));
-        if (!Number.isFinite(n) || n <= 0) return { stay: { type: "text", text: "Please send a valid amount in Naira, e.g. 5000." } };
+        const raw = input.text.trim();
+        const n = Number(raw.replace(/[₦,\s]/g, ""));
+        const isAmount = /\d/.test(raw) && Number.isFinite(n) && n > 0;
+        if (data.amount) {
+          // Seeded from a typed intent — but never trap a mis-parsed amount:
+          // a new number corrects it inline (re-render), anything else proceeds.
+          if (isAmount && Math.round(n) !== Number(data.amount)) return { to: "amount", patch: { amount: Math.round(n) } };
+          return { to: "giving_type" };
+        }
+        if (!isAmount) return { stay: { type: "text", text: "Please send a valid amount in Naira, e.g. 5000." } };
         return { to: "giving_type", patch: { amount: Math.round(n) } };
       },
     },

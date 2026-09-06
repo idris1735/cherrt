@@ -1261,7 +1261,8 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   // actual menu in the same turn.
   const ESCAPE_RE = /^(cancel|exit|quit|menu|start over)$/i;
   const hasStickyState = Boolean(
-    session.activeFlow || session.pendingAgentAction || session.pendingConfirmation || session.pendingApproval,
+    session.activeFlow || session.pendingAgentAction || session.pendingConfirmation || session.pendingApproval
+      || session.onboarding,
   );
   if (!message.buttonReplyId && trimmed && ESCAPE_RE.test(trimmed) && hasStickyState) {
     await updateSession(from, {
@@ -1269,6 +1270,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       pendingAgentAction: undefined,
       pendingConfirmation: undefined,
       pendingApproval: undefined,
+      onboarding: undefined,
     });
     await addToHistory(from, "user", trimmed);
     if (/^(menu|start over)$/i.test(trimmed)) {
