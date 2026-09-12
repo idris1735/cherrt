@@ -1091,6 +1091,39 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toBeUndefined();
   });
 
+  it("P0 (client 2026-09-12) — a pickup SECURITY question gets the answer, not the QR menu", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "How secure is this. What if someone takes my phone and forward this qr and code to their phone to receive this child?" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("registered guardian"));
+    expect(mockList).not.toHaveBeenCalled(); // NOT the QR-codes picker
+    expect(mockRun).not.toHaveBeenCalled();
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("a question that merely contains 'qr' does not open the QR menu (question guard)", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "which QR should I use for kids?" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toBeUndefined();
+  });
+
+  it("an actual QR request still opens the QR picker", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "send me the QR codes" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "qr" });
+  });
+
   it("help-card 'Give' starts the give rail for a linked member (not a type-it guide)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },

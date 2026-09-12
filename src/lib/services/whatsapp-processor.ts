@@ -1028,6 +1028,18 @@ function agentCtx(link: PhoneLink, from: string, personId?: string): AgentContex
   return { workspaceId: link.workspaceId, role: link.userRole as Role, userName: link.userName, phone: from, personId };
 }
 
+// A trust-critical question the client keeps asking ("how secure is pickup? what
+// if someone forwards my QR/code?"). We KNOW the answer, so we give a sure,
+// deterministic one rather than letting the model guess. See the child-safety
+// FAQ block in the handler.
+const PICKUP_SECURITY_ANSWER =
+  "🔒 *Fair question — here's exactly how it works:*\n\n" +
+  "The pickup code and QR are *not* the key. A child is only ever released to a *registered guardian*.\n\n" +
+  "• If someone forwards the code or QR to another phone, it's useless to them — releasing a child checks that the sender is a guardian *you* registered with pickup permission (verified by their WhatsApp number). A stranger with the code just gets _\"I can only release this child to their registered guardian.\"_\n" +
+  "• To let someone else collect (grandma, a nanny), you *add them as an authorised guardian first* — you can't hand pickup over by sharing a code.\n" +
+  "• Only the children's team can even look a code up, and every release is confirmed.\n\n" +
+  "The one thing to protect is your *own* phone: whoever holds your WhatsApp is treated as you (true of any app), which is why our team also does an in-person check at the desk before handing a child over. 🙏";
+
 // Typed-intent flows whose underlying action is rank-gated. A menu tap is
 // already visibility-filtered by role; a typed intent isn't, so the router
 // checks access before starting these (see the typed-intent router below).
@@ -1673,6 +1685,18 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     }
   }
 
+  // ── Child-safety FAQ (deterministic answer — a trust question, not a rail) ──
+  // Client 2026-09-12: "how secure is this? what if someone takes my phone and
+  // forwards this qr and code to receive the child?" — the word "qr" wrongly
+  // opened the QR-codes menu. A security question deserves a sure answer, and
+  // this must run before the typed-intent router below.
+  if (trimmed && !session.activeFlow
+    && /\b(secure|security|safe|safety|steal|stole|stolen|kidnap|wrong person|someone else|somebody else|a stranger|not me|take(s|n)? my phone|forward|hack)\b/i.test(trimmed)
+    && /\b(pick.?up|collect|check.?in|child|kid|son|daughter|baby|qr|code|pass)\b/i.test(trimmed)) {
+    await sendTextMessage(from, PICKUP_SECURITY_ANSWER);
+    return;
+  }
+
   // ── Typed-intent router → deterministic flow (AI demotion) ──
   // A plainly-typed task intent starts its rail; the agent below only handles
   // genuine off-script questions. Never overrides an active flow (that returns
@@ -1724,7 +1748,8 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\breport (an? )?(issue|fault|problem)\b|\b(broken|leaking|not working|faulty)\b/.test(t)) flow = "issue";
     else if (/\b(announce|announcement|broadcast)\b/.test(t)) flow = "announce";
     else if (/\b(add|register)\b/.test(t) && /\bmember\b/.test(t)) flow = "add_member";
-    else if (/\bqr( code)?s?\b/.test(t)) flow = "qr";
+    // A QR *request*, not any sentence mentioning "qr" — needs a request shape.
+    else if (/^(the )?qr( codes?)?\b/.test(t) || /\b(send|show|share|get|need|want|give me)\b[^?]{0,25}\bqr\b/.test(t)) flow = "qr";
     // Leader broadcast ("we need people to join the ushering team") must win
     // over the personal join rule below — check it first and match "people to
     // join/serve/help", not just the literal word "volunteers".
@@ -1737,6 +1762,17 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\b(sign.?in|office)\b/.test(t) && /\b(visitor|guest)\b/.test(t)) flow = "office_guest";
     else if (/\b(add|create|new|set up)\b/.test(t) && /\bclass\s?room\b/.test(t)) flow = "create_classroom";
     else if (/\baccept\b.*\b(arrival|child|kid|class)\b|\barrivals\b/.test(t)) flow = "accept_arrivals";
+
+    // Directness ≠ deafness. A QUESTION ("how secure is this?", "what if someone
+    // forwards my qr and code?", "can anyone else collect?") must NEVER trigger
+    // an action rail just because it contains a keyword like qr/give/pastor.
+    // Drop the match and let the answer path (deterministic FAQ above, else the
+    // agent) handle it. (Client 2026-09-12: a security question opened QR codes.)
+    const isQuestion = /\?\s*$/.test(trimmed)
+      || /^(how|what|why|who|whose|when|where|which|is|are|am|was|were|do|does|did|can|could|should|would|will|shall|may|might|has|have|had|if)\b/i.test(t)
+      || /\bwhat if\b/i.test(t);
+    if (isQuestion) { flow = null; seed = undefined; startStep = undefined; }
+
     if (flow) {
       // A menu tap is already visibility-gated (a member never sees the row); a
       // TYPED intent is not, so gate rank-gated flows up front — don't walk a

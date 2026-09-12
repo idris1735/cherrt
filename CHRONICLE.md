@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-12 — "qr" in a question opened the QR menu (router false-positive, NOT the model)
+
+Client tested pickup and asked *"How secure is this? What if someone takes my phone and forwards this qr and code to receive the child?"* — the bot replied "Which QR would you like?" (opened the QR-codes rail) and kept doing so on repeat. **Root cause: the typed-intent router's QR matcher `/\bqr( code)?s?\b/` fired on the word "qr" inside the question — a deterministic regex hijack, same class as the earlier give/pastor bugs. The LLM (Gemini 2.5 Flash) never ran; changing the model would not touch this.**
+
+- **Question guard (systemic):** the typed-intent router now drops any matched flow when the message is question-shaped (`?` ending, or leads with how/what/why/is/can/should/if/…, or "what if"). One guard neutralises the whole class of "keyword-in-a-question" misroutes (qr/give/pastor/baptism/…), not just qr.
+- **Deterministic child-safety FAQ:** a security question about pickup (`secure|safe|steal|forward|take my phone|someone else|…` + `pickup|child|qr|code|…`) now returns a sure, accurate `PICKUP_SECURITY_ANSWER` (code/QR is not the key; release is guardian-identity-gated; forwarding the code is useless; protect your own phone; in-person desk check) — we know the answer, so we don't let the model guess. Runs before the router.
+- **QR matcher tightened:** requires a request shape (`^qr…` or send/show/share/get/need/want + qr), so a statement mentioning "qr" no longer opens the picker.
+- **Model note:** we run **gemini-2.5-flash** for the agent (edges only). The failures the client has hit are routing/keyword false-positives, not model hallucination — the fix is deterministic, not a model swap.
+- **Tests:** +3 processor cases (exact client message → answer not QR menu; question-with-qr → no rail; real QR request → picker still opens). Full suite green, `tsc` 0.
+
 ### 2026-09-05 — Pre-client-test fault sweep (Fable-assisted) + fixes
 
 Client tests today; ran a Fable troubleshooting pass, reviewed every change, applied fixes:
