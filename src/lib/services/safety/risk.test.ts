@@ -38,6 +38,17 @@ describe("assessRisk — scam detection", () => {
     expect(assessRisk("send ₦50k to this account now, it's urgent").kind).toBe("scam");
     expect(assessRisk("transfer ₦200k to 0123456789 immediately").kind).toBe("scam");
   });
+
+  it("does NOT flag an innocent question about OTP", () => {
+    // Regression: "what" used to satisfy the ask-for-code condition.
+    expect(assessRisk("What is OTP?").kind).toBeNull();
+    expect(assessRisk("what does verification code mean").kind).toBeNull();
+  });
+
+  it("does NOT flag a first-person prayer request from a leader", () => {
+    // Regression: impersonation + "urgently" alone tripped it.
+    expect(assessRisk("I am Pastor John, please pray urgently for my finances").kind).toBeNull();
+  });
 });
 
 describe("assessRisk — safeguarding detection", () => {
@@ -75,5 +86,10 @@ describe("assessRisk — safeguarding detection", () => {
   it("STILL flags a child hurt with an intentional-harm word even in a play context", () => {
     // The accidental guard must not create a loophole.
     expect(assessRisk("a man was hitting a child at the football game").kind).toBe("safeguarding");
+  });
+
+  it("flags a child being hit/slapped/punched at home (closed safeguarding gap)", () => {
+    expect(assessRisk("my son is being hit at home").kind).toBe("safeguarding");
+    expect(assessRisk("my daughter was slapped by someone").kind).toBe("safeguarding");
   });
 });

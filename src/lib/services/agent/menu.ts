@@ -40,6 +40,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: "checked_in", tool: "list_checked_in_children", group: "children", title: "👧 Checked-in children", description: "Who's in children's church now", prompt: "Show me the checked-in children" },
   { id: "accept_arrivals", tool: "accept_arrival", group: "children", title: "🙌 Accept arrivals", description: "Mark checked-in kids as arrived in class", prompt: "Accept children into class" },
   { id: "pickup", tool: "release_child", group: "children", title: "🎫 Pick up a child", description: "Collect your child with the pickup code", prompt: "I'm here to collect my child" },
+  { id: "add_guardian", tool: "add_guardian", group: "children", title: "🧑‍🤝‍🧑 Authorise pickup", description: "Let a co-parent or nanny collect", prompt: "I want to authorise someone to collect my child" },
   { id: "classrooms", tool: "list_classrooms", group: "children", title: "🏫 Classrooms", description: "Rooms with occupancy & capacity", prompt: "Show the classrooms" },
   { id: "add_classroom", tool: "create_classroom", group: "children", title: "🏫 Add classroom", description: "Set up a room + capacity", prompt: "I want to add a classroom" },
   // ── belong & community ──

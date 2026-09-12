@@ -236,25 +236,21 @@ export async function buildReport(
     }
 
     case "requests": {
-      const requests = isGuest ? d.requests : [];
-      const pending = requests.filter((r) => r.status === "pending");
-      const approved = requests.filter((r) => r.status === "approved").length;
+      // Real workspace data lives on workspaceContext (already filtered to
+      // status=pending, shape {id,title,amount,requester}); guests have none.
+      const pending = w?.pendingRequests ?? [];
       return {
         text: [
           "📋 *Requests*",
           "",
           `• Pending: *${pending.length}*`,
-          `• Approved: ${approved}`,
           "",
-          pending.length > 0 ? "⏳ *Awaiting action*" : null,
-          ...pending.map((r) => `• ${r.title} — ${fmt(r.amount)} (${r.requester})`),
+          pending.length > 0 ? "⏳ *Awaiting your approval*" : "🙌 Nothing awaiting approval right now.",
+          ...pending.map((r) => `• ${r.title}${r.amount != null ? ` — ${fmt(r.amount)}` : ""} (${r.requester})`),
           "",
-          "_Reply APPROVE or REJECT, or open the dashboard._",
+          pending.length > 0 ? "_Reply APPROVE or REJECT, or open the dashboard._" : null,
         ].filter(Boolean).join("\n"),
-        buttons: [
-          { id: "rpt:expenses", title: "Expenses" },
-          { id: "rpt:overview", title: "Overview" },
-        ],
+        buttons: [{ id: "rpt:overview", title: "Overview" }],
       };
     }
 
@@ -294,15 +290,15 @@ export async function buildReport(
     }
 
     case "issues": {
-      const issues = isGuest ? d.issues : [];
-      const open = issues.filter((i) => i.status !== "completed");
+      // Real data on workspaceContext (pending/in-progress, shape {title,severity}).
+      const open = w?.pendingIssues ?? [];
       return {
         text: [
           "🔧 *Issues*",
           "",
           `• Open: *${open.length}*`,
           open.length > 0 ? "" : null,
-          ...open.map((i) => `• ${severityEmoji(i.severity)} ${i.title} — ${i.area} [${i.status}]`),
+          ...open.map((i) => `• ${severityEmoji(i.severity)} ${i.title}`),
           open.length === 0 ? "✅ No open issues." : null,
           "",
           "_Tap for overview._",

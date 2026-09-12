@@ -8,6 +8,19 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-12 — Pre-demo audit (Fable as a user) + fixes; new add-guardian feature
+
+Ran Fable as a hands-on tester across parent/admin/guest/adversarial personas; verified each finding in code, then fixed the high-value ones:
+
+- **Reports lied (P0):** `whatsapp-reports.ts` `requests`/`issues` cases were hardcoded `isGuest ? d.x : []`, so an admin asking "what needs my approval?" always saw "Pending: 0" for a real church. Rewired to `workspaceContext.pendingRequests`/`.pendingIssues` (real shapes `{id,title,amount,requester}` / `{title,severity}`, already pre-filtered to pending) and dropped the fields those shapes don't have (`.status`/`.area`/"Approved").
+- **Flows re-asked what you already typed (P0, the "wandering" complaint):** only `give` seeded from the opening message. Added seed-extraction for **service_record** (`parseServiceReport` → "record 150 adults, 40 children, ₦55k tithe, ₦30k offering" jumps straight to a one-tap **confirm**; offering = sum of ₦/tithe/offering amounts), **record_giving** (amount + type → skip to donor), and **join** (`extractMinistry` → "join the choir" → confirm). Broadened the service_record trigger to fire on "N adults" so it beats the giving matcher.
+- **NEW FEATURE — add-guardian (the trust gap):** the security answer promised "add them as an authorised guardian" but no such capability existed. Built `add_guardian` tool (`child-tools.ts`, self-gating: only an existing guardian of the named child can add one; new guardian is a person tied to their phone via `ensurePerson`, so their WhatsApp number is recognised at pickup) + `flows/add-guardian.ts` (child → name → phone → confirm) + menu row (children group) + MENU_FLOW + typed intents ("add a guardian", "authorise my wife to pick up my child" — checked before pickup) + made `PICKUP_SECURITY_ANSWER` actionable ("just say add a guardian").
+- **Risk-triage false positives (P1):** "What is OTP?" no longer a scam (ASK_FOR_CODE dropped "what"/"verify" → imperative share verbs only); "I'm Pastor John, pray urgently for my finances" no longer "impersonation" (now requires an actual send-money ask); closed the safeguarding gap by adding slapped/punched/kicked/"being hit" to HARM (+ INTENTIONAL_HARM).
+- **Fuzzy first-timer name (P1):** `convert_first_timer`/`update_first_timer_status` now `.ilike("name", …)` so "convert david okafor" finds "David Okafor".
+- **Deliberately SKIPPED** Fable's "show child name on the pickup confirm" — it would reveal a name to whoever holds the code, contradicting the "the code reveals nothing" guarantee. The name still shows on the guardian-gated success.
+- **Tests:** +~13 (report data, 3 seeding, add_guardian flow ×4 + 2 router, risk ×4). Full suite green, `tsc` 0.
+- **Still open (lower priority, not demo-blocking):** assign-role flow still renders plain-text numbered lists (works, just not tappable buttons); `hold_seat` has no confirm step; dead SME report branches (`customers/sales/wallet/…`) unreachable but present.
+
 ### 2026-09-12 — "qr" in a question opened the QR menu (router false-positive, NOT the model)
 
 Client tested pickup and asked *"How secure is this? What if someone takes my phone and forwards this qr and code to receive the child?"* — the bot replied "Which QR would you like?" (opened the QR-codes rail) and kept doing so on repeat. **Root cause: the typed-intent router's QR matcher `/\bqr( code)?s?\b/` fired on the word "qr" inside the question — a deterministic regex hijack, same class as the earlier give/pastor bugs. The LLM (Gemini 2.5 Flash) never ran; changing the model would not touch this.**

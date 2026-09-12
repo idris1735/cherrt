@@ -191,7 +191,8 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (!db) return { error: "storage unavailable" };
 
       // Find the first-timer record
-      let query = db.from("first_timers").select("id, person_id, name, phone, follow_up_status").eq("workspace_id", ctx.workspaceId).eq("name", name);
+      // Case-insensitive match so "convert david okafor" finds "David Okafor".
+      let query = db.from("first_timers").select("id, person_id, name, phone, follow_up_status").eq("workspace_id", ctx.workspaceId).ilike("name", name);
       if (typeof args.phone === "string") query = query.eq("phone", args.phone);
       const { data: ftRows } = await query.limit(1);
       const ft = (ftRows ?? [])[0] as { id: string; person_id: string | null; follow_up_status: string } | undefined;
@@ -246,7 +247,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
       if (!["new", "contacted", "joined", "inactive"].includes(status)) return { error: "Status must be new, contacted, joined, or inactive." };
       const db = getSupabaseServerClient();
       if (!db) return { error: "storage unavailable" };
-      const { error } = await db.from("first_timers").update({ follow_up_status: status }).eq("workspace_id", ctx.workspaceId).eq("name", name);
+      const { error } = await db.from("first_timers").update({ follow_up_status: status }).eq("workspace_id", ctx.workspaceId).ilike("name", name);
       if (error) return { error: error.message };
       return { ok: true, message: `Updated ${name} to "${status}".` };
     },

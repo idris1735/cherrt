@@ -1124,6 +1124,59 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ name: "qr" });
   });
 
+  it("P0 — a pastor who types the whole service report jumps straight to confirm", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Pastor", userRole: "pastor" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "record 150 adults, 40 children, ₦55k tithe, ₦30k offering" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({
+      name: "service_record", step: "confirm",
+      data: { adults: 150, children: 40, offering: 85000, serviceType: "Sunday Service" },
+    });
+  });
+
+  it("P0 — 'I'd like to join the choir' jumps to confirm with the ministry seeded", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I'd like to join the choir" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "join", step: "confirm", data: { department: "Choir" } });
+  });
+
+  it("P0 — 'log ₦5000 offering' seeds the amount and type, skipping to donor", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Fin", userRole: "owner" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "log ₦5000 offering that came in" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "record_giving", step: "donor", data: { amount: 5000, givingType: "offering" } });
+  });
+
+  it("'authorise my wife to pick up my child' starts add_guardian, not pickup", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "authorise my wife to pick up my child" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "add_guardian" });
+  });
+
+  it("'add a guardian' starts the add_guardian rail", async () => {
+    (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
+    ]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "add a guardian" });
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "add_guardian" });
+  });
+
   it("help-card 'Give' starts the give rail for a linked member (not a type-it guide)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },

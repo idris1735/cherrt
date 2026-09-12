@@ -19,6 +19,7 @@ function qb(table: string, rows: unknown[]) {
     },
     select: () => q,
     eq: (_k: string, _v: unknown) => q,
+    ilike: (_k: string, _v: unknown) => q,
     in: (_k: string, _v: unknown[]) => q,
     order: () => q,
     limit: () => q,
@@ -27,6 +28,7 @@ function qb(table: string, rows: unknown[]) {
       store.updates.push({ table, patch });
       const uq: Record<string, unknown> = {
         eq: () => uq,
+        ilike: () => uq,
         then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
       };
       return uq;

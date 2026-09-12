@@ -843,6 +843,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:pickup": "pickup",
     "menu:convert_first_timer": "convert_first_timer",
     "menu:join_dept": "join",
+    "menu:add_guardian": "add_guardian",
   };
   if (link && MENU_FLOW[buttonId]) {
     const out = await startFlow(MENU_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
@@ -1036,9 +1037,69 @@ const PICKUP_SECURITY_ANSWER =
   "🔒 *Fair question — here's exactly how it works:*\n\n" +
   "The pickup code and QR are *not* the key. A child is only ever released to a *registered guardian*.\n\n" +
   "• If someone forwards the code or QR to another phone, it's useless to them — releasing a child checks that the sender is a guardian *you* registered with pickup permission (verified by their WhatsApp number). A stranger with the code just gets _\"I can only release this child to their registered guardian.\"_\n" +
-  "• To let someone else collect (grandma, a nanny), you *add them as an authorised guardian first* — you can't hand pickup over by sharing a code.\n" +
+  "• To let someone else collect (grandma, a nanny), you *add them as an authorised guardian first* — just say *\"add a guardian\"*. You can't hand pickup over by sharing a code.\n" +
   "• Only the children's team can even look a code up, and every release is confirmed.\n\n" +
   "The one thing to protect is your *own* phone: whoever holds your WhatsApp is treated as you (true of any app), which is why our team also does an in-person check at the desk before handing a child over. 🙏";
+
+// ── Seed extractors — pull the details a user already typed so a flow never
+// re-asks them (the "wandering" complaint). ──
+function extractMinistry(t: string): string | undefined {
+  const map: Array<[RegExp, string]> = [
+    [/\bchoir\b/, "Choir"],
+    [/\bush(?:er|ering|ers)?\b/, "Ushering"],
+    [/\bmedia\b/, "Media"],
+    [/\b(?:children|kids|sunday school)\b/, "Children"],
+    [/\bprayer\b/, "Prayer"],
+    [/\bdrama\b/, "Drama"],
+    [/\b(?:technical|tech|sound|audio)\b/, "Technical"],
+    [/\b(?:protocol|welcome|hospitality)\b/, "Protocol"],
+    [/\b(?:worship|praise)\b/, "Worship"],
+    [/\bdance\b/, "Dance"],
+    [/\b(?:sanitation|sanctuary)\b/, "Sanctuary Keeping"],
+    [/\bevangelis(?:m|t)\b/, "Evangelism"],
+  ];
+  for (const [re, label] of map) if (re.test(t)) return label;
+  return undefined;
+}
+
+// "55k"/"55,000"/"1.2m" → 55000 / 55000 / 1200000.
+function parseAmountToken(tok: string): number {
+  const m = tok.replace(/,/g, "").match(/([\d.]+)\s*([km])?/i);
+  if (!m) return 0;
+  let n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return 0;
+  if (/k/i.test(m[2] ?? "")) n *= 1_000;
+  if (/m/i.test(m[2] ?? "")) n *= 1_000_000;
+  return Math.round(n);
+}
+
+// Parse a typed service report ("record 150 adults, 40 children, ₦55k tithe,
+// ₦30k offering") → the fields found (offering = sum of ₦/tithe/offering
+// amounts). Returns undefined when there's no headline adult count.
+function parseServiceReport(t: string): Record<string, unknown> | undefined {
+  const num = (re: RegExp): number | undefined => {
+    const m = t.match(re);
+    if (!m) return undefined;
+    const n = Number(m[1].replace(/[,\s]/g, ""));
+    return Number.isFinite(n) ? Math.floor(n) : undefined;
+  };
+  const adults = num(/([\d,]+)\s*adults?\b/i);
+  if (adults == null) return undefined;
+  const out: Record<string, unknown> = { adults };
+  const children = num(/([\d,]+)\s*(?:children|child|kids?)\b/i);
+  if (children != null) out.children = children;
+  const firstTimers = num(/([\d,]+)\s*first.?timers?\b/i);
+  if (firstTimers != null) out.firstTimers = firstTimers;
+  const salvations = num(/([\d,]+)\s*(?:salvations?|decisions?|souls?|converts?)\b/i);
+  if (salvations != null) out.salvations = salvations;
+  let offering = 0;
+  for (const m of t.matchAll(/(?:₦|ngn)\s*([\d.,]+\s*[km]?)|([\d.,]+\s*[km]?)\s*(?:naira|tithe|offering)/gi)) {
+    offering += parseAmountToken((m[1] ?? m[2] ?? "").trim());
+  }
+  if (offering > 0) out.offering = offering;
+  out.serviceType = /\bmidweek\b/i.test(t) ? "Midweek" : /\bvigil\b/i.test(t) ? "Vigil" : "Sunday Service";
+  return out;
+}
 
 // Typed-intent flows whose underlying action is rank-gated. A menu tap is
 // already visibility-filtered by role; a typed intent isn't, so the router
@@ -1712,12 +1773,27 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\b(check\s*in|checkin)\b/.test(t) && /\b(child|kid|son|daughter|baby)\b/.test(t)) flow = "child_checkin";
     else if (/\b(reserve|hold|pre.?check)\b/.test(t) && /\b(seat|spot|child|kid)\b/.test(t)) flow = "hold_seat";
     else if (/\b(arrived|we'?re here|we are here)\b/.test(t)) flow = "arrive";
+    // Authorise a co-parent/nanny to collect — must be checked BEFORE pickup
+    // ("authorise my wife to pick up my child" also matches pickup below).
+    else if (/\b(add|register|authori[sz]e?)\b[^?]*\bguardian\b/.test(t)
+      || (/\b(authori[sz]e?|allow|let)\b/.test(t) && /\b(collect|pick.?up)\b/.test(t) && /\b(child|kid|son|daughter|baby|wife|husband|mum|mother|dad|father|nanny|grandma|grandmother|grandpa|grandfather|my)\b/.test(t))) flow = "add_guardian";
     else if (/\b(collect|pick.?up|picking up)\b.*\b(child|kid|son|daughter)\b|\bpickup code\b/.test(t)) flow = "pickup";
     else if (/\bconvert\b.*\b(first.?timer|visitor)\b|\b(first.?timer|visitor)\b.*\b(join|become|convert)\b.*\bmember\b/.test(t)) flow = "convert_first_timer";
     else if (/\bregister\b/.test(t) && /\bevent\b/.test(t)) flow = "event_register";
     else if (/\b(create|new|set up|add)\b/.test(t) && /\bevent\b/.test(t)) flow = "create_event";
-    else if (/\b(record|log|submit)\b/.test(t) && /\b(service|attendance|sunday report|service report)\b/.test(t)) flow = "service_record";
-    else if (/\b(record|log|enter)\b/.test(t) && /\b(giving|tithe|offering|donation|seed)\b/.test(t)) flow = "record_giving";
+    else if (/\b(record|log|submit)\b/.test(t) && (/\b(service|attendance|sunday report|service report)\b/.test(t) || /\b\d+\s*adults?\b/i.test(t))) {
+      flow = "service_record";
+      // If they typed the numbers ("record 150 adults, ₦55k tithe, ₦30k offering"),
+      // seed them and jump straight to the confirm — one tap to save.
+      const parsed = parseServiceReport(t);
+      if (parsed) { seed = parsed; startStep = "confirm"; }
+    }
+    else if (/\b(record|log|enter)\b/.test(t) && /\b(giving|tithe|offering|donation|seed)\b/.test(t)) {
+      flow = "record_giving";
+      const amt = parseAmountToken((t.match(/(?:₦|ngn)?\s*([\d.,]+\s*[km]?)/)?.[1] ?? ""));
+      const gt = /\btithe\b/.test(t) ? "tithe" : /\boffering\b/.test(t) ? "offering" : /\bdonation\b/.test(t) ? "donation" : /\bpledge\b/.test(t) ? "pledge" : undefined;
+      if (amt > 0) { seed = gt ? { amount: amt, givingType: gt } : { amount: amt }; startStep = gt ? "donor" : "giving_type"; }
+    }
     // "give me the report/service/..." means SHOW me — not the giving rail. Only
     // a money word (or an explicit give phrase/amount) starts the giving flow.
     else if (
@@ -1755,7 +1831,12 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     // join/serve/help", not just the literal word "volunteers".
     else if (/\b(need|request|call for|looking for|recruit)\b/.test(t)
       && (/\bvolunteers?\b/.test(t) || /\bpeople to (join|serve|help)\b/.test(t) || /\bmore (hands|help|ushers|servers|singers|volunteers)\b/.test(t))) flow = "request_volunteers";
-    else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) flow = "join";
+    else if (/\b(join|volunteer|serve)\b/.test(t) && /\b(ministry|department|choir|ushering|media|team|unit)\b/.test(t)) {
+      flow = "join";
+      // "join the choir" → seed the ministry and skip straight to confirm.
+      const dept = extractMinistry(t);
+      if (dept) { seed = { department: dept }; startStep = "confirm"; }
+    }
     else if (/\b(volunteer|serve|help out)\b/.test(t)) flow = "volunteer_signup";
     else if (/\bmy birthday\b|\bbirthday is\b|\bset .*birthday\b/.test(t)) flow = "set_birthday";
     else if (/\blost (and|&) found\b|\b(i )?(lost|found)\b.*\b(item|phone|bag|wallet|keys|something)\b/.test(t)) flow = "lost_found";

@@ -5,13 +5,14 @@
 export type RiskAssessment = { kind: "scam" | "safeguarding" | null; reason: string };
 
 const CHILD = /\b(child|kid|minor|my (son|daughter|niece|nephew|ward))\b/i;
-const HARM = /\b(hurt|hurting|hitting|beaten|beating|abused|abuse|touching|molest|assault|in danger)\b/i;
+// "being hit" is included, but not bare "hit"/"hits" (avoids "hit a milestone").
+const HARM = /\b(hurt|hurting|hitting|beaten|beating|abused|abuse|touching|molest|assault|in danger|slapped|punched|kicked|being hit)\b/i;
 // Obvious accidental-injury context. The child-danger flag is suppressed ONLY
 // when this is present AND no intentional-harm word is ("my son was hurt
 // playing football, please pray" → a prayer request, not a safeguarding case).
 // Detection words are unchanged, so real disclosures still fire.
 const ACCIDENTAL = /\b(playing|fell|tripped|accident(al|ally)?|sport|football|soccer|basketball|game|match|bruis\w*|scraped|grazed|sprain\w*)\b/i;
-const INTENTIONAL_HARM = /\b(hitting|beaten|beating|abused?|touching|molest|assault|in danger|harm(ed|ing)?)\b/i;
+const INTENTIONAL_HARM = /\b(hitting|beaten|beating|abused?|touching|molest|assault|in danger|harm(ed|ing)?|slapped|punched|kicked|being hit)\b/i;
 
 const SAFEGUARDING: { pattern: RegExp; reason: string }[] = [
   { pattern: /\b(suicid|kill myself|end my life|self.?harm|hurt myself|don'?t want to (live|be here))\b/i, reason: "self-harm or suicide signal" },
@@ -24,7 +25,9 @@ const SAFEGUARDING: { pattern: RegExp; reason: string }[] = [
 const MONEY = /\b(send|pay|transfer|deposit)\b/i;
 const URGENCY = /\b(urgent|urgently|now|quick|asap|immediately|right away)\b/i;
 const OTP = /\b(otp|one[- ]?time (pin|password|code)|verification code|bank code)\b/i;
-const ASK_FOR_CODE = /\b(send|give|tell|share|confirm|verify|what|read)\b/i;
+// A scam ASKS you to hand a code over — an imperative share verb. NOT "what"
+// (so "what is an OTP?" is an innocent question, not a scam flag).
+const ASK_FOR_CODE = /\b(send|give|tell|share|read|forward|confirm)\b/i;
 const NEW_ACCOUNT = /\bnew account\b/i;
 // Directional: money going TO an account/number is the scam shape. Spending
 // FROM the church account ("transfer ₦50k from the account urgently for diesel")
@@ -36,7 +39,9 @@ const SCAM: { conds: RegExp[]; reason: string }[] = [
   { conds: [OTP, ASK_FOR_CODE], reason: "someone is asking for an OTP/verification code" },
   { conds: [MONEY, URGENCY, TO_RECIPIENT], reason: "urgent money request to an account" },
   { conds: [NEW_ACCOUNT, MONEY], reason: "money to a new/unknown account" },
-  { conds: [IMPERSONATION, /\b(money|send|pay|transfer|urgent|urgently)\b/i], reason: "possible impersonation of a leader asking for money" },
+  // Impersonation is a scam only when it's actually asking for MONEY to be sent
+  // — not "I'm Pastor John, please pray urgently for my finances" (a request).
+  { conds: [IMPERSONATION, /\b(send|pay|transfer|deposit|wire)\b/i, /\b(money|cash|funds|account|acct|₦|naira|\d{3,})\b/i], reason: "possible impersonation of a leader asking for money" },
   { conds: [/https?:\/\/\S*(verify|claim|winner|bonus|kpa|kyc)\S*/i], reason: "suspicious link" },
 ];
 

@@ -10,6 +10,7 @@ import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { recordConsent } from "@/lib/services/privacy/consent";
 import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
+import { normalizePhoneNumber } from "@/lib/services/phone";
 import { classroomHasSpace, createClassroom, listClassroomsWithOccupancy } from "@/lib/services/children/classrooms";
 import { acceptArrival, holdSeat } from "@/lib/services/children/checkins";
 
@@ -514,6 +515,67 @@ export const CHILD_TOOLS: AgentTool[] = [
       const res = await acceptArrival(ctx.workspaceId, checkinId, ctx.userName ?? "");
       if (!res.ok) return { error: "Couldn't accept that child — they may already be in class or picked up." };
       return { ok: true, message: `✅ ${res.childName ?? "The child"} is now in class.` };
+    },
+  },
+  {
+    name: "add_guardian",
+    description:
+      "Authorise another person (a co-parent, grandparent, or nanny) to collect a specific child. ONLY someone already registered as that child's guardian can add another. The new guardian is recognised at pickup by their WhatsApp number. Confirmation-gated.",
+    parameters: {
+      type: "object",
+      properties: {
+        childName: { type: "string", description: "The child's full name, as registered" },
+        guardianName: { type: "string", description: "The new guardian's full name" },
+        guardianPhone: { type: "string", description: "The new guardian's WhatsApp number" },
+        relationship: { type: "string", description: "e.g. father, grandmother, nanny (optional)" },
+      },
+      required: ["childName", "guardianName", "guardianPhone"],
+    },
+    dataSensitive: true,
+    mutates: true,
+    requiresConfirmation: true,
+    handler: async (args, ctx) => {
+      const db = getSupabaseServerClient();
+      if (!db) return { error: "storage unavailable" };
+      // Gate: the requester must ALREADY be a registered guardian of this child.
+      const requesterId = ctx.personId ?? (ctx.phone ? await resolvePersonIdByPhone(ctx.phone) : null);
+      if (!requesterId) return { error: "I couldn't verify you. Only a child's registered guardian can authorise someone else." };
+      const childName = String(args.childName ?? "").trim();
+      if (!childName) return { error: "Which child? Tell me the child's name." };
+      const childPersonId = await findGuardianChild(db, requesterId, childName);
+      if (!childPersonId) return { error: `I couldn't find a child named "${childName}" that you're a registered guardian of — only their guardian can authorise someone.` };
+
+      const guardianName = String(args.guardianName ?? "").trim();
+      const phone = normalizePhoneNumber(String(args.guardianPhone ?? "").trim()) ?? String(args.guardianPhone ?? "").trim();
+      if (!guardianName || !phone) return { error: "I need the new guardian's full name and WhatsApp number." };
+
+      // The new guardian is a person tied to their phone, so their number is
+      // recognised when THEY message to collect the child.
+      const newGuardianId = await ensurePerson({ workspaceId: ctx.workspaceId, fullName: guardianName, phone });
+      const { data: existing } = await db
+        .from("guardianships")
+        .select("id")
+        .eq("child_person_id", childPersonId)
+        .eq("guardian_person_id", newGuardianId)
+        .maybeSingle();
+      if (existing) {
+        await db.from("guardianships").update({ can_pickup: true }).eq("id", (existing as { id: string }).id);
+        return { ok: true, message: `✅ ${guardianName} is already ${childName}'s guardian — pickup permission confirmed.` };
+      }
+      const { error } = await db.from("guardianships").insert({
+        id: newId(),
+        child_person_id: childPersonId,
+        guardian_person_id: newGuardianId,
+        relationship: String(args.relationship ?? "").trim() || "guardian",
+        is_primary: false,
+        can_pickup: true,
+        workspace_id: ctx.workspaceId,
+      });
+      if (error) return { error: "Couldn't add that guardian — please try again." };
+      return {
+        ok: true,
+        message: `✅ ${guardianName} can now collect ${childName}. At pickup they're verified by their WhatsApp number (${phone}) — the same guardian check as you.`,
+      };
     },
   },
 ];
