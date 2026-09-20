@@ -8,6 +8,16 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-20 — Fix 3 bugs from the Sept-12 meeting recap (children + pastoral)
+
+From the Sept-12 client meeting transcript (`~/Downloads/Chertt.docx`). All three verified in code, fixed, tested:
+
+- **Pastoral forms submitted on Skip with no confirm** (Pastor: "it says the child name form has been submitted — I didn't fill any form, I just [skipped]"). `pastoral-form.ts` now requires **name** and **date** (no skip), an optional notes step, then a **confirm** screen showing everything, then submit. Router pastoral_form seeds now start at `subject_name` (was `details`).
+- **Child check-in age was skippable** — now required (0–18), no Skip button (age decides the class).
+- **Check-in accepted a child who was never registered** (free-text name). New model: check-in is started via `startChildCheckin` (processor), which loads the guardian's OWN registered children (`listGuardianChildren` in `children/checkins.ts`) and offers them as a picker (`pick_child` step). If the guardian has none, it prompts to **register first** (button → register flow) instead of starting check-in. Wired at all three entry points: help card, menu tap, typed intent.
+- **Tests:** rewrote child-checkin (9) and pastoral-form (6) flow tests; updated 3 processor tests + added a `listGuardianChildren` mock. Full suite green, `tsc` 0.
+- **Still outstanding from the meeting:** the **UAT criteria document** (structured test criteria per section — Isaiah's ask) is next. Idea raised: hashtag shortcuts (`#signin`, `#give`) like slash-commands — future.
+
 ### 2026-09-12 — Pre-demo audit (Fable as a user) + fixes; new add-guardian feature
 
 Ran Fable as a hands-on tester across parent/admin/guest/adversarial personas; verified each finding in code, then fixed the high-value ones:

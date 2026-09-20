@@ -44,28 +44,62 @@ beforeEach(() => {
 });
 
 describe("pastoral_form flow", () => {
-  it("happy path: pick form → skip details → submits with formType only", async () => {
-    const { out, session } = await drive([{ buttonId: "pf_baby_dedication" }, { buttonId: "flow_skip" }]);
+  it("requires name and date, then confirm, then submits", async () => {
+    const { out, session } = await drive([
+      { buttonId: "pf_baby_dedication" },
+      { text: "Baby Ada Obi" },
+      { text: "28 September" },
+      { buttonId: "flow_skip" },   // notes optional
+      { buttonId: "pf_go" },       // confirm
+    ]);
     expect(handlerMock).toHaveBeenCalledWith(
-      { formType: "baby_dedication", details: undefined },
+      { formType: "baby_dedication", details: "Name: Baby Ada Obi; Date: 28 September" },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada" }),
     );
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("submitted") });
     expect(session.activeFlow).toBeUndefined();
   });
 
-  it("typed details are passed through", async () => {
-    await drive([{ buttonId: "pf_pre_marital" }, { text: "Wedding is in December" }]);
+  it("does NOT submit on the notes Skip — it goes to a confirm first (regression)", async () => {
+    const { out, session } = await drive([
+      { buttonId: "pf_child_naming" },
+      { text: "Baby John" },
+      { text: "next Sunday" },
+      { buttonId: "flow_skip" },
+    ]);
+    expect(handlerMock).not.toHaveBeenCalled();               // nothing submitted yet
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Submit this?") });
+    expect(session.activeFlow).toMatchObject({ step: "confirm" });
+  });
+
+  it("name is required — an empty name reprompts, never advances", async () => {
+    const { out, session } = await drive([{ buttonId: "pf_house_dedication" }, { text: "" }]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("full name") });
+    expect(session.activeFlow).toMatchObject({ step: "subject_name" });
+    expect(handlerMock).not.toHaveBeenCalled();
+  });
+
+  it("notes are included when typed", async () => {
+    await drive([
+      { buttonId: "pf_pre_marital" },
+      { text: "John and Mary" },
+      { text: "December" },
+      { text: "Wedding is in December" },
+      { buttonId: "pf_go" },
+    ]);
     expect(handlerMock).toHaveBeenCalledWith(
-      { formType: "pre_marital", details: "Wedding is in December" },
+      { formType: "pre_marital", details: "Name: John and Mary; Date: December; Notes: Wedding is in December" },
       expect.objectContaining({ workspaceId: "ws1" }),
     );
   });
 
-  it("the details header reflects the chosen form", async () => {
-    const { out, session } = await drive([{ buttonId: "pf_house_dedication" }]);
-    expect(out).toMatchObject({ type: "buttons", header: "House Dedication" });
-    expect(session.activeFlow).toMatchObject({ step: "details", data: { formType: "house_dedication" } });
+  it("cancel at confirm submits nothing", async () => {
+    const { out, session } = await drive([
+      { buttonId: "pf_baby_dedication" }, { text: "Ada" }, { text: "today" }, { buttonId: "flow_skip" }, { buttonId: "pf_cancel" },
+    ]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("nothing submitted") });
+    expect(handlerMock).not.toHaveBeenCalled();
+    expect(session.activeFlow).toBeUndefined();
   });
 
   it("an off-list tap at form_type reprompts and never submits", async () => {

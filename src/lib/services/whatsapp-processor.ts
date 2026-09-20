@@ -54,6 +54,7 @@ import { persistChatAttachment } from "@/lib/services/chat-attachments";
 // Side-effect import: registers every deterministic task flow with the engine.
 import "@/lib/services/flows";
 import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
+import { listGuardianChildren } from "@/lib/services/children/checkins";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { getWorkspaceBilling, isSubscriptionActive } from "@/lib/services/billing/subscription";
 import { runMenuRead } from "@/lib/services/agent/read-menu";
@@ -678,10 +679,27 @@ async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
   await sendTextMessage(from, out.text);
 }
 
+// Start child check-in the right way: only the guardian's OWN registered
+// children can be checked in (client feedback 2026-09-12 — a free-text name let
+// you check in a child who was never registered). If they have none, prompt to
+// register first; otherwise start the flow seeded with their children to pick from.
+async function startChildCheckin(from: string, link: PhoneLink | null, personId: string | null | undefined, session: WhatsAppSession): Promise<void> {
+  const kids = link && personId ? await listGuardianChildren(link.workspaceId, personId) : [];
+  if (!kids.length) {
+    try {
+      await sendInteractiveButtons(from, "You haven't registered any children yet. Let's add one first — then you can check them in. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }]);
+    } catch { await sendTextMessage(from, "You haven't registered any children yet. Reply *register my child* to add one, then check them in."); }
+    return;
+  }
+  const out = await startFlow("child_checkin", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), { myChildren: kids });
+  if (out) await sendFlowOutput(from, out);
+}
+
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
   // Help-card buttons: for a linked member, tap straight into the rail instead of
   // a "just type it" guide. Guests (no link) still get the guide (fallback below).
-  const HELP_FLOW: Record<string, string> = { help_give: "give", help_prayer: "prayer", help_checkin: "child_checkin" };
+  if (link && buttonId === "help_checkin") { await startChildCheckin(from, link, personId, session); return; }
+  const HELP_FLOW: Record<string, string> = { help_give: "give", help_prayer: "prayer" };
   if (link && HELP_FLOW[buttonId]) {
     const out = await startFlow(HELP_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
@@ -845,6 +863,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:join_dept": "join",
     "menu:add_guardian": "add_guardian",
   };
+  if (link && buttonId === "menu:checkin") { await startChildCheckin(from, link, personId, session); return; }
   if (link && MENU_FLOW[buttonId]) {
     const out = await startFlow(MENU_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
@@ -1811,11 +1830,11 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     else if (/\b(new believer|gave (my|his|her) life|born again)\b/.test(t)) { flow = "life_journey"; seed = { journeyType: "discipleship" }; startStep = "detail"; }
     else if (/\b(bereave|bereavement|passed away|lost (my|our))\b/.test(t)) { flow = "life_journey"; seed = { journeyType: "bereavement" }; startStep = "detail"; }
     // Pastoral forms — seed the form type and skip the picker.
-    else if (/\bbaby dedicat|\bdedicate (my )?(baby|child)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "baby_dedication", formLabel: "Baby Dedication" }; startStep = "details"; }
-    else if (/\b(child naming|naming ceremony)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "child_naming", formLabel: "Child Naming" }; startStep = "details"; }
-    else if (/\bhouse dedicat/.test(t)) { flow = "pastoral_form"; seed = { formType: "house_dedication", formLabel: "House Dedication" }; startStep = "details"; }
-    else if (/\bpre.?marital|marital counsel|marriage counsel/.test(t)) { flow = "pastoral_form"; seed = { formType: "pre_marital", formLabel: "Pre-Marital Counselling" }; startStep = "details"; }
-    else if (/\btraining school\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "training_school", formLabel: "Training School" }; startStep = "details"; }
+    else if (/\bbaby dedicat|\bdedicate (my )?(baby|child)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "baby_dedication", formLabel: "Baby Dedication" }; startStep = "subject_name"; }
+    else if (/\b(child naming|naming ceremony)\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "child_naming", formLabel: "Child Naming" }; startStep = "subject_name"; }
+    else if (/\bhouse dedicat/.test(t)) { flow = "pastoral_form"; seed = { formType: "house_dedication", formLabel: "House Dedication" }; startStep = "subject_name"; }
+    else if (/\bpre.?marital|marital counsel|marriage counsel/.test(t)) { flow = "pastoral_form"; seed = { formType: "pre_marital", formLabel: "Pre-Marital Counselling" }; startStep = "subject_name"; }
+    else if (/\btraining school\b/.test(t)) { flow = "pastoral_form"; seed = { formType: "training_school", formLabel: "Training School" }; startStep = "subject_name"; }
     else if (/\b(dedicat(e|ion)|naming|form)\b/.test(t) && /\bpastoral\b/.test(t)) flow = "pastoral_form";
     // Require a care-intent, not the bare word "pastor" — "is pastor preaching
     // Sunday?" must NOT open a pastoral-care request.
@@ -1854,6 +1873,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       || /\bwhat if\b/i.test(t);
     if (isQuestion) { flow = null; seed = undefined; startStep = undefined; }
 
+    if (flow === "child_checkin") { await startChildCheckin(from, link, personId, session); return; }
     if (flow) {
       // A menu tap is already visibility-gated (a member never sees the row); a
       // TYPED intent is not, so gate rank-gated flows up front — don't walk a

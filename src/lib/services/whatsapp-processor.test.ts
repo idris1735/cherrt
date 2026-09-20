@@ -53,6 +53,12 @@ vi.mock("@/lib/services/agent/runtime", async (importOriginal) => {
   return { ...actual, runAgentQuery: vi.fn().mockResolvedValue(null), runGuestAgent: vi.fn().mockResolvedValue(null) };
 });
 
+// Guardian has one registered child by default, so check-in starts the picker.
+vi.mock("@/lib/services/children/checkins", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/children/checkins")>();
+  return { ...actual, listGuardianChildren: vi.fn().mockResolvedValue([{ personId: "c1", name: "Zoe" }]) };
+});
+
 vi.mock("@/lib/services/whatsapp-templates", () => ({
   sendNewSignupAlertTemplate: vi.fn().mockResolvedValue(undefined),
   sendOrgApprovedTemplate: vi.fn().mockResolvedValue(undefined),
@@ -851,28 +857,30 @@ describe("processWhatsAppMessage", () => {
     expect(fresh.userName).toBeUndefined();
   });
 
-  it("P1 — menu:checkin starts the child check-in flow instead of the agent", async () => {
+  it("P1 — menu:checkin routes to check-in (never the agent); with no registered child it prompts to register", async () => {
+    // In this test env the sender isn't resolved to a person, so there are no
+    // registered children — check-in must offer to register first, not accept a
+    // free-text child. (The child picker itself is covered in child-checkin.test.)
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
     ]);
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:checkin" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("check your child in"));
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("haven't registered any children"), expect.anything());
     expect(mockRun).not.toHaveBeenCalled();
     const s = await getSession(PHONE);
-    expect(s.activeFlow).toMatchObject({ name: "child_checkin", step: "child_name" });
+    expect(s.activeFlow).toBeUndefined();
   });
 
   it("P1 — every message mid-flow routes to the engine (text advances the rail)", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "daystar", workspaceName: "Daystar Christian Centre", userName: "Idris", userRole: "member" },
     ]);
-    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "child_name", data: {} } });
-    await processWhatsAppMessage({ from: PHONE, type: "text", text: "Zoe" });
-    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("How old is Zoe"), expect.anything(), expect.anything());
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "age", data: { childName: "Zoe" } } });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "5" });
     expect(mockRun).not.toHaveBeenCalled();
     const s = await getSession(PHONE);
-    expect(s.activeFlow).toMatchObject({ step: "age", data: { childName: "Zoe" } });
+    expect(s.activeFlow).toMatchObject({ step: "allergies", data: { childName: "Zoe", age: 5 } });
   });
 
   it("P1 — typing menu mid-flow exits the flow AND shows the real menu in the same turn", async () => {
@@ -1029,7 +1037,7 @@ describe("processWhatsAppMessage", () => {
     expect(s.activeFlow).toMatchObject({ name: "life_journey", step: "detail", data: { journeyType: "baptism" } });
   });
 
-  it("typed 'dedicate my baby' jumps to the pastoral-form details, skipping the form picker", async () => {
+  it("typed 'dedicate my baby' jumps past the form picker to the first field", async () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
@@ -1037,7 +1045,7 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to dedicate my baby" });
     expect(mockRun).not.toHaveBeenCalled();
     const s = await getSession(PHONE);
-    expect(s.activeFlow).toMatchObject({ name: "pastoral_form", step: "details", data: { formType: "baby_dedication" } });
+    expect(s.activeFlow).toMatchObject({ name: "pastoral_form", step: "subject_name", data: { formType: "baby_dedication" } });
   });
 
   it("P1 — 'is pastor preaching Sunday?' does NOT open a pastoral-care request", async () => {

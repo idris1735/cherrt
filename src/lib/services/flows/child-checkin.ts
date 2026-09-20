@@ -8,11 +8,6 @@ import { getAgentTool } from "@/lib/services/agent/runtime";
 import { listClassroomsWithOccupancy, type ClassroomInfo } from "@/lib/services/children/classrooms";
 import type { Role } from "@/lib/types";
 
-function looksLikeName(s: string): boolean {
-  const t = s.trim();
-  return t.length >= 2 && /[a-z]/i.test(t) && !/^\d+$/.test(t);
-}
-
 function summary(data: FlowData): string {
   const name = String(data.childName ?? "");
   const bits = [`*${name}*`];
@@ -30,43 +25,54 @@ function roomRows(rooms: ClassroomInfo[]) {
   }));
 }
 
+type MyChild = { personId: string; name: string };
+
 export const childCheckinFlow: FlowDefinition = {
   name: "child_checkin",
-  firstStep: "child_name",
+  firstStep: "pick_child",
   steps: {
-    child_name: {
-      render: () => ({
-        type: "text",
-        text: "Let's check your child in. 👶\n\nWhat's the child's *full name*?",
-      }),
-      onInput: (input: FlowInput): Transition => {
-        const name = input.text.trim();
-        if (!looksLikeName(name)) {
-          return { stay: { type: "text", text: "Please send the child's name (first and last is best)." } };
+    // Started via startChildCheckin (processor), which seeds `myChildren` with
+    // the guardian's own registered children and never starts this flow when
+    // there are none. So only a registered child can be checked in.
+    pick_child: {
+      render: (data) => {
+        const kids = (data.myChildren as MyChild[]) ?? [];
+        return {
+          type: "list",
+          header: "Check in a child",
+          text: "Which of your children are you checking in?",
+          buttonLabel: "Choose",
+          rows: [
+            ...kids.map((k, i) => ({ id: `pc_${i}`, title: k.name.slice(0, 24) })),
+            { id: "pc_new", title: "➕ A different child" },
+          ],
+        };
+      },
+      onInput: (input: FlowInput, data: FlowData): Transition => {
+        const kids = (data.myChildren as MyChild[]) ?? [];
+        if (input.buttonId === "pc_new") {
+          return { done: { type: "text", text: "No problem — reply *register my child* to add them first, then check them in. 🙏" } };
         }
-        return { to: "age", patch: { childName: name } };
+        const m = /^pc_(\d+)$/.exec(input.buttonId ?? "");
+        const chosen = m ? kids[Number(m[1])] : undefined;
+        if (!chosen) {
+          const rows = [...kids.map((k, i) => ({ id: `pc_${i}`, title: k.name.slice(0, 24) })), { id: "pc_new", title: "➕ A different child" }];
+          return { stay: { type: "list", header: "Check in a child", text: "Tap one of your children below.", buttonLabel: "Choose", rows } };
+        }
+        return { to: "age", patch: { childName: chosen.name, childPersonId: chosen.personId } };
       },
     },
 
     age: {
+      // Age is REQUIRED (client feedback 2026-09-12) — it decides the class.
       render: (data) => ({
-        type: "buttons",
-        header: "Child check-in",
-        text: `How old is ${String(data.childName)}? Type a number, or tap *Skip*.`,
-        buttons: [{ id: "flow_skip", title: "Skip" }],
+        type: "text",
+        text: `How old is ${String(data.childName)}? Send a number (0–18).`,
       }),
       onInput: (input): Transition => {
-        if (input.buttonId === "flow_skip") return { to: "allergies", patch: { age: null } };
         const n = Number(input.text.trim());
         if (!Number.isFinite(n) || n < 0 || n > 18) {
-          return {
-            stay: {
-              type: "buttons",
-              header: "Child check-in",
-              text: "Please send an age between 0 and 18, or tap *Skip*.",
-              buttons: [{ id: "flow_skip", title: "Skip" }],
-            },
-          };
+          return { stay: { type: "text", text: "Please send an age between 0 and 18." } };
         }
         return { to: "allergies", patch: { age: Math.floor(n) } };
       },
@@ -120,7 +126,7 @@ export const childCheckinFlow: FlowDefinition = {
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
         if (input.buttonId === "flow_restart") {
-          return { to: "child_name", patch: { childName: undefined, age: undefined, allergies: undefined, classroomId: undefined, classroomName: undefined, classrooms: undefined } };
+          return { to: "pick_child", patch: { childName: undefined, childPersonId: undefined, age: undefined, allergies: undefined, classroomId: undefined, classroomName: undefined, classrooms: undefined } };
         }
         if (input.buttonId !== "flow_commit" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return {

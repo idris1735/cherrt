@@ -2,6 +2,26 @@
 // teacher-acceptance (checked_in → in_class). Workspace-scoped via service role.
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 
+export type GuardianChild = { personId: string; name: string };
+
+// The children a given guardian has registered (guardianships → people).
+// Used so check-in offers "which of YOUR children?" instead of a free-text name
+// (client feedback 2026-09-12 — you could otherwise check in a child who was
+// never registered).
+export async function listGuardianChildren(workspaceId: string, guardianPersonId: string): Promise<GuardianChild[]> {
+  const db = getSupabaseServerClient();
+  if (!db || !guardianPersonId) return [];
+  const { data: gRows } = await db
+    .from("guardianships")
+    .select("child_person_id")
+    .eq("workspace_id", workspaceId)
+    .eq("guardian_person_id", guardianPersonId);
+  const ids = [...new Set(((gRows ?? []) as Array<{ child_person_id?: string }>).map((r) => r.child_person_id).filter(Boolean) as string[])];
+  if (!ids.length) return [];
+  const { data: people } = await db.from("people").select("id, full_name").in("id", ids);
+  return ((people ?? []) as Array<{ id: string; full_name?: string }>).map((p) => ({ personId: p.id, name: (p.full_name ?? "").trim() })).filter((c) => c.name);
+}
+
 export type PendingArrival = { id: string; childName: string; classroom: string | null };
 
 // Children who are checked_in but a classroom teacher hasn't accepted yet.
