@@ -8,6 +8,18 @@
 
 **This is the single running log of what we're building and where it stands.** The numbered sections below (§1+) are the standing reference; this section is the live state. Keep it current with every meaningful step.
 
+### 2026-09-21 — Finish the build + handoff package
+
+Closed the remaining code tail and wrote the handoff docs.
+
+- **Hashtag shortcuts (client request):** `#give #checkin #pickup #prayer #pastor #register #qr #menu` + `#events`/`#giving` reads. Handled right after the escape hatch — an explicit `#x` clears any active flow and jumps straight to the action; unknown `#x` lists the shortcuts. `#reset` unchanged.
+- **Assign-role migrated to the flow engine** (`flows/assign-role.ts`) — now tappable member/role lists + confirm buttons (was plain-text numbered lists), and it inherits the escape hatch. Seeded by a new `startAssignRole` processor helper (loads candidates + assignable roles, handles the empty cases). Legacy `startAssignRoleFlow`/`advanceAssignRoleFlow` left in place but no longer called (marked for deletion in HANDOFF).
+- **Seat-hold confirm step:** `hold_seat` now shows "Reserve a seat for X?" before committing — no accidental hold on a typo.
+- **Handoff docs:** `docs/HANDOFF.md` (architecture, repo map, env-var list, deploy, go-live checklist, roles, runbook, tech debt, pointers). Plus the PM review of roles/dashboard and onboarding delivered in chat.
+- **PM findings:** web is platform-admin only by design; NO church-facing dashboard (flagged as a decision for finance/leadership). Church signup = web KYC (Mono); person onboarding = WhatsApp consent → name/email → church search → email verify.
+- **Tests:** rewrote hold-seat (5), added assign-role flow (4) + 2 hashtag processor cases. **901/120 green, tsc 0.**
+- **Still owner-only (documented, cannot complete in code):** Paystack keys, Mono live key, prod email vars, WhatsApp template approval, currency + data-ownership decisions, move repo off OneDrive.
+
 ### 2026-09-20 — Fix 3 bugs from the Sept-12 meeting recap (children + pastoral)
 
 From the Sept-12 client meeting transcript (`~/Downloads/Chertt.docx`). All three verified in code, fixed, tested:

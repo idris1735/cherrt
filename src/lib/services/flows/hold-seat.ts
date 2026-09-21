@@ -36,7 +36,7 @@ export const holdSeatFlow: FlowDefinition = {
         const name = input.text.trim().replace(/\s+/g, " ");
         if (!looksLikeName(name)) return { stay: { type: "text", text: "Please send the child's name (first and last is best)." } };
         const rooms = ctx.link ? await listClassroomsWithOccupancy(ctx.link.workspaceId) : [];
-        if (!rooms.length) return commitHold({ childName: name }, ctx);
+        if (!rooms.length) return { to: "confirm", patch: { childName: name } };
         return { to: "classroom", patch: { childName: name, classrooms: rooms } };
       },
     },
@@ -51,7 +51,22 @@ export const holdSeatFlow: FlowDefinition = {
         const chosen = m ? rooms[Number(m[1])] : undefined;
         if (!chosen) return { stay: { type: "list", header: "Reserve a seat", text: "Tap a classroom below.", buttonLabel: "Choose", rows: roomRows(rooms) } };
         if (chosen.full) return { stay: { type: "list", header: "Reserve a seat", text: `*${chosen.name}* is full — pick another room.`, buttonLabel: "Choose", rows: roomRows(rooms) } };
-        return commitHold({ childName: data.childName, classroomId: chosen.id }, ctx);
+        return { to: "confirm", patch: { childName: data.childName, classroomId: chosen.id, classroomName: chosen.name } };
+      },
+    },
+    confirm: {
+      render: (data) => ({
+        type: "buttons",
+        header: "Confirm reservation",
+        text: `Reserve a seat for *${String(data.childName)}*${data.classroomName ? ` in *${String(data.classroomName)}*` : ""}?`,
+        buttons: [{ id: "hs_go", title: "✅ Reserve" }, { id: "hs_cancel", title: "❌ Cancel" }],
+      }),
+      onInput: async (input, data, ctx): Promise<Transition> => {
+        if (input.buttonId === "hs_cancel") return { done: { type: "text", text: "No problem — no reservation made. 🙏" } };
+        if (input.buttonId !== "hs_go" && !/^(yes|y|confirm|reserve)$/i.test(input.text.trim())) {
+          return { stay: { type: "buttons", header: "Confirm reservation", text: "Tap *Reserve* to confirm, or *Cancel*.", buttons: [{ id: "hs_go", title: "✅ Reserve" }, { id: "hs_cancel", title: "❌ Cancel" }] } };
+        }
+        return commitHold(data, ctx);
       },
     },
   },

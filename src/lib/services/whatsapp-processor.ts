@@ -35,10 +35,10 @@ import {
   type PhoneLink,
   type WorkspaceContext,
 } from "@/lib/services/whatsapp-workspace";
-import { provisionPersonMembership, ensureVerifiedPerson } from "@/lib/services/identity/provisioning";
+import { provisionPersonMembership, ensureVerifiedPerson, listBranchMembers } from "@/lib/services/identity/provisioning";
 import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/identity/resolver";
-import { isAssignRoleTrigger, startAssignRoleFlow, advanceAssignRoleFlow } from "@/lib/services/identity/assign-role-flow";
-import { canAssignRole, roleRank } from "@/lib/services/identity/role-catalog";
+import { isAssignRoleTrigger } from "@/lib/services/identity/assign-role-flow";
+import { canAssignRole, roleRank, assignableRoles } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
@@ -695,6 +695,19 @@ async function startChildCheckin(from: string, link: PhoneLink | null, personId:
   if (out) await sendFlowOutput(from, out);
 }
 
+// Start assign-role the same way: load the members this actor may reassign and
+// the roles they may grant, handle the empty cases, then start the tappable
+// flow seeded (was a plain-text numbered list).
+async function startAssignRole(from: string, link: PhoneLink, session: WhatsAppSession): Promise<void> {
+  const roleOptions = assignableRoles("church").filter((r) => canAssignRole(link.userRole, r));
+  if (!roleOptions.length) { await sendTextMessage(from, "You don't have permission to change roles here."); return; }
+  const members = await listBranchMembers(link.workspaceId);
+  const candidates = members.filter((m) => roleRank(m.role) <= roleRank(link.userRole));
+  if (!candidates.length) { await sendTextMessage(from, "There's no one here whose role you can change yet."); return; }
+  const out = await startFlow("assign_role", { phone: from, link, personId: undefined, session }, (patch) => updateSession(from, patch), { candidates, roleOptions });
+  if (out) await sendFlowOutput(from, out);
+}
+
 async function handleButtonReply(from: string, buttonId: string, session: WhatsAppSession, link: PhoneLink | null, personId?: string | null): Promise<void> {
   // Help-card buttons: for a linked member, tap straight into the rail instead of
   // a "just type it" guide. Guests (no link) still get the guide (fallback below).
@@ -1120,6 +1133,33 @@ function parseServiceReport(t: string): Record<string, unknown> | undefined {
   return out;
 }
 
+// ── Hashtag shortcuts (client request 2026-09-12) — like slash-commands:
+// "#give" jumps straight to giving, no picker. Documented in the handoff README.
+type HashRoute =
+  | { kind: "menu" }
+  | { kind: "checkin" }
+  | { kind: "flow"; flow: string }
+  | { kind: "read"; buttonId: string };
+const HASHTAG_ROUTES: Record<string, HashRoute> = {
+  menu: { kind: "menu" },
+  help: { kind: "menu" },
+  give: { kind: "flow", flow: "give" },
+  gift: { kind: "flow", flow: "give" },
+  checkin: { kind: "checkin" },
+  signin: { kind: "checkin" },
+  pickup: { kind: "flow", flow: "pickup" },
+  prayer: { kind: "flow", flow: "prayer" },
+  pastor: { kind: "flow", flow: "pastoral" },
+  register: { kind: "flow", flow: "child_register" },
+  qr: { kind: "flow", flow: "qr" },
+  events: { kind: "read", buttonId: "menu:events" },
+  giving: { kind: "read", buttonId: "menu:giving_month" },
+};
+function hashtagHelp(): string {
+  return "⚡ *Shortcuts* — type any of these to jump straight there:\n" +
+    "#menu · #give · #checkin · #pickup · #prayer · #pastor · #register · #events · #giving · #qr · #reset";
+}
+
 // Typed-intent flows whose underlying action is rank-gated. A menu tap is
 // already visibility-filtered by role; a typed intent isn't, so the router
 // checks access before starting these (see the typed-intent router below).
@@ -1374,6 +1414,35 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     return;
   }
 
+  // ── Hashtag shortcuts — an explicit "#give"/"#checkin" jumps straight to the
+  // action, bypassing any active flow (client request 2026-09-12). #reset is
+  // handled above. Unknown "#something" lists the available shortcuts.
+  if (!message.buttonReplyId && /^#[a-z]/i.test(trimmed)) {
+    const key = trimmed.slice(1).toLowerCase().replace(/[^a-z]/g, "");
+    const route = HASHTAG_ROUTES[key];
+    if (route) {
+      if (session.activeFlow || session.onboarding) await updateSession(from, { activeFlow: undefined, onboarding: undefined });
+      if (route.kind === "menu") { if (link) await sendMainMenu(from, link); else await sendGuestWelcome(from); return; }
+      if (!link) { await sendGuestWelcome(from); return; } // member actions need a church link
+      if (route.kind === "checkin") { await startChildCheckin(from, link, personId, session); return; }
+      if (route.kind === "read") {
+        const reply = await runMenuRead(route.buttonId, agentCtx(link, from, personId ?? undefined));
+        if (reply) { await sendTextMessage(from, reply); return; }
+      }
+      if (route.kind === "flow") {
+        const gateTool = FLOW_GATE_TOOL[route.flow] ? getAgentTool(FLOW_GATE_TOOL[route.flow]) : null;
+        if (gateTool) {
+          const denied = toolAccessError(gateTool, { workspaceId: link.workspaceId, role: link.userRole as Role });
+          if (denied) { await sendTextMessage(from, denied); return; }
+        }
+        const out = await startFlow(route.flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+        if (out) { await sendFlowOutput(from, out); return; }
+      }
+    }
+    await sendTextMessage(from, hashtagHelp());
+    return;
+  }
+
   // ── In-progress task flow (flow engine) ──
   // An active rail owns the turn — text OR button tap — for members AND guests,
   // so it wins over the ad-hoc join-code / admin-claim matchers below. Global
@@ -1556,7 +1625,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
         ? await advanceSignupFlow(from, session, trimmed)
         : session.onboarding.flow === "post-approval-setup"
           ? await advanceSetupFlow(from, session, trimmed)
-          : await advanceAssignRoleFlow(from, session, trimmed);
+          : null; // assign-role now runs on the flow engine (see startAssignRole)
     if (reply) { await sendTextMessage(from, reply); return; }
   }
 
@@ -1663,8 +1732,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   // (canAssignRole against the lowest role = "does this role assign at all").
   if (trimmed && isAssignRoleTrigger(trimmed) && link && !session.onboarding) {
     if (canAssignRole(link.userRole, "member")) {
-      const reply = await startAssignRoleFlow(from, link.workspaceId, link.userRole);
-      await sendTextMessage(from, reply);
+      await startAssignRole(from, link, session);
     } else {
       await sendTextMessage(from, "Only branch admins can change roles.");
     }

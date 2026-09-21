@@ -26,16 +26,27 @@ async function drive(turns: Array<{ text?: string; buttonId?: string }>) {
 beforeEach(() => { vi.clearAllMocks(); registerFlow(holdSeatFlow); handlerMock.mockResolvedValue({ message: "✅ Seat reserved." }); classroomsMock.mockResolvedValue([]); });
 
 describe("hold_seat flow", () => {
-  it("no classrooms → reserves with name only", async () => {
-    const { out, session } = await drive([{ text: "Timmy Obi" }]);
+  it("no classrooms → name → confirm → reserves with name only", async () => {
+    const { out, session } = await drive([{ text: "Timmy Obi" }, { buttonId: "hs_go" }]);
     expect(handlerMock).toHaveBeenCalledWith({ childName: "Timmy Obi", classroomId: undefined }, expect.objectContaining({ workspaceId: "ws1" }));
     expect(out).toMatchObject({ type: "text" });
     expect(session.activeFlow).toBeUndefined();
   });
-  it("with classrooms → name → pick room → reserve with classroomId", async () => {
+  it("with classrooms → name → pick room → confirm → reserve with classroomId", async () => {
     classroomsMock.mockResolvedValue([{ id: "A", name: "Nursery", capacity: 10, occupancy: 1, full: false }]);
-    await drive([{ text: "Zoe Ade" }, { buttonId: "room_0" }]);
+    await drive([{ text: "Zoe Ade" }, { buttonId: "room_0" }, { buttonId: "hs_go" }]);
     expect(handlerMock).toHaveBeenCalledWith({ childName: "Zoe Ade", classroomId: "A" }, expect.objectContaining({ workspaceId: "ws1" }));
+  });
+  it("name asks for confirmation before reserving (no accidental hold)", async () => {
+    const { out, session } = await drive([{ text: "Timmy Obi" }]);
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Reserve a seat for") });
+    expect(session.activeFlow).toMatchObject({ step: "confirm" });
+    expect(handlerMock).not.toHaveBeenCalled();
+  });
+  it("cancel at confirm reserves nothing", async () => {
+    const { session } = await drive([{ text: "Timmy Obi" }, { buttonId: "hs_cancel" }]);
+    expect(handlerMock).not.toHaveBeenCalled();
+    expect(session.activeFlow).toBeUndefined();
   });
   it("a full room can't be reserved", async () => {
     classroomsMock.mockResolvedValue([{ id: "A", name: "Nursery", capacity: 2, occupancy: 2, full: true }]);

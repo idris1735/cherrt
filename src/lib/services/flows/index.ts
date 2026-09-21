@@ -31,5 +31,6 @@ import { pickupFlow } from "@/lib/services/flows/pickup";
 import { convertFirstTimerFlow } from "@/lib/services/flows/convert-first-timer";
 import { joinFlow } from "@/lib/services/flows/join";
 import { addGuardianFlow } from "@/lib/services/flows/add-guardian";
+import { assignRoleFlow } from "@/lib/services/flows/assign-role";
 
-[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, setBirthdayFlow, volunteerSignupFlow, lostFoundFlow, createEventFlow, requestVolunteersFlow, officeGuestFlow, createClassroomFlow, acceptArrivalsFlow, holdSeatFlow, arriveFlow, pickupFlow, convertFirstTimerFlow, joinFlow, addGuardianFlow].forEach(registerFlow);
+[childCheckinFlow, childRegisterFlow, guestConnectFlow, giveFlow, prayerFlow, pastoralFlow, pastoralFormFlow, firstTimerFlow, lifeJourneyFlow, reportIssueFlow, eventRegisterFlow, recordGivingFlow, announceFlow, addMemberFlow, qrFlow, recordServiceFlow, setBirthdayFlow, volunteerSignupFlow, lostFoundFlow, createEventFlow, requestVolunteersFlow, officeGuestFlow, createClassroomFlow, acceptArrivalsFlow, holdSeatFlow, arriveFlow, pickupFlow, convertFirstTimerFlow, joinFlow, addGuardianFlow, assignRoleFlow].forEach(registerFlow);
