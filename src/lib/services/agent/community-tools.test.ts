@@ -42,7 +42,7 @@ vi.mock("@/lib/services/whatsapp", () => ({ sendInteractiveButtons: buttonsMock 
 import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
 import type { AgentContext } from "@/lib/services/agent/tools";
 
-const ctx: AgentContext = { workspaceId: "ws1", role: "member", userName: "Ruth" };
+const ctx: AgentContext = { workspaceId: "ws1", role: "member", userName: "Ruth", phone: "2348010000000" };
 const tool = (name: string) => COMMUNITY_TOOLS.find((t) => t.name === name)!;
 
 beforeEach(() => {
@@ -77,7 +77,8 @@ describe("join_department", () => {
     // ensurePerson creates people + phone_contacts first, then department_memberships
     const deptInsert = store.inserts.find((i) => i.table === "department_memberships");
     expect(deptInsert).toBeDefined();
-    expect(deptInsert!.row).toMatchObject({ workspace_id: "ws1", unit_name: "Choir", member_name: "Ruth", status: "pending" });
+    // member_phone must be captured, or the applicant can't be told the decision.
+    expect(deptInsert!.row).toMatchObject({ workspace_id: "ws1", unit_name: "Choir", member_name: "Ruth", member_phone: "2348010000000", status: "pending" });
     expect(deptInsert!.row.person_id).toBeDefined();
     expect(deptInsert!.row.ministry_unit_id).toBe("mu1");
   });

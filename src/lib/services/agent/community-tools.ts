@@ -137,6 +137,7 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
         ministry_unit_id: unitId,
         unit_name: unitName,
         member_name: ctx.userName ?? "",
+        member_phone: ctx.phone ?? null, // needed so the applicant is notified of the decision
         skills: String(args.skills ?? "") || null,
         availability: String(args.availability ?? "") || null,
         status: "pending",
