@@ -337,6 +337,10 @@ async function callGemini(
       responseMimeType: "application/json",
       temperature: 0.5,
       maxOutputTokens: 1200,
+      // Disable gemini-2.5-flash dynamic "thinking" here: it draws from
+      // maxOutputTokens and can truncate the JSON body, which then fails to parse
+      // (QA defect: "truncated response"). The full budget goes to the output.
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 

@@ -248,7 +248,12 @@ export async function runAgentQuery(
       config: {
         tools: [{ functionDeclarations: functionDeclarations as never }],
         temperature: 0.3,
-        maxOutputTokens: 800,
+        // gemini-2.5-flash does dynamic "thinking" that draws from maxOutputTokens.
+        // Left unbounded with a small budget it starved the visible reply and cut
+        // it off mid-sentence (QA defect: "truncated response"). Bound the thinking
+        // and give the answer comfortable room so it's never clipped.
+        maxOutputTokens: 1536,
+        thinkingConfig: { thinkingBudget: 512 },
       },
     });
     const calls = (response.functionCalls ?? []).map((fc) => ({
@@ -293,7 +298,10 @@ export async function runGuestAgent(userPrompt: string, media?: MediaPart[], pho
     const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: contents as never,
-      config: { tools: [{ functionDeclarations: functionDeclarations as never }], temperature: 0.6, maxOutputTokens: 400 },
+      // Guest chat is a short conversational reply with no real tools — disable
+      // thinking so the whole budget goes to the answer (prevents the truncated
+      // "…as I" reply QA saw), and give it a little more room.
+      config: { tools: [{ functionDeclarations: functionDeclarations as never }], temperature: 0.6, maxOutputTokens: 700, thinkingConfig: { thinkingBudget: 0 } },
     });
     const calls = (response.functionCalls ?? []).map((fc) => ({ name: fc.name ?? "", args: (fc.args ?? {}) as Record<string, unknown> }));
     return { functionCalls: calls.length ? calls : undefined, text: response.text ?? undefined };
