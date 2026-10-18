@@ -159,6 +159,7 @@ export async function persistWorkspaceAiResult(
   workspaceId: string,
   userName: string,
   result: AiCommandResult,
+  requesterPhone?: string,
 ): Promise<void> {
   const db = getSupabaseServerClient();
   if (!db) return;
@@ -174,6 +175,9 @@ export async function persistWorkspaceAiResult(
       title: result.generatedRequest.title,
       description: result.generatedRequest.description,
       requester_name: result.generatedRequest.requester ?? userName,
+      // The requester's phone, so the decision notifies THIS requester by
+      // request id — not whoever the approver's session last pointed at.
+      requester_phone: requesterPhone ?? null,
       amount: result.generatedRequest.amount ?? null,
       status: result.generatedRequest.status ?? "pending",
     }));
@@ -1012,15 +1016,17 @@ export async function loadKnowledgeContext(workspaceId: string): Promise<string>
 
 export async function getWorkflowRequest(
   requestId: string,
-): Promise<{ title: string; amount: number | null } | null> {
+): Promise<{ title: string; amount: number | null; requesterPhone: string | null } | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
   const { data } = await db
     .from("workflow_requests")
-    .select("title, amount")
+    .select("title, amount, requester_phone")
     .eq("id", requestId)
     .maybeSingle();
-  return data ?? null;
+  if (!data) return null;
+  const row = data as { title: string; amount: number | null; requester_phone?: string | null };
+  return { title: row.title, amount: row.amount, requesterPhone: row.requester_phone ?? null };
 }
 
 export async function loadWorkspaceContext(workspaceId: string): Promise<WorkspaceContext> {

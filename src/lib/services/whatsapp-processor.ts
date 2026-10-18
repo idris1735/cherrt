@@ -525,7 +525,7 @@ async function handleAiResult(
   }
 
   if (link) {
-    await persistWorkspaceAiResult(link.workspaceId, link.userName, result);
+    await persistWorkspaceAiResult(link.workspaceId, link.userName, result, from);
   } else {
     const amount = result.generatedExpenseEntry?.amount ?? result.generatedRequest?.amount;
     if (amount) await deductDemoBalance(from, amount);
@@ -1000,7 +1000,9 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     const requestId = buttonId.slice(8);
     const [request] = await Promise.all([getWorkflowRequest(requestId), approveWorkspaceRequest(requestId)]);
     await sendTextMessage(from, '✅ Approved: "' + (request?.title ?? "Request") + '"\n\nThe requester has been notified.');
-    const rp = session.pendingApproval?.requesterPhone;
+    // Notify the requester keyed off THIS request (survives multiple pending
+    // requests); fall back to the session only for rows predating the column.
+    const rp = request?.requesterPhone ?? session.pendingApproval?.requesterPhone;
     if (rp && request) { const amt = request.amount ? " (" + fmt(request.amount) + ")" : ""; await sendTextMessage(rp, '🎉 Your request "' + request.title + '"' + amt + " has been approved!"); }
     await clearPending(from); return;
   }
@@ -1009,7 +1011,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     const requestId = buttonId.slice(7);
     const [request] = await Promise.all([getWorkflowRequest(requestId), rejectWorkspaceRequest(requestId)]);
     await sendTextMessage(from, '❌ Rejected: "' + (request?.title ?? "Request") + '"');
-    const rp = session.pendingApproval?.requesterPhone;
+    const rp = request?.requesterPhone ?? session.pendingApproval?.requesterPhone;
     if (rp) { await sendTextMessage(rp, '❌ Your request "' + (request?.title ?? "your request") + '" was not approved. Contact your manager for details.'); }
     await clearPending(from); return;
   }

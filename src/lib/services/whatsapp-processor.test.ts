@@ -91,7 +91,7 @@ vi.mock("@/lib/services/whatsapp-workspace", async (importOriginal) => {
 import { processWhatsAppMessage } from "@/lib/services/whatsapp-processor";
 import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMessage } from "@/lib/services/whatsapp";
 import { runCherttCommand } from "@/lib/services/ai-service";
-import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode, findWorkspaceByUsername } from "@/lib/services/whatsapp-workspace";
+import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode, findWorkspaceByUsername, getWorkflowRequest } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { getWorkspaceBilling } from "@/lib/services/billing/subscription";
@@ -824,6 +824,18 @@ describe("processWhatsAppMessage", () => {
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "approve_dept:dm9" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("already been decided"));
+  });
+
+  it("workflow approval notifies the request's own requester, not whoever the session last pointed at", async () => {
+    // Two requests were pending: the approver's session now points at the
+    // LATEST requester (wrong-person). Approving the FIRST request's button
+    // must notify that request's stored requester_phone, keyed by id.
+    const mockReq = getWorkflowRequest as ReturnType<typeof vi.fn>;
+    mockReq.mockResolvedValueOnce({ title: "Fuel advance", amount: 20000, requesterPhone: "2348001111111" });
+    await updateSession(PHONE, { welcomed: true, pendingApproval: { requestId: "req-2", requestTitle: "Other", requesterPhone: "2348009999999" } });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "approve_req-1" });
+    expect(mockSend).toHaveBeenCalledWith("2348001111111", expect.stringContaining("approved"));
+    expect(mockSend).not.toHaveBeenCalledWith("2348009999999", expect.anything());
   });
 
   it("P0-1 — a welcomed guest prompted for a code gets linked when they send a bare code", async () => {
