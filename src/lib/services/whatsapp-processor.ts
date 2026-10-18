@@ -101,6 +101,12 @@ const MENU_RE = /^(?:menu|the menu|menu\s*(?:please|abeg|biko)?|show(?:\s*me)?\s
 // who-are-you buttons instead of a wall of text — people tap, they don't type.
 const GUEST_LOST_RE = /\b(menu|options?|get\s*started|start over|how (?:does |do |is |'?s )?(?:this|it|chertt)\s*works?|see how (?:this|it|chertt)\s*works?|what can (?:you|u|chertt)\s*do|show me around|do (?:you|u) have (?:a |an |any )?menu|any menu)\b/i;
 
+// A guest expressing a CHURCH action or connect intent — every one of these only
+// works once they're linked to a church, so (when it isn't phrased as a question)
+// it's guided into the connect rail rather than the open-ended agent. Kept to
+// church-specific verbs so ordinary chat still reaches the agent.
+const GUEST_CONNECT_INTENT_RE = /\b(connect(\s*me)?|join|i\s*attend|attend(ing)?|i'?m a member|a member|my church|our church|prayer|pray(ing|\s*for)?|give|giving|tithe|offering|donate|donation|check.?in|register(ing)?\s+(my\s+)?(child|kid|son|daughter|baby)|see a pastor|pastoral|counsel(l?ing)?|volunteer|serve|ministry|choir|usher(ing)?|visiting|new here)\b/i;
+
 function extractName(text: string): string | null {
   const m = text.trim().match(NAME_INTRO_RE);
   if (!m) return null;
@@ -2054,9 +2060,24 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       await sendTextMessage(from, `Welcome back${name} 🙏 You're at *${link.workspaceName}* — what can I help you with today?`);
       return;
     }
-    // Unlinked / guest: meet the real Chertt — a warm church-focused intro that
-    // guides them into onboarding, not the old SME/demo bot.
+    // Unlinked / guest: a clear CHURCH action or connect intent (prayer, giving,
+    // joining a ministry, "connect me", registering a child...) only works once
+    // they're linked to a church — so, when it isn't phrased as a question, it's
+    // guided straight into the deterministic connect rail (ordered, tappable
+    // who-are-you → name → code) instead of the open-ended agent, which previously
+    // just chatted and left the guest with no next step (QA defects: "flows not
+    // intuitive", "no clear direction", "can't get past the start"). Questions and
+    // ordinary chat still get a real answer from the guest agent.
     if (!link) {
+      const looksLikeQuestion = /\?\s*$/.test(trimmed)
+        || /^(how|what|why|who|whose|when|where|which|is|are|am|was|were|do|does|did|can|could|should|would|will|shall|may|might|has|have|had|if)\b/i.test(trimmed);
+      if (!looksLikeQuestion && GUEST_CONNECT_INTENT_RE.test(trimmed)) {
+        await addToHistory(from, "user", trimmed);
+        const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+        if (out) { await sendFlowOutput(from, out); return; }
+        await sendGuestWelcome(from);
+        return;
+      }
       const guestReply = await runGuestAgent(trimmed, undefined, from);
       if (guestReply) {
         await addToHistory(from, "user", trimmed);

@@ -482,6 +482,26 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled(); // old creator not used for guests anymore
   });
 
+  it("guest action intent (not a question) is guided into the connect rail, not the open-ended agent", async () => {
+    // QA: "flows not intuitive / no clear direction". A guest typing an action
+    // ("I want to give") must land in the ordered, tappable connect rail — and
+    // must NOT be handed to the free-form guest agent that left them stuck.
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to give" });
+    expect(runGuestAgent).not.toHaveBeenCalled();
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("who are you"), expect.anything(), expect.anything());
+    const s = await getSession(PHONE);
+    expect(s.activeFlow).toMatchObject({ name: "guest_connect", step: "who_are_you" });
+  });
+
+  it("guest question still gets a real answer from the guest agent (not the rail)", async () => {
+    vi.mocked(runGuestAgent).mockResolvedValueOnce("Chertt helps churches run everything on WhatsApp.");
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "what is Chertt?" });
+    expect(runGuestAgent).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Chertt helps churches"));
+  });
+
   it("routes a linked member's image to the multimodal agent (with media)", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "finance" },
