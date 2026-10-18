@@ -15,6 +15,12 @@ export type WhatsAppSession = {
   // processing them — we never act on a guest who hasn't agreed. Cleared only on
   // an explicit "I agree".
   consentDeclined?: boolean;
+  // The guest tapped "Here for my child" — they came to register a child. A
+  // child can only be registered once the guardian is connected to the church,
+  // so this is remembered across the connect step: the moment they connect, we
+  // start child registration right there (CHQ-012: "all registration should be
+  // done here"). Cleared once registration starts.
+  guestChildIntent?: boolean;
   // Which workspace this conversation is currently scoped to, when the phone
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."

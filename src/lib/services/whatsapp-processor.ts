@@ -768,8 +768,11 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   }
   if (buttonId === "guest_child") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
-    // WS5 — tappable next steps for families too.
-    await sendInteractiveButtons(from, "Lovely to have your family 👨‍👩‍👧 To keep children safe, a parent or guardian registers them — never the child.", [
+    // CHQ-012: registration happens right here, not "somewhere else". Remember the
+    // child intent so that, the moment they connect, we start child registration
+    // automatically. For safety a parent/guardian registers — never the child.
+    await updateSession(from, { guestChildIntent: true });
+    await sendInteractiveButtons(from, "Lovely 👨‍👩‍👧 I'll register your child right here. First I need to connect you to your church (for safety, a parent or guardian registers the child — never the child). Do you have your church code?", [
       { id: "guest_code", title: "Send my code" },
       { id: "guest_help", title: "Talk to a leader" },
     ]);
@@ -833,6 +836,19 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
         workspaceName: pj.name,
         role: "member",
       });
+      // CHQ-012: a guest who came "for my child" registers the child right here,
+      // the moment they're connected — no being sent elsewhere.
+      if (session.guestChildIntent) {
+        await updateSession(from, { guestChildIntent: false });
+        const childLink: PhoneLink = {
+          phoneNumber: from, userId: null,
+          workspaceId: pj.workspaceId, workspaceSlug: pj.slug, workspaceName: pj.name,
+          userName: session.userName ?? "", userRole: "member",
+        };
+        await sendTextMessage(from, `🎉 You're connected to *${pj.name}*! Now let's register your child.`);
+        const out = await startFlow("child_register", { phone: from, link: childLink, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
+        if (out) { await sendFlowOutput(from, out); return; }
+      }
       await sendTextMessage(from, `🎉 You're connected to *${pj.name}*! What can I help you with today?`);
     } else {
       await sendTextMessage(from, "Send your church's 8-character code and I'll connect you.");

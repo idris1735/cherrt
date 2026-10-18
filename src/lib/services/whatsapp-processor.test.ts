@@ -1446,9 +1446,25 @@ describe("WS5 — tappable follow-ups after guest persona buttons", () => {
     expect(s.activeFlow).toMatchObject({ name: "guest_connect", step: "who_are_you" });
   });
 
-  it("guest taps 'here for my child' → gets tappable code / talk-to-leader", async () => {
+  it("guest taps 'here for my child' → gets tappable code / talk-to-leader, and remembers the child intent", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "guest_child" });
-    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    const [, body, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(buttons.map((b) => b.id)).toEqual(["guest_code", "guest_help"]);
+    expect(body.toLowerCase()).toContain("register your child");
+    const s = await getSession(PHONE);
+    expect(s.guestChildIntent).toBe(true);
+  });
+
+  it("CHQ-012 — a guest who came for their child goes straight into child registration once connected", async () => {
+    await updateSession(PHONE, {
+      welcomed: true,
+      guestChildIntent: true,
+      pendingJoin: { workspaceId: "ws-daystar", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos" },
+    });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "join_yes" });
+    expect(provisionPersonMembership).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-daystar", role: "member" }));
+    const s = await getSession(PHONE);
+    expect(s.activeFlow?.name).toBe("child_register");
+    expect(s.guestChildIntent).toBe(false);
   });
 });
