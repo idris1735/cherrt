@@ -10,6 +10,11 @@ export type WhatsAppSession = {
   awaitingJoinCode?: boolean;
   // P0-2: a resolved join code waits for the person's YES before linking.
   pendingJoin?: { workspaceId: string; slug: string; name: string; city: string };
+  // The guest declined the privacy/consent gate ("No thanks" / "stop"). While
+  // set, every return visit re-shows the consent gate instead of silently
+  // processing them — we never act on a guest who hasn't agreed. Cleared only on
+  // an explicit "I agree".
+  consentDeclined?: boolean;
   // Which workspace this conversation is currently scoped to, when the phone
   // is linked to more than one (multi-church membership). Null/undefined
   // means either "only one link, no ambiguity" or "not yet resolved."

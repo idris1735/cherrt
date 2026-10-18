@@ -730,6 +730,9 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // ── Consent gate (must agree before anything is stored/used) ──
   if (buttonId === "guest_consent") {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    // Explicit agreement opts them back in and clears any prior decline.
+    await updateSession(from, { consentDeclined: false });
+    await clearOptOut(from).catch(() => {});
     // Consent given — open the guest front door ON RAILS.
     const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
@@ -742,6 +745,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   }
   if (buttonId === "guest_optout") {
     await sendTextMessage(from, "No problem — I won't store your details or message you again. Reply *hi* anytime if you change your mind. 🙏");
+    await updateSession(from, { consentDeclined: true });
     await setOptedOut(from).catch(() => {});
     return;
   }
@@ -1250,12 +1254,28 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
 
   // Re-engagement clears opt-out: any message from an opted-out number is the
   // person opting back in (Slice B). Best-effort.
-  await clearOptOut(from).catch(() => null);
-
   const session = await getSession(from);
   const { allLinks, link: resolvedLink, personId } = await resolveActiveLinks(from, session.activeWorkspaceId);
   let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
+
+  // A linked member messaging in is a clear re-engagement → opt them back in, so
+  // our replies aren't suppressed. A guest's opt-out is NOT silently reversed:
+  // it's cleared only when they explicitly agree again (see the consent gate).
+  if (link) await clearOptOut(from).catch(() => null);
+
+  // Consent gate — a guest who previously declined ("No thanks" / "stop") sees it
+  // again on every return, and is never silently processed. A consent response
+  // itself (I agree / privacy / No thanks / stop) is let through to its handler.
+  const isConsentResponse =
+    message.buttonReplyId === "guest_consent" ||
+    message.buttonReplyId === "guest_privacy" ||
+    message.buttonReplyId === "guest_optout" ||
+    (!!trimmed && /^((i\s*)?agree\b|(yes,?\s*)?i\s*agree|privacy|stop|unsubscribe|remove me)/i.test(trimmed));
+  if (!link && session.consentDeclined && !isConsentResponse) {
+    await sendConsentGate(from);
+    return;
+  }
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
@@ -1667,6 +1687,9 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   // Typed consent (for guests who type instead of tapping the gate button).
   if (!link && /^(i\s*)?agree\b.*$|^(yes,?\s*)?i\s*agree$/i.test(trimmed)) {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
+    // Explicit agreement opts them back in and clears any prior decline.
+    await updateSession(from, { consentDeclined: false });
+    await clearOptOut(from).catch(() => {});
     const out = await startFlow("guest_connect", { phone: from, link: null, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
     await sendGuestWelcome(from);
@@ -1681,6 +1704,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     // Confirm FIRST (while the number is still messageable), THEN record the
     // opt-out — after which all future outbound sends are suppressed.
     await sendTextMessage(from, "No problem — I won't reach out again, and I've noted your request. To have your data removed entirely, reply *delete my data* or email support@chertt.app. Full policy: https://chertt.app/privacy");
+    if (!link) await updateSession(from, { consentDeclined: true });
     await setOptedOut(from).catch(() => {});
     await logDataRequest({ kind: "deletion", note: `opt-out via STOP from ${from}`, personId: personId ?? undefined, workspaceId: link?.workspaceId ?? undefined }).catch(() => {});
     return;

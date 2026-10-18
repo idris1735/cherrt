@@ -648,6 +648,33 @@ describe("processWhatsAppMessage", () => {
     expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
   });
 
+  it("privacy — a guest who declined consent is re-shown the gate on return, never silently processed", async () => {
+    // QA defect "bypassing privacy agreement": after "No thanks", saying "hi"
+    // slipped past the gate straight to the agent. Now it re-shows the gate.
+    await updateSession(PHONE, { welcomed: true, consentDeclined: true });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+    expect(runGuestAgent).not.toHaveBeenCalled();
+    expect(mockRun).not.toHaveBeenCalled();
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.some((b) => b.id === "guest_consent")).toBe(true);
+  });
+
+  it("privacy — tapping 'No thanks' records the decline on the session", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", text: "", buttonReplyId: "guest_optout" });
+    const s = await getSession(PHONE);
+    expect(s.consentDeclined).toBe(true);
+  });
+
+  it("privacy — 'I agree' after a decline clears it and opens the who-are-you menu", async () => {
+    await updateSession(PHONE, { welcomed: true, consentDeclined: true });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", text: "", buttonReplyId: "guest_consent" });
+    const s = await getSession(PHONE);
+    expect(s.consentDeclined).toBe(false);
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
+  });
+
   it("an already-welcomed GUEST asking for a menu gets tappable buttons, not the AI", async () => {
     await skipWelcome();
     for (const msg of ["Do you have any menu?", "how does this work", "options"]) {
