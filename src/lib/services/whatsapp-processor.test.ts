@@ -790,6 +790,29 @@ describe("processWhatsAppMessage", () => {
     expect(provisionPersonMembership).not.toHaveBeenCalled();
   });
 
+  it("church-code gate — a welcomed guest who simply TYPES their code (not prompted) is connected, not sent to the agent", async () => {
+    // Regression for the QA defect "non recognition of church code": a returning
+    // visitor types DAYSTAR3 with no awaitingJoinCode flag set. It must still be
+    // looked up and reflected back for confirmation.
+    const mockFind = findWorkspaceByJoinCode as ReturnType<typeof vi.fn>;
+    mockFind.mockResolvedValueOnce({ id: "ws-daystar", slug: "daystar", name: "Daystar Christian Centre", city: "Lagos" });
+    await updateSession(PHONE, { welcomed: true }); // welcomed, NOT awaitingJoinCode
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "DAYSTAR3" });
+    expect(mockFind).toHaveBeenCalledWith("DAYSTAR3");
+    expect(mockButtons).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar Christian Centre"), expect.anything(), expect.anything());
+    expect(provisionPersonMembership).not.toHaveBeenCalled();
+  });
+
+  it("church-code gate — a welcomed guest's ordinary 8-letter word is NOT dead-ended with a 'couldn't find' reply", async () => {
+    // The flip side: an 8-char word that matches no church, typed mid-chat with no
+    // code context, must fall through to normal routing — never hijack the message.
+    const mockFind = findWorkspaceByJoinCode as ReturnType<typeof vi.fn>;
+    mockFind.mockResolvedValue(null);
+    await updateSession(PHONE, { welcomed: true });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "children" });
+    expect(mockSend.mock.calls.flat().join(" ")).not.toContain("couldn't find a church");
+  });
+
   it("P0-2 — YES on the church confirm links the person and greets by church name", async () => {
     await updateSession(PHONE, {
       welcomed: true,

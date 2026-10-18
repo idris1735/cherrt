@@ -1540,15 +1540,23 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   // joining them to whatever workspace happens to own that code.
   if (!link && trimmed) {
     const prefixed = trimmed.match(/^join[\s-]?@?([a-z0-9_]{3,20})$/i);
-    const bareCode = (!session.welcomed || session.awaitingJoinCode)
-      ? trimmed.match(/^([a-z0-9]{8})$/i)
-      : null;
+    // A bare 8-char code or @username is looked up for ANY unlinked sender — so a
+    // returning visitor who simply types their church code gets connected, not
+    // only a brand-new one or someone who just tapped "Send my code". The old
+    // !session.welcomed/awaitingJoinCode gate silently dropped a typed code and
+    // let it fall through to the agent (QA defect: "non recognition of church
+    // code"). Lookup is indexed and confirm-first, so attempting it is cheap.
+    const bareCode = trimmed.match(/^([a-z0-9]{8})$/i);
     // P2-2: a bare @username works like a bare code (confirm-first).
-    const bareUsername = (!session.welcomed || session.awaitingJoinCode)
-      ? trimmed.match(/^@([a-z0-9_]{3,20})$/i)
-      : null;
+    const bareUsername = trimmed.match(/^@([a-z0-9_]{3,20})$/i);
     const identifier = prefixed?.[1] ?? bareCode?.[1] ?? bareUsername?.[1] ?? null;
     const explicitUsername = prefixed && /^join[\s-]?@/i.test(trimmed) ? prefixed[1] : (bareUsername?.[1] ?? null);
+    // A plain 8-char word (no JOIN/@ prefix) is the ambiguous case: we still look
+    // it up, but on a MISS we only show the "couldn't find" help when the sender
+    // is clearly sending a code (explicit JOIN/@, first contact, or we just asked
+    // for one) — so an ordinary 8-letter word typed mid-chat isn't hijacked by a
+    // dead-end reply (preserves the 2026-07-18 audit intent).
+    const explicitCodeAttempt = !!prefixed || !!bareUsername || !session.welcomed || !!session.awaitingJoinCode;
     if (identifier) {
       let workspace = await findWorkspaceByJoinCode(identifier);
       // Username fallback only when it's an explicit @username or not shaped
@@ -1589,8 +1597,12 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
         );
         return;
       }
-      await sendTextMessage(from, "I couldn't find a church with that code or username — check with your admin, or just tell me your church's name.");
-      return;
+      if (explicitCodeAttempt) {
+        await sendTextMessage(from, "I couldn't find a church with that code or username — check with your admin, or just tell me your church's name.");
+        return;
+      }
+      // A bare 8-char word that matched no church and wasn't an explicit code
+      // attempt — fall through to normal routing rather than dead-ending chat.
     }
   }
 
