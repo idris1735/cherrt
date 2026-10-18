@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 import { resolvePersonIdByNameInWorkspace } from "@/lib/services/identity/people";
+import { notifyLeaders } from "@/lib/services/church/referral";
 import type { AgentTool, AgentContext } from "@/lib/services/agent/tools";
 
 type JourneyType = "bereavement" | "marriage_prep" | "baptism" | "discipleship";
@@ -16,6 +17,7 @@ async function startJourney(
   journeyType: JourneyType,
   details: Record<string, unknown>,
   message: string,
+  notify: string,
 ): Promise<unknown> {
   const db = getSupabaseServerClient();
   if (!db) return { error: "storage unavailable" };
@@ -30,6 +32,17 @@ async function startJourney(
     status: "active",
   });
   if (error) return { error: error.message };
+  // The reply promises "the pastor and care team have been notified" — so
+  // actually notify them. Pastoral rank only: bereavement/marriage details are
+  // sensitive (same gate as list_life_journeys, minRank 4). The alert carries
+  // no details, just a prompt to open the follow-up list. Awaited so the
+  // notification really fires (a fire-and-forget would be killed when the
+  // function returns), but never fails the capture.
+  try {
+    await notifyLeaders({ workspaceId: ctx.workspaceId, roleAtLeast: "pastoral", message: notify });
+  } catch {
+    /* capture is saved; the notification is best-effort */
+  }
   return { ok: true, message };
 }
 
@@ -54,6 +67,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
         "bereavement",
         { deceased: String(args.deceased ?? ""), relationship: String(args.relationship ?? ""), notes: String(args.notes ?? "") },
         "We're so sorry for your loss. 🕊️ The pastor and care team have been notified and will reach out to you.",
+        `🕊️ New bereavement support request from ${ctx.userName || "a member"}. Open "life journeys" to follow up.`,
       ),
   },
   {
@@ -74,6 +88,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
         "marriage_prep",
         { partner: String(args.partner ?? ""), weddingDate: String(args.weddingDate ?? "") },
         "🎉 Your marriage-prep request is in — the pastor will reach out to schedule your sessions.",
+        `💍 New marriage-prep request from ${ctx.userName || "a member"}. Open "life journeys" to follow up.`,
       ),
   },
   {
@@ -91,6 +106,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
         "baptism",
         { candidate: String(args.candidate ?? "") || ctx.userName || "" },
         "💧 You're registered for the next baptism class. We'll confirm the date with you.",
+        `💧 New baptism registration from ${ctx.userName || "a member"}. Open "life journeys" to follow up.`,
       ),
   },
   {
@@ -111,6 +127,7 @@ export const JOURNEY_TOOLS: AgentTool[] = [
         // cron/scheduler.ts). Best-effort: it's the sender's number.
         { convert: String(args.convert ?? "") || ctx.userName || "", phone: ctx.phone ?? "" },
         "🙌 Welcome to the family of God! You've been enrolled in our new-believer journey and a mentor will follow up with you.",
+        `🙌 New convert enrolled in discipleship: ${ctx.userName || "a member"}. Open "life journeys" to follow up.`,
       ),
   },
   {

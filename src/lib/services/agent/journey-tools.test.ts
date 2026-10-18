@@ -4,6 +4,13 @@ const { store } = vi.hoisted(() => ({
   store: {
     inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
     selectData: {} as Record<string, unknown[]>,
+    notifies: [] as Array<{ workspaceId: string; roleAtLeast?: string; message: string }>,
+  },
+}));
+vi.mock("@/lib/services/church/referral", () => ({
+  notifyLeaders: (p: { workspaceId: string; roleAtLeast?: string; message: string }) => {
+    store.notifies.push(p);
+    return Promise.resolve();
   },
 }));
 vi.mock("@/lib/services/supabase-server", () => ({
@@ -35,6 +42,7 @@ const tool = (name: string) => JOURNEY_TOOLS.find((t) => t.name === name)!;
 beforeEach(() => {
   store.inserts.length = 0;
   store.selectData = {};
+  store.notifies.length = 0;
 });
 
 describe("life-journey intakes", () => {
@@ -67,6 +75,25 @@ describe("life-journey intakes", () => {
   it("drops empty detail fields rather than storing blanks", async () => {
     await tool("start_bereavement_support").handler({ deceased: "my father" }, ctx);
     expect(store.inserts[0].row.details).toEqual({ deceased: "my father" });
+  });
+
+  it("notifies pastoral leaders when a bereavement is logged (the reply promises it)", async () => {
+    await tool("start_bereavement_support").handler({ deceased: "my father" }, ctx);
+    expect(store.notifies).toHaveLength(1);
+    expect(store.notifies[0]).toMatchObject({ workspaceId: "ws1", roleAtLeast: "pastoral" });
+    expect(store.notifies[0].message).toMatch(/bereavement/i);
+  });
+
+  it("notifies pastoral leaders for every journey type, carrying no sensitive details", async () => {
+    await tool("register_baptism").handler({}, ctx);
+    await tool("enroll_discipleship").handler({}, ctx);
+    await tool("register_marriage_prep").handler({ partner: "John" }, ctx);
+    expect(store.notifies).toHaveLength(3);
+    for (const n of store.notifies) {
+      expect(n.roleAtLeast).toBe("pastoral");
+      // the alert names the person + journey, never the free-text details.
+      expect(n.message).not.toMatch(/John/);
+    }
   });
 });
 

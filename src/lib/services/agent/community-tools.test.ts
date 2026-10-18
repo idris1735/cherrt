@@ -36,8 +36,11 @@ vi.mock("@/lib/services/supabase-server", () => ({
 vi.mock("@/lib/services/church/referral", () => ({
   notifyLeaders: vi.fn().mockResolvedValue(undefined),
 }));
-const { buttonsMock } = vi.hoisted(() => ({ buttonsMock: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@/lib/services/whatsapp", () => ({ sendInteractiveButtons: buttonsMock }));
+const { buttonsMock, textMock } = vi.hoisted(() => ({
+  buttonsMock: vi.fn().mockResolvedValue(undefined),
+  textMock: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/services/whatsapp", () => ({ sendInteractiveButtons: buttonsMock, sendTextMessage: textMock }));
 
 import { COMMUNITY_TOOLS } from "@/lib/services/agent/community-tools";
 import type { AgentContext } from "@/lib/services/agent/tools";
@@ -48,6 +51,8 @@ const tool = (name: string) => COMMUNITY_TOOLS.find((t) => t.name === name)!;
 beforeEach(() => {
   store.inserts.length = 0;
   store.selectData = {};
+  buttonsMock.mockClear();
+  textMock.mockClear();
 });
 
 describe("register_for_event", () => {
@@ -124,6 +129,65 @@ describe("join_department", () => {
     const [firstPhone, , firstButtons] = buttonsMock.mock.calls[0] as [string, string, Array<{ id: string }>];
     expect(firstPhone).toBe("+2348001");
     expect(firstButtons.map((b) => b.id)).toEqual(["approve_dept:new-id", "decline_dept:new-id"]);
+  });
+});
+
+describe("approve_department_request / decline_department_request", () => {
+  // The acting leader; a second approver + the applicant are set up so we can
+  // assert everyone is notified, exactly like the button path.
+  const leaderCtx: AgentContext = { workspaceId: "ws1", role: "pastor", userName: "Pastor", phone: "234LEADER_A" };
+
+  function seedPending() {
+    store.selectData["department_memberships"] = [
+      { id: "m1", unit_name: "Choir", member_name: "Ada", member_phone: "234MEMBER" },
+    ];
+    store.selectData["approvals"] = [{ id: "a1", approver_phones: ["234LEADER_B"], decisions: [] }];
+  }
+
+  it("approves through the quorum path and notifies the member + other approvers", async () => {
+    seedPending();
+    const out = (await tool("approve_department_request").handler({ memberName: "Ada" }, leaderCtx)) as { ok?: boolean; message?: string };
+    expect(out.ok).toBe(true);
+    expect(out.message).toMatch(/Approved/);
+    expect(out.message).toMatch(/Choir/);
+    // the approvals row is resolved (not left orphaned "open")
+    const approvalUpdate = store.inserts.find((i) => i.table === "approvals" && (i.row as { status?: string }).status === "approved");
+    expect(approvalUpdate).toBeDefined();
+    // the applicant is told, and the other approver is told
+    const toMember = textMock.mock.calls.find((c) => c[0] === "234MEMBER");
+    expect(toMember?.[1]).toMatch(/approved/i);
+    expect(textMock.mock.calls.some((c) => c[0] === "234LEADER_B")).toBe(true);
+  });
+
+  it("declines through the quorum path and tells the applicant", async () => {
+    seedPending();
+    const out = (await tool("decline_department_request").handler({ memberName: "Ada" }, leaderCtx)) as { ok?: boolean; message?: string };
+    expect(out.ok).toBe(true);
+    expect(out.message).toMatch(/Declined/);
+    const toMember = textMock.mock.calls.find((c) => c[0] === "234MEMBER");
+    expect(toMember?.[1]).toMatch(/declined/i);
+  });
+
+  it("never does a raw name-matched status flip (no orphaned department_memberships update)", async () => {
+    seedPending();
+    await tool("approve_department_request").handler({ memberName: "Ada" }, leaderCtx);
+    // The only department_memberships write is the by-id resolution inside
+    // decideDepartmentRequest — never a bare name-matched update.
+    const deptWrites = store.inserts.filter((i) => i.table === "department_memberships");
+    expect(deptWrites.every((w) => (w.row as { status?: string }).status === "approved")).toBe(true);
+  });
+
+  it("errors when there is no pending request from that member", async () => {
+    store.selectData["department_memberships"] = [];
+    const out = (await tool("decline_department_request").handler({ memberName: "Nobody" }, leaderCtx)) as { error?: string };
+    expect(out.error).toMatch(/no pending request/i);
+  });
+
+  it("reports when the request was already decided", async () => {
+    store.selectData["department_memberships"] = [{ id: "m1", unit_name: "Choir", member_name: "Ada", member_phone: "234MEMBER" }];
+    store.selectData["approvals"] = []; // no open approval
+    const out = (await tool("approve_department_request").handler({ memberName: "Ada" }, leaderCtx)) as { error?: string };
+    expect(out.error).toMatch(/already been decided/i);
   });
 });
 

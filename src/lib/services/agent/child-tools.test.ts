@@ -205,6 +205,26 @@ describe("check_in_child — WS-D identity linking", () => {
   });
 });
 
+describe("hold_seat — reservation binds to the guardian's own child", () => {
+  it("keeps an explicit childPersonId that belongs to the guardian", async () => {
+    store.list["guardianships"] = [{ child_person_id: "k1" }];
+    store.list["people"] = [{ id: "k1", full_name: "Timmy" }];
+    await tool("hold_seat").handler({ childName: "Timmy", childPersonId: "k1" }, { ...ctx, personId: "g1" });
+    const insert = store.inserts.find((i) => i.table === "child_checkins");
+    expect(insert?.row).toMatchObject({ child_person_id: "k1", status: "held" });
+  });
+
+  it("IDOR: drops an explicit childPersonId that is NOT the guardian's own child", async () => {
+    store.list["guardianships"] = [{ child_person_id: "k1" }];
+    store.list["people"] = [{ id: "k1", full_name: "Timmy" }];
+    // "someone-elses-kid" is not among g1's registered children, and the name
+    // doesn't match either, so the reservation must not bind to it.
+    await tool("hold_seat").handler({ childName: "Zoe Stranger", childPersonId: "someone-elses-kid" }, { ...ctx, personId: "g1" });
+    const insert = store.inserts.find((i) => i.table === "child_checkins");
+    expect(insert?.row.child_person_id).toBeNull();
+  });
+});
+
 describe("list_checked_in_children", () => {
   it("counts and lists the currently checked-in children", async () => {
     store.list["child_checkins"] = [

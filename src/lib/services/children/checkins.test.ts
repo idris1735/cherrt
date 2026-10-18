@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const { store } = vi.hoisted(() => ({ store: { child_checkins: [] as any[], classrooms: [] as any[] } }));
-function builder(rows: any[]) {
+const { store } = vi.hoisted(() => ({ store: { child_checkins: [] as any[], classrooms: [] as any[], inserts: [] as any[] } }));
+function builder(rows: any[], table: string) {
   let f = [...rows];
   let patch: any = null;
   const api: any = {
@@ -11,19 +11,21 @@ function builder(rows: any[]) {
     in: (k: string, vs: any[]) => { f = f.filter((r) => vs.includes(r[k])); return api; },
     order: () => api,
     limit: () => api,
+    insert: (row: any) => { store.inserts.push({ table, row }); f = [{ id: "new-id", ...row }]; return api; },
     update: (p: any) => { patch = p; return api; },
+    single: () => Promise.resolve({ data: f[0] ?? null, error: null }),
     maybeSingle: () => { const row = f[0] ?? null; if (patch && row) Object.assign(row, patch); return Promise.resolve({ data: row }); },
     then: (res: (v: { data: any[] }) => void) => res({ data: f }),
   };
   return api;
 }
 vi.mock("@/lib/services/supabase-server", () => ({
-  getSupabaseServerClient: () => ({ from: (t: string) => builder((store as any)[t] ?? []) }),
+  getSupabaseServerClient: () => ({ from: (t: string) => builder((store as any)[t] ?? [], t) }),
 }));
 
-import { listPendingArrivals, acceptArrival } from "@/lib/services/children/checkins";
+import { listPendingArrivals, acceptArrival, holdSeat } from "@/lib/services/children/checkins";
 
-beforeEach(() => { store.child_checkins = []; store.classrooms = []; });
+beforeEach(() => { store.child_checkins = []; store.classrooms = []; store.inserts = []; });
 
 describe("listPendingArrivals", () => {
   it("returns checked_in children (not in_class) with classroom names", async () => {
@@ -52,5 +54,20 @@ describe("acceptArrival", () => {
   it("is a no-op on a child who isn't checked_in", async () => {
     store.child_checkins = [{ id: "c1", workspace_id: "ws1", child_name: "Timmy", status: "in_class" }];
     expect(await acceptArrival("ws1", "c1", "Teacher")).toEqual({ ok: false });
+  });
+});
+
+describe("holdSeat", () => {
+  it("binds the reservation to the child's person id so pickup verifies by identity", async () => {
+    const res = await holdSeat({ workspaceId: "ws1", childName: "Timmy Obi", childPersonId: "k1", guardianPersonId: "g1", guardianName: "Ada", pickupCode: "123456" });
+    expect(res).toEqual({ id: "new-id" });
+    const insert = store.inserts.find((i) => i.table === "child_checkins");
+    expect(insert.row).toMatchObject({ workspace_id: "ws1", child_name: "Timmy Obi", child_person_id: "k1", guardian_person_id: "g1", status: "held" });
+  });
+
+  it("stores a null child_person_id when none is supplied (does not crash)", async () => {
+    await holdSeat({ workspaceId: "ws1", childName: "Unknown Kid", pickupCode: "654321" });
+    const insert = store.inserts.find((i) => i.table === "child_checkins");
+    expect(insert.row.child_person_id).toBeNull();
   });
 });

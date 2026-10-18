@@ -51,7 +51,7 @@ export type HeldSeat = { id: string; childName: string; classroom: string | null
 
 // Reserve a seat ahead of time (status held). Occupies capacity so a room can't
 // be over-booked. The pickup code is reserved now and issued on arrival.
-export async function holdSeat(opts: { workspaceId: string; childName: string; classroomId?: string | null; guardianPersonId?: string | null; guardianName?: string; pickupCode: string }): Promise<{ id: string } | null> {
+export async function holdSeat(opts: { workspaceId: string; childName: string; classroomId?: string | null; guardianPersonId?: string | null; childPersonId?: string | null; guardianName?: string; pickupCode: string }): Promise<{ id: string } | null> {
   const db = getSupabaseServerClient();
   if (!db) return null;
   const { data, error } = await db
@@ -61,6 +61,11 @@ export async function holdSeat(opts: { workspaceId: string; childName: string; c
       child_name: opts.childName,
       classroom_id: opts.classroomId ?? null,
       guardian_person_id: opts.guardianPersonId ?? null,
+      // Bind the reservation to the registered child so pickup verifies by
+      // identity, not a fuzzy name match. Without this, a reserved-then-arrived
+      // child could be blocked at collection (release falls back to an exact
+      // case-insensitive name match on the free-text reservation name).
+      child_person_id: opts.childPersonId ?? null,
       guardian_name: opts.guardianName ?? "",
       pickup_code: opts.pickupCode,
       status: "held",

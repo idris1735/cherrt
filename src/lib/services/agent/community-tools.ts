@@ -9,9 +9,63 @@ import type { AgentTool } from "@/lib/services/agent/tools";
 import { ensurePerson } from "@/lib/services/identity/people";
 import { notifyLeaders } from "@/lib/services/church/referral";
 import { recordConsent } from "@/lib/services/privacy/consent";
-import { sendInteractiveButtons } from "@/lib/services/whatsapp";
+import { sendInteractiveButtons, sendTextMessage } from "@/lib/services/whatsapp";
 import { roleRank } from "@/lib/services/identity/role-catalog";
-import { startDepartmentApproval } from "@/lib/services/approvals/department";
+import { startDepartmentApproval, decideDepartmentRequest, type DepartmentDecision } from "@/lib/services/approvals/department";
+
+// Announce a resolved department decision to the member and the other
+// approvers — mirrors handleDepartmentDecision in the processor (the button
+// path), so a typed decision notifies exactly like a tapped one.
+async function announceDepartmentDecision(result: DepartmentDecision, byPhone: string): Promise<void> {
+  if (result.memberPhone && result.memberPhone !== byPhone) {
+    await sendTextMessage(
+      result.memberPhone,
+      result.status === "approved"
+        ? `🎉 You're in! Your request to join ${result.unitName} was approved. See you Sunday.`
+        : `Your request to join ${result.unitName} was declined — a leader will reach out to you.`,
+    ).catch(() => {});
+  }
+  for (const phone of result.otherApprovers) {
+    if (phone !== byPhone) {
+      await sendTextMessage(
+        phone,
+        `${byPhone} ${result.status === "approved" ? "approved" : "declined"} ${result.memberName}'s ${result.unitName} request.`,
+      ).catch(() => {});
+    }
+  }
+}
+
+// Resolve a pending department request by the member's name (typed tools only
+// know the name) and record the decision through the SAME quorum-backed path
+// the Approve/Decline buttons use. The old code did a raw name-matched status
+// flip that left the approvals row orphaned "open" and notified nobody.
+async function decideDepartmentByName(
+  ctx: { workspaceId: string; phone?: string },
+  memberName: string,
+  department: string | undefined,
+  decision: "approve" | "decline",
+): Promise<{ ok?: true; message?: string; error?: string }> {
+  const db = getSupabaseServerClient();
+  if (!db) return { error: "storage unavailable" };
+  let q = db
+    .from("department_memberships")
+    .select("id, unit_name")
+    .eq("workspace_id", ctx.workspaceId)
+    .eq("member_name", memberName)
+    .eq("status", "pending");
+  if (department) q = q.eq("unit_name", department);
+  const { data: rows } = await q;
+  const pending = (rows ?? []) as Array<{ id: string; unit_name?: string }>;
+  if (!pending.length) return { error: `No pending request from ${memberName}${department ? ` for ${department}` : ""}.` };
+  if (pending.length > 1) {
+    return { error: `${memberName} has more than one pending request — say which ministry (e.g. "approve ${memberName} for choir").` };
+  }
+  const result = await decideDepartmentRequest(pending[0].id, ctx.phone ?? "", decision);
+  if (!result) return { error: "That request has already been decided." };
+  await announceDepartmentDecision(result, ctx.phone ?? "");
+  const label = result.status === "approved" ? "✅ Approved" : "❌ Declined";
+  return { ok: true, message: `${label} ${result.memberName}'s request to join ${result.unitName}.` };
+}
 
 export const COMMUNITY_TOOLS: AgentTool[] = [
   {
@@ -206,13 +260,8 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
     handler: async (args, ctx) => {
       const memberName = String(args.memberName ?? "").trim();
       if (!memberName) return { error: "Whose request?" };
-      const db = getSupabaseServerClient();
-      if (!db) return { error: "storage unavailable" };
-      let query = db.from("department_memberships").update({ status: "approved" }).eq("workspace_id", ctx.workspaceId).eq("member_name", memberName).eq("status", "pending");
-      if (typeof args.department === "string") query = query.eq("unit_name", args.department);
-      const { error } = await query;
-      if (error) return { error: error.message };
-      return { ok: true, message: `✅ Approved ${memberName}'s department request.` };
+      const department = typeof args.department === "string" && args.department.trim() ? args.department.trim() : undefined;
+      return decideDepartmentByName({ workspaceId: ctx.workspaceId, phone: ctx.phone }, memberName, department, "approve");
     },
   },
   {
@@ -231,13 +280,8 @@ export const COMMUNITY_TOOLS: AgentTool[] = [
     handler: async (args, ctx) => {
       const memberName = String(args.memberName ?? "").trim();
       if (!memberName) return { error: "Whose request?" };
-      const db = getSupabaseServerClient();
-      if (!db) return { error: "storage unavailable" };
-      let query = db.from("department_memberships").update({ status: "declined" }).eq("workspace_id", ctx.workspaceId).eq("member_name", memberName).eq("status", "pending");
-      if (typeof args.department === "string") query = query.eq("unit_name", args.department);
-      const { error } = await query;
-      if (error) return { error: error.message };
-      return { ok: true, message: `Declined ${memberName}'s department request.` };
+      const department = typeof args.department === "string" && args.department.trim() ? args.department.trim() : undefined;
+      return decideDepartmentByName({ workspaceId: ctx.workspaceId, phone: ctx.phone }, memberName, department, "decline");
     },
   },
   {

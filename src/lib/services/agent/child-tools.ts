@@ -12,7 +12,7 @@ import { recordConsent } from "@/lib/services/privacy/consent";
 import { resolvePersonIdByPhone } from "@/lib/services/identity/provisioning";
 import { normalizePhoneNumber } from "@/lib/services/phone";
 import { classroomHasSpace, createClassroom, listClassroomsWithOccupancy } from "@/lib/services/children/classrooms";
-import { acceptArrival, holdSeat } from "@/lib/services/children/checkins";
+import { acceptArrival, holdSeat, listGuardianChildren } from "@/lib/services/children/checkins";
 
 // Where the QR image endpoint lives, so a pickup pass can be delivered in-chat.
 function appUrl(): string {
@@ -485,6 +485,7 @@ export const CHILD_TOOLS: AgentTool[] = [
       type: "object",
       properties: {
         childName: { type: "string" },
+        childPersonId: { type: "string", description: "The registered child's person id, when already known from a picker (optional)" },
         classroomId: { type: "string", description: "Classroom to reserve (optional; capacity is enforced)" },
       },
       required: ["childName"],
@@ -497,7 +498,23 @@ export const CHILD_TOOLS: AgentTool[] = [
       if (classroomId && !(await classroomHasSpace(ctx.workspaceId, classroomId))) {
         return { error: "That classroom is full — please pick another room." };
       }
-      const res = await holdSeat({ workspaceId: ctx.workspaceId, childName, classroomId, guardianPersonId: ctx.personId ?? null, guardianName: ctx.userName ?? "", pickupCode: pickupCode() });
+      // Bind to the registered child so pickup can verify by identity (mirrors
+      // check_in_child). IDOR guard: this tool is agent-reachable, so an explicit
+      // childPersonId is trusted ONLY when it belongs to this guardian's own
+      // registered children — never bind a reservation to someone else's child.
+      // Otherwise (or when no id is given) resolve it from the guardian's
+      // registered children by exact name, which is itself ownership-scoped.
+      const db = getSupabaseServerClient();
+      const guardianPersonId = ctx.personId ?? null;
+      let childPersonId = String(args.childPersonId ?? "").trim() || null;
+      if (childPersonId) {
+        const mine = guardianPersonId ? await listGuardianChildren(ctx.workspaceId, guardianPersonId) : [];
+        if (!mine.some((k) => k.personId === childPersonId)) childPersonId = null;
+      }
+      if (!childPersonId && db && guardianPersonId) {
+        childPersonId = await findGuardianChild(db, guardianPersonId, childName);
+      }
+      const res = await holdSeat({ workspaceId: ctx.workspaceId, childName, classroomId, guardianPersonId, childPersonId, guardianName: ctx.userName ?? "", pickupCode: pickupCode() });
       if (!res) return { error: "Couldn't reserve the seat — please try again." };
       return { ok: true, message: `✅ Seat reserved for *${childName}*. On the day, tap *I've arrived* to check them in.` };
     },
