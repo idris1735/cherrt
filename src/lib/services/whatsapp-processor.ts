@@ -288,12 +288,16 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 // consent ask. We record data only after they agree. NDPR/NDPA: consent should
 // be a clear affirmative action, not buried fine print.
 async function sendConsentGate(from: string): Promise<void> {
+  // CHQ-001 (Welcome Messages): lead with warmth and what Chertt does, keep the
+  // privacy ask to one short line. We can't defer or drop the consent itself —
+  // NDPR needs a clear affirmative yes before we store a phone number or message
+  // — but it no longer reads as a wall of policy before any welcome.
   const text = [
-    "👋 Welcome to *Chertt* — I help churches run everything on WhatsApp.",
+    "👋 Welcome to *Chertt* — your church, right here on WhatsApp: giving, prayer, events, kids' check-in and more.",
     "",
-    "First, your privacy: we store the details you share *only* to help your church serve you, we never sell your data, and you can opt out anytime by replying *stop* (Nigeria NDPR).",
+    "Quick bit before we start: we keep what you share *only* to help your church serve you — never sold, and *stop* opts you out anytime.",
     "",
-    "Do you agree to continue?",
+    "Tap *I agree* and let's go 👇",
   ].join("\n");
   try {
     await sendInteractiveButtons(from, text, [
@@ -312,7 +316,7 @@ async function sendGuestWelcome(from: string): Promise<void> {
     "",
     "So I point you the right way — who are you? Tap below, or just tell me in your own words 👇",
     "",
-    "_By continuing, you agree we store your details to help your church serve you. Type *privacy* to read how, or *stop* to opt out._",
+    "_Type *privacy* for how we use your data, or *stop* to opt out._",
   ].join("\n");
   try {
     await sendInteractiveButtons(from, text, [
@@ -1199,8 +1203,23 @@ const HASHTAG_ROUTES: Record<string, HashRoute> = {
   giving: { kind: "read", buttonId: "menu:giving_month" },
 };
 function hashtagHelp(): string {
-  return "⚡ *Shortcuts* — type any of these to jump straight there:\n" +
-    "#menu · #give · #checkin · #pickup · #prayer · #pastor · #register · #events · #giving · #qr · #reset";
+  // CHQ-005: list each shortcut WITH what it does — the bare "#give · #prayer"
+  // list left testers unsure what the shortcuts actually trigger.
+  return [
+    "⚡ *Shortcuts* — type any of these to jump straight there:",
+    "",
+    "*#menu* — see everything I can do",
+    "*#give* — make a gift or tithe",
+    "*#checkin* — check a child into service",
+    "*#pickup* — collect a child with your pickup code",
+    "*#prayer* — send a prayer request",
+    "*#pastor* — ask to speak with a pastor",
+    "*#register* — register a child or family member",
+    "*#events* — see what's coming up",
+    "*#giving* — your giving this month",
+    "*#qr* — your personal QR code",
+    "*#reset* — start over and clear our chat",
+  ].join("\n");
 }
 
 // Typed-intent flows whose underlying action is rank-gated. A menu tap is
