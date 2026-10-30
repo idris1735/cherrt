@@ -1,41 +1,59 @@
 // Add-guardian rail — a registered guardian authorises another person (co-parent,
-// grandparent, nanny) to collect a specific child. child → new guardian name →
-// their phone → confirm → add_guardian. The tool self-gates: only an existing
-// guardian of the named child can add one (checked against guardianships).
+// grandparent, nanny) to collect one of their children.
+//
+// CHQ-016: the child is now a SELECTION from the guardian's own registered
+// children (seeded by the processor), not a free-typed name — so you can't
+// mistype a name, can't confuse it with the new guardian's name, and a wrong
+// child is caught up front instead of at the very end. Before anything is
+// granted there's a deliberate security step: you must reply AUTHORISE in full,
+// so pickup rights are never handed out by a stray tap. On a tool error the flow
+// offers a retry instead of dropping you to the main menu.
 import type { FlowDefinition, FlowInput, FlowData, Transition } from "@/lib/services/flows/engine";
 import { getAgentTool } from "@/lib/services/agent/runtime";
 import type { Role } from "@/lib/types";
 
-const confirmButtons = [
-  { id: "ag_go", title: "✅ Authorise" },
+type MyChild = { personId: string; name: string };
+
+const retryButtons = [
+  { id: "ag_retry", title: "🔄 Try again" },
   { id: "ag_cancel", title: "❌ Cancel" },
 ];
+
+function childRows(kids: MyChild[]) {
+  return kids.map((k, i) => ({ id: `ag_child_${i}`, title: k.name.slice(0, 24) }));
+}
 
 export const addGuardianFlow: FlowDefinition = {
   name: "add_guardian",
   intro: "*🧑‍🤝‍🧑 Authorise pickup* — let a co-parent, grandparent or nanny collect your child.",
-  firstStep: "child",
+  firstStep: "pick_child",
   steps: {
-    child: {
-      render: (data) => ({
-        type: "text",
-        text: data.childName
-          ? `Authorise someone to collect *${String(data.childName)}*. What's their full name?`
-          : "Who do you want to authorise for pickup? First — which child? Send the child's full name.",
-      }),
+    // Seeded by startAddGuardian (processor) with the guardian's OWN registered
+    // children. Started only when there is at least one, so the list is never
+    // empty here.
+    pick_child: {
+      render: (data) => {
+        const kids = (data.myChildren as MyChild[]) ?? [];
+        return {
+          type: "list",
+          header: "Authorise pickup",
+          text: "Which of your children do you want to authorise someone to collect?",
+          buttonLabel: "Choose",
+          rows: childRows(kids),
+        };
+      },
       onInput: (input: FlowInput, data: FlowData): Transition => {
-        const v = input.text.trim();
-        if (data.childName) {
-          // child seeded from a typed intent — this input is the guardian's name.
-          if (!v) return { stay: { type: "text", text: "Send the new guardian's full name." } };
-          return { to: "phone", patch: { guardianName: v } };
+        const kids = (data.myChildren as MyChild[]) ?? [];
+        const m = /^ag_child_(\d+)$/.exec(input.buttonId ?? "");
+        const chosen = m ? kids[Number(m[1])] : undefined;
+        if (!chosen) {
+          return { stay: { type: "list", header: "Authorise pickup", text: "Tap one of your children below.", buttonLabel: "Choose", rows: childRows(kids) } };
         }
-        if (!v) return { stay: { type: "text", text: "Send the child's full name." } };
-        return { to: "guardian_name", patch: { childName: v } };
+        return { to: "guardian_name", patch: { childName: chosen.name, childPersonId: chosen.personId } };
       },
     },
     guardian_name: {
-      render: (data) => ({ type: "text", text: `Who do you want to authorise to collect *${String(data.childName)}*? Send their full name.` }),
+      render: (data) => ({ type: "text", text: `Who do you want to authorise to collect *${String(data.childName)}*? Send *their* full name (not yours).` }),
       onInput: (input): Transition => {
         const name = input.text.trim();
         if (!name) return { stay: { type: "text", text: "Send their full name." } };
@@ -55,22 +73,23 @@ export const addGuardianFlow: FlowDefinition = {
         return { to: "confirm", patch: { guardianPhone: raw } };
       },
     },
+    // Security step — a deliberate, typed confirmation, so pickup rights are
+    // never granted by a single casual tap (CHQ-016).
     confirm: {
       render: (data) => ({
-        type: "buttons",
-        header: "Authorise pickup",
-        text: `Allow *${String(data.guardianName)}* (${String(data.guardianPhone)}) to collect *${String(data.childName)}*?`,
-        buttons: confirmButtons,
+        type: "text",
+        text: `🔒 *Security check*\n\nThis lets *${String(data.guardianName)}* (${String(data.guardianPhone)}) collect *${String(data.childName)}* — at pickup they're recognised by that number.\n\nTo confirm, reply *AUTHORISE* in full. Reply *cancel* to stop.`,
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
-        if (input.buttonId === "ag_cancel") return { done: { type: "text", text: "No problem — no change made. 🙏" } };
-        // Retry after a failed authorisation — start the details over, so a typo
-        // in the child/guardian name or phone can be fixed without leaving the flow.
+        const t = input.text.trim();
+        if (input.buttonId === "ag_cancel" || /^cancel$/i.test(t)) return { done: { type: "text", text: "No problem — no change made. 🙏" } };
+        // Retry after a failed authorisation — start over so a wrong child or a
+        // mistyped number can be fixed without leaving the flow.
         if (input.buttonId === "ag_retry") {
-          return { to: "child", patch: { childName: undefined, guardianName: undefined, guardianPhone: undefined } };
+          return { to: "pick_child", patch: { childName: undefined, childPersonId: undefined, guardianName: undefined, guardianPhone: undefined } };
         }
-        if (input.buttonId !== "ag_go" && !/^(yes|y|confirm|authorise|authorize)$/i.test(input.text.trim())) {
-          return { stay: { type: "buttons", header: "Authorise pickup", text: "Tap *Authorise* to confirm, or *Cancel*.", buttons: confirmButtons } };
+        if (!/^authori[sz]e$/i.test(t)) {
+          return { stay: { type: "text", text: "To confirm, reply *AUTHORISE* in full — that's the security step. Reply *cancel* to stop." } };
         }
         if (!ctx.link) return { done: { type: "text", text: "Please connect to your church first." } };
         const tool = getAgentTool("add_guardian");
@@ -80,19 +99,9 @@ export const addGuardianFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         // On error, stay in the flow and offer a retry rather than ending — ending
-        // drops the user to the main menu, forcing a full restart (QA CHQ-016).
+        // drops the user to the main menu, forcing a full restart (CHQ-016).
         if (res.error) {
-          return {
-            stay: {
-              type: "buttons",
-              header: "Authorise pickup",
-              text: `${res.error}\n\nWant to try again?`,
-              buttons: [
-                { id: "ag_retry", title: "🔄 Try again" },
-                { id: "ag_cancel", title: "❌ Cancel" },
-              ],
-            },
-          };
+          return { stay: { type: "buttons", header: "Authorise pickup", text: `${res.error}\n\nWant to try again?`, buttons: retryButtons } };
         }
         return { done: { type: "text", text: res.message ?? "✅ Guardian authorised." } };
       },

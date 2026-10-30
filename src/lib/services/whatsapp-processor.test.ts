@@ -60,6 +60,14 @@ vi.mock("@/lib/services/children/checkins", async (importOriginal) => {
   return { ...actual, listGuardianChildren: vi.fn().mockResolvedValue([{ personId: "c1", name: "Zoe" }]) };
 });
 
+// Identity resolution: default null (tests use the lookupAllPhoneLinks fallback,
+// which yields no personId). Individual tests that need a resolved person —
+// e.g. the child-selection flows — override this per-test.
+vi.mock("@/lib/services/identity/resolver", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/identity/resolver")>();
+  return { ...actual, resolveIdentityByPhone: vi.fn().mockResolvedValue(null) };
+});
+
 vi.mock("@/lib/services/whatsapp-templates", () => ({
   sendNewSignupAlertTemplate: vi.fn().mockResolvedValue(undefined),
   sendOrgApprovedTemplate: vi.fn().mockResolvedValue(undefined),
@@ -94,6 +102,7 @@ import { downloadMedia, sendInteractiveButtons, sendInteractiveList, sendTextMes
 import { runCherttCommand } from "@/lib/services/ai-service";
 import { claimWhatsAppMessage, lookupAllPhoneLinks, findWorkspaceByJoinCode, findWorkspaceByUsername, getWorkflowRequest } from "@/lib/services/whatsapp-workspace";
 import { provisionPersonMembership } from "@/lib/services/identity/provisioning";
+import { resolveIdentityByPhone } from "@/lib/services/identity/resolver";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { getWorkspaceBilling } from "@/lib/services/billing/subscription";
 import { runAgentQuery, runGuestAgent } from "@/lib/services/agent/runtime";
@@ -1275,6 +1284,13 @@ describe("processWhatsAppMessage", () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
+    // add_guardian now opens a picker of the guardian's own children, so it needs
+    // a resolved person — mirror a linked member resolved via identity.
+    (resolveIdentityByPhone as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      person: { id: "p1", fullName: "Ada" },
+      memberships: [{ personId: "p1", workspaceId: "ws1", workspaceName: "Grace", workspaceSlug: "grace", role: "member", unit: null }],
+      isOrgAdmin: false,
+    });
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "authorise my wife to pick up my child" });
     const s = await getSession(PHONE);
@@ -1285,6 +1301,11 @@ describe("processWhatsAppMessage", () => {
     (lookupAllPhoneLinks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada", userRole: "member" },
     ]);
+    (resolveIdentityByPhone as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      person: { id: "p1", fullName: "Ada" },
+      memberships: [{ personId: "p1", workspaceId: "ws1", workspaceName: "Grace", workspaceSlug: "grace", role: "member", unit: null }],
+      isOrgAdmin: false,
+    });
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "add a guardian" });
     const s = await getSession(PHONE);

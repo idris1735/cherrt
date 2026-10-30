@@ -812,6 +812,21 @@ async function startHoldSeat(from: string, link: PhoneLink | null, personId: str
   if (out) await sendFlowOutput(from, out);
 }
 
+// Start authorise-pickup the same way check-in starts: only the guardian's OWN
+// registered children can be chosen (CHQ-016 — a selection, not a typed name),
+// so seed them and handle the "no children yet" case.
+async function startAddGuardian(from: string, link: PhoneLink | null, personId: string | null | undefined, session: WhatsAppSession): Promise<void> {
+  const kids = link && personId ? await listGuardianChildren(link.workspaceId, personId) : [];
+  if (!kids.length) {
+    try {
+      await sendInteractiveButtons(from, "You haven't registered any children yet. Register a child first, then you can authorise someone to collect them. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }, MENU_BUTTON]);
+    } catch { await sendTextMessage(from, "You haven't registered any children yet. Reply *register my child* to add one, then authorise a pickup."); }
+    return;
+  }
+  const out = await startFlow("add_guardian", { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), { myChildren: kids });
+  if (out) await sendFlowOutput(from, out);
+}
+
 // Start assign-role the same way: load the members this actor may reassign and
 // the roles they may grant, handle the empty cases, then start the tappable
 // flow seeded (was a plain-text numbered list).
@@ -1015,10 +1030,10 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     "menu:pickup": "pickup",
     "menu:convert_first_timer": "convert_first_timer",
     "menu:join_dept": "join",
-    "menu:add_guardian": "add_guardian",
   };
   if (link && buttonId === "menu:checkin") { await startChildCheckin(from, link, personId, session); return; }
   if (link && buttonId === "menu:hold_seat") { await startHoldSeat(from, link, personId, session); return; }
+  if (link && buttonId === "menu:add_guardian") { await startAddGuardian(from, link, personId, session); return; }
   if (link && buttonId === "menu:assign_role") { await startAssignRole(from, link, session); return; }
   if (link && buttonId === "menu:overview") { buttonId = "rpt:overview"; }
   if (link && MENU_FLOW[buttonId]) {
@@ -2160,6 +2175,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
 
     if (flow === "child_checkin") { await startChildCheckin(from, link, personId, session); return; }
     if (flow === "hold_seat") { await startHoldSeat(from, link, personId, session); return; }
+    if (flow === "add_guardian") { await startAddGuardian(from, link, personId, session); return; }
     if (flow) {
       // A menu tap is already visibility-gated (a member never sees the row); a
       // TYPED intent is not, so gate rank-gated flows up front — don't walk a
