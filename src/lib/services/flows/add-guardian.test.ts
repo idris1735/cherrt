@@ -48,10 +48,22 @@ describe("add_guardian flow", () => {
     expect(handlerMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces the tool's guardian-gate error verbatim", async () => {
+  it("on a tool error, surfaces it and offers a retry instead of ending the flow", async () => {
     handlerMock.mockResolvedValue({ error: "I couldn't find a child named \"Timmy\" that you're a registered guardian of." });
-    const { out } = await drive([{ text: "Timmy" }, { text: "John" }, { text: "08033334444" }, { buttonId: "ag_go" }]);
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("registered guardian") });
+    const { out, session } = await drive([{ text: "Timmy" }, { text: "John" }, { text: "08033334444" }, { buttonId: "ag_go" }]);
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("registered guardian") });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["ag_retry", "ag_cancel"]);
+    // Flow is still active so the user can retry — not dropped to the main menu.
+    expect(session.activeFlow).toMatchObject({ step: "confirm" });
+  });
+
+  it("Try again after an error restarts the details from the first step", async () => {
+    handlerMock.mockResolvedValueOnce({ error: "That number is already authorised." });
+    const { out, session } = await drive([
+      { text: "Timmy" }, { text: "John" }, { text: "08033334444" }, { buttonId: "ag_go" }, { buttonId: "ag_retry" },
+    ]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("child") });
+    expect(session.activeFlow).toMatchObject({ step: "child", data: { childName: undefined, guardianName: undefined, guardianPhone: undefined } });
   });
 
   it("cancel makes no change", async () => {

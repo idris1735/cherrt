@@ -64,6 +64,11 @@ export const addGuardianFlow: FlowDefinition = {
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
         if (input.buttonId === "ag_cancel") return { done: { type: "text", text: "No problem — no change made. 🙏" } };
+        // Retry after a failed authorisation — start the details over, so a typo
+        // in the child/guardian name or phone can be fixed without leaving the flow.
+        if (input.buttonId === "ag_retry") {
+          return { to: "child", patch: { childName: undefined, guardianName: undefined, guardianPhone: undefined } };
+        }
         if (input.buttonId !== "ag_go" && !/^(yes|y|confirm|authorise|authorize)$/i.test(input.text.trim())) {
           return { stay: { type: "buttons", header: "Authorise pickup", text: "Tap *Authorise* to confirm, or *Cancel*.", buttons: confirmButtons } };
         }
@@ -74,7 +79,21 @@ export const addGuardianFlow: FlowDefinition = {
           { childName: data.childName, guardianName: data.guardianName, guardianPhone: data.guardianPhone },
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
-        if (res.error) return { done: { type: "text", text: res.error } };
+        // On error, stay in the flow and offer a retry rather than ending — ending
+        // drops the user to the main menu, forcing a full restart (QA CHQ-016).
+        if (res.error) {
+          return {
+            stay: {
+              type: "buttons",
+              header: "Authorise pickup",
+              text: `${res.error}\n\nWant to try again?`,
+              buttons: [
+                { id: "ag_retry", title: "🔄 Try again" },
+                { id: "ag_cancel", title: "❌ Cancel" },
+              ],
+            },
+          };
+        }
         return { done: { type: "text", text: res.message ?? "✅ Guardian authorised." } };
       },
     },
