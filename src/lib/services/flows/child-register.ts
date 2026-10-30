@@ -17,7 +17,9 @@ function looksLikeName(s: string): boolean {
 function summary(data: FlowData): string {
   const bits = [`*${String(data.childName ?? "")}*`];
   if (data.age != null) bits.push(`age ${data.age}`);
-  if (data.allergies) bits.push(`allergies/notes: ${data.allergies}`);
+  if (data.sex) bits.push(String(data.sex) === "male" ? "boy" : "girl");
+  if (data.allergies) bits.push(`allergies: ${data.allergies}`);
+  if (data.notes) bits.push(`notes: ${data.notes}`);
   return bits.join(", ");
 }
 
@@ -52,7 +54,34 @@ export const childRegisterFlow: FlowDefinition = {
         if (!Number.isFinite(n) || n < 0 || n > 18) {
           return { stay: { type: "text", text: "Please send an age between 0 and 18." } };
         }
-        return { to: "allergies", patch: { age: Math.floor(n) } };
+        return { to: "sex", patch: { age: Math.floor(n) } };
+      },
+    },
+
+    sex: {
+      render: (data) => ({
+        type: "buttons",
+        header: "Register a child",
+        text: `Is ${String(data.childName)} a boy or a girl?`,
+        buttons: [
+          { id: "sex_male", title: "👦 Boy" },
+          { id: "sex_female", title: "👧 Girl" },
+        ],
+      }),
+      onInput: (input): Transition => {
+        if (input.buttonId === "sex_male" || /^(boy|male|m)$/i.test(input.text.trim())) return { to: "allergies", patch: { sex: "male" } };
+        if (input.buttonId === "sex_female" || /^(girl|female|f)$/i.test(input.text.trim())) return { to: "allergies", patch: { sex: "female" } };
+        return {
+          stay: {
+            type: "buttons",
+            header: "Register a child",
+            text: "Tap *Boy* or *Girl*.",
+            buttons: [
+              { id: "sex_male", title: "👦 Boy" },
+              { id: "sex_female", title: "👧 Girl" },
+            ],
+          },
+        };
       },
     },
 
@@ -60,13 +89,27 @@ export const childRegisterFlow: FlowDefinition = {
       render: () => ({
         type: "buttons",
         header: "Register a child",
-        text: "Any *allergies or medical notes* the children's team should know? Type them, or tap *None*.",
+        text: "Any *allergies* the children's team should know? Type them, or tap *None*.",
         buttons: [{ id: "flow_none", title: "None" }],
       }),
       onInput: (input): Transition => {
-        if (input.buttonId === "flow_none") return { to: "consent", patch: { allergies: null } };
-        const notes = input.text.trim();
-        return { to: "consent", patch: { allergies: notes || null } };
+        if (input.buttonId === "flow_none") return { to: "notes", patch: { allergies: null } };
+        const allergies = input.text.trim();
+        return { to: "notes", patch: { allergies: allergies || null } };
+      },
+    },
+
+    notes: {
+      render: () => ({
+        type: "buttons",
+        header: "Register a child",
+        text: "Anything else the team should know? (special needs, ADHD, behaviour, etc.) Type it, or tap *None*.",
+        buttons: [{ id: "flow_none", title: "None" }],
+      }),
+      onInput: (input): Transition => {
+        if (input.buttonId === "flow_none") return { to: "consent", patch: { notes: null } };
+        const n = input.text.trim();
+        return { to: "consent", patch: { notes: n || null } };
       },
     },
 
@@ -114,7 +157,7 @@ export const childRegisterFlow: FlowDefinition = {
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
         if (input.buttonId === "flow_restart") {
-          return { to: "child_name", patch: { childName: undefined, age: undefined, allergies: undefined, guardianConsent: undefined } };
+          return { to: "child_name", patch: { childName: undefined, age: undefined, sex: undefined, allergies: undefined, notes: undefined, guardianConsent: undefined } };
         }
         if (input.buttonId !== "flow_commit" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return {
@@ -141,7 +184,9 @@ export const childRegisterFlow: FlowDefinition = {
             childName: data.childName,
             guardianConsent: true,
             age: data.age ?? undefined,
+            sex: data.sex ?? undefined,
             allergies: data.allergies ?? undefined,
+            medicalNotes: data.notes ?? undefined,
           },
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };

@@ -3,7 +3,7 @@
 // Commit calls the existing check_in_child tool, which inserts the row, sends
 // the QR pickup pass image, and returns the pickup-code message. The flow must
 // not duplicate any of that.
-import type { FlowDefinition, FlowInput, FlowData, Transition } from "@/lib/services/flows/engine";
+import type { FlowDefinition, FlowInput, FlowData, Transition, FlowRunContext } from "@/lib/services/flows/engine";
 import { getAgentTool } from "@/lib/services/agent/runtime";
 import { listClassroomsWithOccupancy, type ClassroomInfo } from "@/lib/services/children/classrooms";
 import type { Role } from "@/lib/types";
@@ -25,7 +25,16 @@ function roomRows(rooms: ClassroomInfo[]) {
   }));
 }
 
-type MyChild = { personId: string; name: string };
+type MyChild = { personId: string; name: string; age?: number | null; allergies?: string | null };
+
+// After the child is known, go to the classroom picker if the church uses rooms,
+// else straight to confirm. Shared so both the "reuse registration" path and the
+// legacy "ask age" path end up in the same place.
+async function roomsOrConfirm(ctx: FlowRunContext, patch: FlowData): Promise<Transition> {
+  const rooms = ctx.link ? await listClassroomsWithOccupancy(ctx.link.workspaceId) : [];
+  if (!rooms.length) return { to: "confirm", patch };
+  return { to: "classroom", patch: { ...patch, classrooms: rooms } };
+}
 
 export const childCheckinFlow: FlowDefinition = {
   name: "child_checkin",
@@ -49,7 +58,7 @@ export const childCheckinFlow: FlowDefinition = {
           ],
         };
       },
-      onInput: (input: FlowInput, data: FlowData): Transition => {
+      onInput: async (input: FlowInput, data: FlowData, ctx): Promise<Transition> => {
         const kids = (data.myChildren as MyChild[]) ?? [];
         if (input.buttonId === "pc_new") {
           return {
@@ -66,7 +75,14 @@ export const childCheckinFlow: FlowDefinition = {
           const rows = [...kids.map((k, i) => ({ id: `pc_${i}`, title: k.name.slice(0, 24) })), { id: "pc_new", title: "➕ A different child" }];
           return { stay: { type: "list", header: "Check in a child", text: "Tap one of your children below.", buttonLabel: "Choose", rows } };
         }
-        return { to: "age", patch: { childName: chosen.name, childPersonId: chosen.personId } };
+        const patch: FlowData = { childName: chosen.name, childPersonId: chosen.personId };
+        // CHQ-013: reuse the age/allergies captured at registration — don't make
+        // the guardian type them again. Only fall back to asking age for a child
+        // registered before age was stored (age == null).
+        if (chosen.age == null) return { to: "age", patch };
+        patch.age = chosen.age;
+        patch.allergies = chosen.allergies ?? null;
+        return roomsOrConfirm(ctx, patch);
       },
     },
 
@@ -170,8 +186,11 @@ export const childCheckinFlow: FlowDefinition = {
           done: {
             type: "buttons",
             header: "Checked in",
-            text: `${res.message ?? "Done."}\n\n*Next:* show the pickup code or QR when you collect ${String(data.childName)}. Someone else collecting? Tap *Authorise pickup*.`,
-            buttons: [{ id: "menu:add_guardian", title: "🤝 Authorise pickup" }],
+            text: `${res.message ?? "Done."}\n\n*Next:* show the pickup code or QR when you collect ${String(data.childName)}. Got another child to check in, or someone else collecting? Tap below.`,
+            buttons: [
+              { id: "menu:checkin", title: "👶 Check in another" },
+              { id: "menu:add_guardian", title: "🤝 Authorise pickup" },
+            ],
           },
         };
       },

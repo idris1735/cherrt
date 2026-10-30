@@ -2,12 +2,19 @@
 // teacher-acceptance (checked_in → in_class). Workspace-scoped via service role.
 import { getSupabaseServerClient } from "@/lib/services/supabase-server";
 
-export type GuardianChild = { personId: string; name: string };
+export type GuardianChild = {
+  personId: string;
+  name: string;
+  // Reused at check-in so we don't re-ask what was given at registration (CHQ-013).
+  age?: number | null;
+  allergies?: string | null;
+};
 
-// The children a given guardian has registered (guardianships → people).
-// Used so check-in offers "which of YOUR children?" instead of a free-text name
-// (client feedback 2026-09-12 — you could otherwise check in a child who was
-// never registered).
+// The children a given guardian has registered (guardianships → people), each
+// carrying the age/allergies recorded at registration so check-in can reuse
+// them. Used so check-in offers "which of YOUR children?" instead of a free-text
+// name (client feedback 2026-09-12 — you could otherwise check in a child who
+// was never registered).
 export async function listGuardianChildren(workspaceId: string, guardianPersonId: string): Promise<GuardianChild[]> {
   const db = getSupabaseServerClient();
   if (!db || !guardianPersonId) return [];
@@ -19,7 +26,23 @@ export async function listGuardianChildren(workspaceId: string, guardianPersonId
   const ids = [...new Set(((gRows ?? []) as Array<{ child_person_id?: string }>).map((r) => r.child_person_id).filter(Boolean) as string[])];
   if (!ids.length) return [];
   const { data: people } = await db.from("people").select("id, full_name").in("id", ids);
-  return ((people ?? []) as Array<{ id: string; full_name?: string }>).map((p) => ({ personId: p.id, name: (p.full_name ?? "").trim() })).filter((c) => c.name);
+  // select("*") so the newer age column is read when present, and ignored when
+  // the migration (20261030120000) hasn't run yet.
+  const { data: profiles } = await db.from("child_profiles").select("*").in("person_id", ids);
+  const profileByPerson = new Map(
+    ((profiles ?? []) as Array<{ person_id?: string; age?: number | null; allergies?: string | null }>).map((p) => [p.person_id, p]),
+  );
+  return ((people ?? []) as Array<{ id: string; full_name?: string }>)
+    .map((p) => {
+      const prof = profileByPerson.get(p.id);
+      return {
+        personId: p.id,
+        name: (p.full_name ?? "").trim(),
+        age: prof?.age ?? null,
+        allergies: prof?.allergies ?? null,
+      };
+    })
+    .filter((c) => c.name);
 }
 
 export type PendingArrival = { id: string; childName: string; classroom: string | null };

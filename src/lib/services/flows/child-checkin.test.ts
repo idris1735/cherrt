@@ -65,10 +65,28 @@ describe("child_checkin flow", () => {
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Pickup code: *123456*"), final: true });
-    // Direction rail: says what happens at collection + offers the related next step.
+    // Direction rail: says what happens at collection + offers the related next steps.
     expect(out?.type === "buttons" ? out.text : "").toContain("*Next:*");
-    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:add_guardian"]);
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin", "menu:add_guardian"]);
     expect(session.activeFlow).toBeUndefined();
+  });
+
+  it("CHQ-013: a child whose age was captured at registration skips straight to confirm — no re-asking", async () => {
+    const KIDS_WITH_PROFILE = [{ personId: "c1", name: "Timmy", age: 5, allergies: "peanuts" }];
+    const { out, session } = await drive([{ buttonId: "pc_0" }], { myChildren: KIDS_WITH_PROFILE });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("All correct?") });
+    expect(session.activeFlow).toMatchObject({ step: "confirm", data: { childName: "Timmy", age: 5, allergies: "peanuts" } });
+    expect(handlerMock).not.toHaveBeenCalled();
+  });
+
+  it("CHQ-013: reused details are passed through to check_in_child on commit", async () => {
+    handlerMock.mockResolvedValue({ message: "✅ Timmy is checked in. Pickup code: *222222*" });
+    const KIDS_WITH_PROFILE = [{ personId: "c1", name: "Timmy", age: 5, allergies: "peanuts" }];
+    await drive([{ buttonId: "pc_0" }, { buttonId: "flow_commit" }], { myChildren: KIDS_WITH_PROFILE });
+    expect(handlerMock).toHaveBeenCalledWith(
+      { childName: "Timmy", age: 5, allergies: "peanuts", classroomId: undefined },
+      expect.objectContaining({ workspaceId: "ws1" }),
+    );
   });
 
   it("age is REQUIRED — a Skip is no longer offered, and a non-number reprompts", async () => {

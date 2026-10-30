@@ -43,17 +43,19 @@ async function drive(turns: Array<{ text?: string; buttonId?: string }>): Promis
 }
 
 describe("child_register flow", () => {
-  it("happy path: name → age → allergies → consent → confirm calls register_child with guardianConsent:true", async () => {
+  it("happy path: name → age → sex → allergies → notes → consent → confirm calls register_child", async () => {
     handlerMock.mockResolvedValue({ message: "✅ Registered *Timmy Obi* in the children's ministry." });
     const { out, session } = await drive([
       { text: "Timmy Obi" },
       { text: "5" },
+      { buttonId: "sex_male" },
       { text: "peanuts" },
+      { text: "ADHD" },
       { buttonId: "consent_yes" },
       { buttonId: "flow_commit" },
     ]);
     expect(handlerMock).toHaveBeenCalledWith(
-      { childName: "Timmy Obi", guardianConsent: true, age: 5, allergies: "peanuts" },
+      { childName: "Timmy Obi", guardianConsent: true, age: 5, sex: "male", allergies: "peanuts", medicalNotes: "ADHD" },
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Registered"), final: true });
@@ -64,7 +66,7 @@ describe("child_register flow", () => {
 
   it("SAFETY: cancelling consent ends the flow and never registers", async () => {
     const { out, session } = await drive([
-      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "flow_none" }, { buttonId: "consent_no" },
+      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "sex_female" }, { buttonId: "flow_none" }, { buttonId: "flow_none" }, { buttonId: "consent_no" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("nothing was saved") });
     expect(session.activeFlow).toBeUndefined();
@@ -73,7 +75,7 @@ describe("child_register flow", () => {
 
   it("SAFETY: an ambiguous reply at consent re-asks — never proceeds without a clear confirm", async () => {
     const { out, session } = await drive([
-      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "flow_none" }, { text: "ok maybe" },
+      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "sex_male" }, { buttonId: "flow_none" }, { buttonId: "flow_none" }, { text: "ok maybe" },
     ]);
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("parent/guardian") });
     expect(session.activeFlow).toMatchObject({ step: "consent" });
@@ -86,25 +88,31 @@ describe("child_register flow", () => {
     expect(session.activeFlow).toMatchObject({ step: "age", data: { childName: "Zoe Ade" } });
   });
 
-  it("age + none allergies reaches consent and records the age", async () => {
-    const { out, session } = await drive([{ text: "Zoe Ade" }, { text: "6" }, { buttonId: "flow_none" }]);
+  it("sex must be chosen: an unclear reply re-asks", async () => {
+    const { out, session } = await drive([{ text: "Zoe Ade" }, { text: "6" }, { text: "unsure" }]);
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Boy") });
+    expect(session.activeFlow).toMatchObject({ step: "sex", data: { childName: "Zoe Ade", age: 6 } });
+  });
+
+  it("records age, sex, allergies and notes on the way to consent", async () => {
+    const { out, session } = await drive([{ text: "Zoe Ade" }, { text: "6" }, { buttonId: "sex_female" }, { buttonId: "flow_none" }, { buttonId: "flow_none" }]);
     expect(out).toMatchObject({ type: "buttons", header: "Guardian consent" });
-    expect(session.activeFlow).toMatchObject({ step: "consent", data: { childName: "Zoe Ade", age: 6, allergies: null } });
+    expect(session.activeFlow).toMatchObject({ step: "consent", data: { childName: "Zoe Ade", age: 6, sex: "female", allergies: null, notes: null } });
   });
 
   it("start over at confirm clears data (including consent) back to child_name", async () => {
     const { out, session } = await drive([
-      { text: "Zoe Ade" }, { text: "4" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_restart" },
+      { text: "Zoe Ade" }, { text: "4" }, { buttonId: "sex_male" }, { buttonId: "flow_none" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_restart" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("full name") });
-    expect(session.activeFlow).toMatchObject({ step: "child_name", data: { guardianConsent: undefined } });
+    expect(session.activeFlow).toMatchObject({ step: "child_name", data: { guardianConsent: undefined, sex: undefined, notes: undefined } });
     expect(handlerMock).not.toHaveBeenCalled();
   });
 
   it("tool error surfaces and clears the flow", async () => {
     handlerMock.mockResolvedValue({ error: "storage unavailable" });
     const { out, session } = await drive([
-      { text: "Zoe Ade" }, { text: "5" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_commit" },
+      { text: "Zoe Ade" }, { text: "5" }, { buttonId: "sex_male" }, { buttonId: "flow_none" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_commit" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("storage unavailable") });
     expect(session.activeFlow).toBeUndefined();

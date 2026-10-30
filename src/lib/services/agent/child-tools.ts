@@ -332,9 +332,10 @@ export const CHILD_TOOLS: AgentTool[] = [
         childName: { type: "string", description: "Full name of the child (required)" },
         guardianConsent: { type: "boolean", description: "The sender confirms: 'I am this child's parent/guardian and I consent to storing these details' (required)" },
         age: { type: "number", description: "Age in years (optional)" },
+        sex: { type: "string", description: "Child's sex: 'male' or 'female' (optional)" },
         birthdate: { type: "string", description: "YYYY-MM-DD (optional — stored on the child's record)" },
         allergies: { type: "string", description: "Any allergies (optional)" },
-        medicalNotes: { type: "string", description: "Medical conditions or notes (optional)" },
+        medicalNotes: { type: "string", description: "Medical conditions or notes — special needs, ADHD, etc. (optional)" },
         classroom: { type: "string", description: "Classroom or age group (optional)" },
         whoMayCollect: { type: "string", description: "Who is allowed to pick the child up (names; optional — stored once)" },
       },
@@ -371,9 +372,12 @@ export const CHILD_TOOLS: AgentTool[] = [
         guardianPersonId: guardianId,
       }).catch(() => {});
 
-      // Store child-specific profile
+      // Store child-specific profile. age + sex are newer columns — write them
+      // in a best-effort follow-up update so registration still succeeds even if
+      // the migration (20261030120000) hasn't been applied yet.
+      const profileId = newId();
       await db.from("child_profiles").insert({
-        id: newId(),
+        id: profileId,
         person_id: childPersonId,
         workspace_id: ctx.workspaceId,
         allergies: String(args.allergies ?? "") || null,
@@ -381,6 +385,16 @@ export const CHILD_TOOLS: AgentTool[] = [
         classroom: String(args.classroom ?? "") || null,
         who_may_collect: String(args.whoMayCollect ?? "") || null,
       });
+      const regAge = Number(args.age);
+      const regSex = String(args.sex ?? "").trim().toLowerCase();
+      const extra: Record<string, unknown> = {};
+      if (Number.isFinite(regAge) && regAge >= 0 && regAge <= 18) extra.age = Math.floor(regAge);
+      if (regSex === "male" || regSex === "female") extra.sex = regSex;
+      if (Object.keys(extra).length) {
+        // Error (e.g. column not yet migrated) is deliberately ignored — the
+        // child is already registered; age/sex are a non-critical enrichment.
+        await db.from("child_profiles").update(extra).eq("id", profileId);
+      }
 
       // Link the sender as primary guardian
       await db.from("guardianships").insert({
