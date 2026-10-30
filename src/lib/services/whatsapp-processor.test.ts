@@ -24,6 +24,7 @@ vi.mock("@/lib/services/demo-reset", () => ({
 vi.mock("@/lib/services/identity/provisioning", () => ({
   provisionPersonMembership: vi.fn().mockResolvedValue(true),
   ensureVerifiedPerson: vi.fn().mockResolvedValue(undefined),
+  listBranchMembers: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/services/identity/email-verify", () => ({
@@ -111,6 +112,12 @@ const mockPersist = persistChatAttachment as ReturnType<typeof vi.fn>;
 
 const PHONE = "2348012345678";
 
+// Direction rail helpers: the text bodies and button/row ids that were sent.
+const buttonBodies = () => mockButtons.mock.calls.map((c) => String(c[1])).join("\n---\n");
+const buttonIds = () => mockButtons.mock.calls.flatMap((c) => (c[2] as Array<{ id: string }>).map((b) => b.id));
+const listBodies = () => mockList.mock.calls.map((c) => String(c[1])).join("\n---\n");
+const listRowIds = () => mockList.mock.calls.flatMap((c) => (c[3] as Array<{ id: string }>).map((r) => r.id));
+
 // Skip the welcome flow for tests that test post-welcome behaviour
 async function skipWelcome(phone = PHONE) {
   await updateSession(phone, { welcomed: true });
@@ -182,16 +189,18 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "I don't know what to do" });
 
     expect(mockRun).not.toHaveBeenCalled();
+    // A guest can't use church modules yet — help explains what Chertt does and
+    // offers the two ways in (never "just type it" guides that dead-end).
     expect(mockButtons).toHaveBeenCalledWith(
       PHONE,
-      expect.stringContaining("help with"),
-      expect.arrayContaining([
-        expect.objectContaining({ id: "help_give" }),
-        expect.objectContaining({ id: "help_prayer" }),
-        expect.objectContaining({ id: "help_checkin" }),
-      ]),
+      expect.stringContaining("connect to your church"),
+      [
+        expect.objectContaining({ id: "guest_member" }),
+        expect.objectContaining({ id: "guest_leader" }),
+      ],
       "How can I help?",
     );
+    expect(buttonBodies()).toContain("your church on WhatsApp");
   });
 
   it("handles help starter buttons without calling AI", async () => {
@@ -200,7 +209,9 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_give" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Giving"));
+    // Guest: the guide ends with the way in, not a dead-end.
+    expect(buttonBodies()).toContain("Giving");
+    expect(buttonIds()).toEqual(["guest_member"]);
   });
 
   it("demo context is included in AI call", async () => {
@@ -228,7 +239,8 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "cancel" });
 
     expect(mockRun).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
+    expect(buttonBodies()).toContain("Cancelled");
+    expect(buttonIds()).toContain("main_menu"); // never an open-ended "now what?"
   });
 
   it("CONFIRM re-runs the pending command with confirmed=true", async () => {
@@ -724,7 +736,8 @@ describe("processWhatsAppMessage", () => {
     // menu:birthdays is a direct read now — calls the tool + formats, no LLM.
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:birthdays" });
     expect(runCherttCommand).not.toHaveBeenCalled();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("🎂"));
+    expect(buttonBodies()).toContain("🎂");
+    expect(buttonIds()).toContain("main_menu"); // a read ends with the way back
   });
 
   it("tapping a group opens its sub-menu list with that group's items", async () => {
@@ -747,8 +760,8 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_firsttimer" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("First time"));
-    mockSend.mockClear();
+    expect(buttonBodies()).toContain("First time");
+    expect(buttonIds()).toEqual(["main_menu"]);
   });
 
   it("'help join' button sends a ministry joining guide", async () => {
@@ -757,8 +770,9 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_join" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Join"));
-    mockSend.mockClear();
+    expect(buttonBodies()).toContain("Join");
+    // the guide ends with a button that starts the module, then the menu
+    expect(buttonIds()).toEqual(["menu:join_dept", "main_menu"]);
   });
 
   it("'help event' button sends an events guide", async () => {
@@ -767,8 +781,8 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_event" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Events"));
-    mockSend.mockClear();
+    expect(buttonBodies()).toContain("Events");
+    expect(buttonIds()).toEqual(["menu:events", "main_menu"]);
   });
 
   it("'help service' button sends a service recording guide", async () => {
@@ -777,8 +791,8 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "help_service" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Record"));
-    mockSend.mockClear();
+    expect(buttonBodies()).toContain("Record");
+    expect(buttonIds()).toEqual(["menu:record_service", "main_menu"]);
   });
 
   it("'help more' button sends the full help menu", async () => {
@@ -881,7 +895,10 @@ describe("processWhatsAppMessage", () => {
     expect(provisionPersonMembership).toHaveBeenCalledWith(expect.objectContaining({
       phoneNumber: PHONE, workspaceId: "ws-daystar", workspaceName: "Daystar Christian Centre", role: "member",
     }));
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("connected to *Daystar Christian Centre*"));
+    // Lands straight in the menu (one message), not an open "what can I help with?"
+    expect(listBodies()).toContain("connected to *Daystar Christian Centre*");
+    expect(listRowIds()).toContain("grp:give");
+    expect(listRowIds()).toContain("help_more");
   });
 
   it("P0-2 — NO on the church confirm clears the pending join without linking", async () => {
@@ -914,7 +931,8 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "JOIN @daystarcc" });
     expect(mockUser).toHaveBeenCalledWith("daystarcc");
     expect(provisionPersonMembership).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-daystar", role: "member" }));
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Welcome to *Daystar Christian Centre*"));
+    expect(listBodies()).toContain("Welcome to *Daystar Christian Centre*");
+    expect(listRowIds()).toContain("help_more");
   });
 
   it("P0-3 — a returning linked member gets a per-church welcome-back, never a code prompt", async () => {
@@ -923,9 +941,13 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Welcome back, Idris"));
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar Christian Centre"));
+    // Greeting + the menu in ONE message — deterministic, never the agent.
+    expect(listBodies()).toContain("Welcome back, Idris");
+    expect(listBodies()).toContain("Daystar Christian Centre");
+    expect(listRowIds()).toContain("grp:children");
+    expect(runAgentQuery).not.toHaveBeenCalled();
     expect(mockSend.mock.calls.flat().join(" ")).not.toContain("code");
+    expect(listBodies()).not.toContain("code");
   });
 
   it("P0-5 — #reset wipes the sender's own data and starts them fresh", async () => {
@@ -992,6 +1014,7 @@ describe("processWhatsAppMessage", () => {
     for (const word of ["cancel", "exit", "quit", "start over"]) {
       mockSend.mockClear();
       mockList.mockClear();
+      mockButtons.mockClear();
       await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "child_checkin", step: "age", data: { childName: "Zoe" } } });
       await processWhatsAppMessage({ from: PHONE, type: "text", text: word });
       const s = await getSession(PHONE);
@@ -999,7 +1022,8 @@ describe("processWhatsAppMessage", () => {
       if (word === "start over") {
         expect(mockList).toHaveBeenCalled(); // renders the real menu too
       } else {
-        expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
+        expect(buttonBodies()).toContain("Cancelled");
+        expect(buttonIds()).toContain("main_menu");
       }
     }
   });
@@ -1053,7 +1077,7 @@ describe("processWhatsAppMessage", () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "exit" });
     const s = await getSession(PHONE);
     expect(s.onboarding).toBeUndefined();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Cancelled"));
+    expect(buttonBodies()).toContain("Cancelled");
   });
 
   it("P1 — #reset still wins over an active flow", async () => {
@@ -1356,7 +1380,7 @@ describe("processWhatsAppMessage", () => {
     ]);
     await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
     await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "switch:ws2" });
-    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Daystar"));
+    expect(listBodies()).toContain("You're now in *Daystar*");
     const s = await getSession(PHONE);
     expect(s.activeWorkspaceId).toBe("ws2");
   });
@@ -1478,5 +1502,124 @@ describe("WS5 — tappable follow-ups after guest persona buttons", () => {
     const s = await getSession(PHONE);
     expect(s.activeFlow?.name).toBe("child_register");
     expect(s.guestChildIntent).toBe(false);
+  });
+});
+
+describe("direction rail — every module opens with what it does and ends with what next", () => {
+  const member = { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ada Obi", userRole: "member" };
+  const pastor = { ...member, userName: "Ruth", userRole: "pastor" };
+
+  // clearAllMocks keeps queued *Once values; start each test with a clean link queue.
+  beforeEach(() => {
+    vi.mocked(lookupAllPhoneLinks).mockReset().mockResolvedValue([]);
+  });
+
+  it("the main menu names the church, lists the role's sections, ends with How it works, and says how to come back", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    const body = listBodies();
+    expect(body).toContain("Main menu — Grace");
+    expect(body).toContain("Type *menu* anytime to come back here");
+    const rows = mockList.mock.calls[0][3] as Array<{ id: string; description: string }>;
+    expect(rows[rows.length - 1].id).toBe("help_more");
+    expect(rows.every((r) => r.description.length > 0)).toBe(true);
+  });
+
+  it("a small section shows each option's one-liner in the message and a Back button", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "grp:give" });
+    expect(buttonBodies()).toContain("💰 Give — Tithe, offering or seed via a secure link");
+    expect(buttonIds()).toEqual(["menu:give", "main_menu"]);
+  });
+
+  it("a large section's list ends with a way back to the menu", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "grp:children" });
+    const rows = listRowIds();
+    expect(rows).toContain("menu:checkin");
+    expect(rows[rows.length - 1]).toBe("main_menu");
+  });
+
+  it("starting a module opens with its header (what it does + how to leave)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:prayer" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("*🕊️ Prayer request* — "));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Type *menu* anytime to stop."));
+  });
+
+  it("a finished flow always ends with the way back (🏠 Main menu)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "give", step: "confirm", data: { amount: 5000, givingType: "tithe" } } });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "give_cancel" });
+    expect(buttonBodies()).toContain("nothing was charged");
+    expect(buttonIds()).toContain("main_menu");
+    expect((await getSession(PHONE)).activeFlow).toBeUndefined();
+  });
+
+  it("tapping 🏠 Main menu from an older message mid-flow leaves the flow and shows the menu", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1", activeFlow: { name: "give", step: "amount", data: {} } });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", text: "🏠 Main menu", buttonReplyId: "main_menu" });
+    expect((await getSession(PHONE)).activeFlow).toBeUndefined();
+    expect(listRowIds()).toContain("grp:give");
+  });
+
+  it("member 'help' sends the full directory (every option + what it does) then How it works with an Open menu button", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "help" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Everything I can do for you"));
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("• Check in a child — "));
+    expect(buttonBodies()).toContain("How Chertt works");
+    expect(buttonIds()).toContain("main_menu");
+  });
+
+  it("a stale / unknown button never dead-ends", async () => {
+    await skipWelcome();
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "something_old" });
+    expect(buttonBodies()).toContain("older message");
+    expect(buttonIds()).toContain("main_menu");
+  });
+
+  it("a member refused a leader action is told why AND given the way back", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "I want to announce something to everyone" });
+    expect(buttonIds()).toContain("main_menu");
+    expect((await getSession(PHONE)).activeFlow).toBeUndefined();
+  });
+
+  it("'Change a role' is reachable from the menu for a pastor (was type-only)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([pastor]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "interactive", buttonReplyId: "menu:assign_role" });
+    // no members in this test env → the empty case, still with the way back
+    expect(buttonBodies()).toContain("no one here whose role you can change");
+    expect(buttonIds()).toContain("main_menu");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("#shortcuts lists the hashtags with what each does", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await updateSession(PHONE, { welcomed: true, activeWorkspaceId: "ws1" });
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "#shortcuts" });
+    expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("*#give* — make a gift or tithe"));
+  });
+
+  it("first contact for a linked member offers a Full menu button", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([member]);
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
+    expect(buttonIds()).toContain("main_menu");
+    expect(buttonBodies()).toContain("Full menu");
+  });
+
+  it("the NDPR consent gate still comes first for a brand-new guest", async () => {
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
+    expect(buttonIds()).toEqual(["guest_consent", "guest_privacy", "guest_optout"]);
+    expect(mockList).not.toHaveBeenCalled();
   });
 });

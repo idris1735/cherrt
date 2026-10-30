@@ -64,7 +64,10 @@ describe("child_checkin flow", () => {
       { childName: "Timmy", age: 5, allergies: "peanuts", classroomId: undefined },
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("Pickup code: *123456*") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Pickup code: *123456*"), final: true });
+    // Direction rail: says what happens at collection + offers the related next step.
+    expect(out?.type === "buttons" ? out.text : "").toContain("*Next:*");
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:add_guardian"]);
     expect(session.activeFlow).toBeUndefined();
   });
 
@@ -83,7 +86,8 @@ describe("child_checkin flow", () => {
 
   it("'a different child' points to registration and ends", async () => {
     const { out, session } = await drive([{ buttonId: "pc_new" }]);
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("register my child") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("register them first") });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:register_child"]);
     expect(session.activeFlow).toBeUndefined();
     expect(handlerMock).not.toHaveBeenCalled();
   });
@@ -110,7 +114,7 @@ describe("child_checkin flow", () => {
       expect.objectContaining({ childName: "Timmy", classroomId: "A" }),
       expect.objectContaining({ workspaceId: "ws1" }),
     );
-    expect(out).toMatchObject({ type: "text" });
+    expect(out).toMatchObject({ type: "buttons", final: true });
     expect(session.activeFlow).toBeUndefined();
   });
 

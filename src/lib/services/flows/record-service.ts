@@ -50,6 +50,7 @@ const H = "Service report";
 
 export const recordServiceFlow: FlowDefinition = {
   name: "service_record",
+  intro: "*📝 Record service* — log attendance, offering and the sermon.",
   firstStep: "service_type",
   steps: {
     service_type: {

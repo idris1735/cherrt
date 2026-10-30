@@ -42,7 +42,7 @@ import { canAssignRole, roleRank, assignableRoles } from "@/lib/services/identit
 import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
-import { menuPromptFor, menuGroupsForRole, menuItemsForGroup } from "@/lib/services/agent/menu";
+import { menuPromptFor, mainMenuRows, menuItemsForGroup, menuDirectory } from "@/lib/services/agent/menu";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
 import { resetSenderData } from "@/lib/services/demo-reset";
 import { resetSession } from "@/lib/services/whatsapp-session";
@@ -54,6 +54,7 @@ import { persistChatAttachment } from "@/lib/services/chat-attachments";
 // Side-effect import: registers every deterministic task flow with the engine.
 import "@/lib/services/flows";
 import { advanceFlow, startFlow, type FlowOutput } from "@/lib/services/flows/engine";
+import { withWayBack, MENU_BUTTON } from "@/lib/services/flows/direction";
 import { listGuardianChildren } from "@/lib/services/children/checkins";
 import { confirmMemberEmail } from "@/lib/services/identity/email-verify";
 import { getWorkspaceBilling, isSubscriptionActive } from "@/lib/services/billing/subscription";
@@ -124,32 +125,68 @@ function shouldStopAfterWelcome(message: IncomingMessage, text: string) {
   return GREETING_ONLY_RE.test(text);
 }
 
-function buildHelpText(link: PhoneLink | null, session: WhatsAppSession): string {
-  const name = link?.userName || session.userName;
+// "How it works" — the direction rail's help card. Role-aware: a leader also
+// sees leader examples. The full module directory (every option + one line on
+// what it does) is sent just before it by sendHelpMenu.
+function buildHelpText(link: PhoneLink, session: WhatsAppSession): string {
+  const name = link.userName || session.userName;
+  const leader = roleRank(link.userRole) >= 2;
   return [
-    name ? "*Hi " + name + "! Here's everything I can help with.*" : "*Here's everything I can help with.*",
+    name ? "💡 *How Chertt works, " + name.split(" ")[0] + "*" : "💡 *How Chertt works*",
     "",
-    "Tap *Menu* for buttons — or just talk to me (type or send a voice note):",
+    "1️⃣ Type *menu* (or tap *Open menu*) — pick a section, then what you need.",
+    "2️⃣ I guide you one step at a time — just tap or reply.",
+    "3️⃣ Type *menu* anytime to stop and come back.",
     "",
-    "💰 *Give* — \"I want to give ₦5,000 tithe\"",
-    "🕊️ *Prayer* — \"Please pray for my mum, she's unwell\"",
-    "👋 *First time?* — \"I'm new here, my name is Ada\"",
-    "👶 *Kids* — \"Check in my daughter Amara, age 6\"",
-    "🤝 *Belong* — \"I'd like to join the choir\"",
-    "📅 *Events* — \"What's on this week?\" · \"Register me for the retreat\"",
-    "📝 *Service* — \"Record today's service: 120 adults, ₦45k offering\"",
-    "📊 *Reports* — \"How much giving this month?\" · \"Church overview\"",
-    "💡 *More* — Ask me anything at all — I've got you. 🙂",
+    "Or just tell me in your own words — type or send a voice note:",
+    "• \"I want to give ₦5,000 tithe\"",
+    "• \"Please pray for my mum, she's unwell\"",
+    "• \"Check in my daughter\"",
+    ...(leader
+      ? ["• \"Record today: 120 adults, ₦45k offering\"", "• \"What needs my approval?\""]
+      : ["• \"I'd like to join the choir\""]),
+    "",
+    "⚡ Type *#shortcuts* for quick jumps like *#give* and *#checkin*.",
   ].join("\n");
 }
 
+// Guests can't use church modules until they're connected, so their help card
+// explains that and offers the two ways in — never "just type it" guides that
+// dead-end in "connect to your church first".
+const GUEST_HELP_TEXT = [
+  "👋 *Here's how I can help*",
+  "",
+  "*Chertt* is your church on WhatsApp — give, ask for prayer, check kids in, join a ministry, see events and more.",
+  "",
+  "To start, connect to your church (about a minute):",
+  "1️⃣ Tap *Connect my church*",
+  "2️⃣ Tell me your name",
+  "3️⃣ Send your church's code — or just its name",
+  "",
+  "Lead a church? Tap *I lead a church* to set it up.",
+].join("\n");
+
+const GUEST_HELP_BUTTONS = [
+  { id: "guest_member", title: "🔗 Connect my church" },
+  { id: "guest_leader", title: "⛪ I lead a church" },
+];
+
 async function sendHelpMenu(from: string, session: WhatsAppSession, link: PhoneLink | null): Promise<void> {
+  if (!link) {
+    try { await sendInteractiveButtons(from, GUEST_HELP_TEXT, GUEST_HELP_BUTTONS, "How can I help?"); }
+    catch { await sendTextMessage(from, GUEST_HELP_TEXT + "\n\nReply *connect* to connect to your church."); }
+    await addToHistory(from, "assistant", "Sent guest help menu");
+    return;
+  }
+  // 1) Everything this role can do, each with a one-line "what it does".
+  await sendTextMessage(from, menuDirectory(link.userRole ?? "member"));
+  // 2) How it works + the way in.
   const text = buildHelpText(link, session);
   try {
     await sendInteractiveButtons(from, text, [
-      { id: "help_give", title: "Give" },
-      { id: "help_prayer", title: "Prayer" },
-      { id: "help_checkin", title: "Check in a child" },
+      { id: "main_menu", title: "📋 Open menu" },
+      { id: "help_give", title: "💰 Give" },
+      { id: "help_prayer", title: "🕊️ Prayer" },
     ], "How can I help?");
   } catch {
     await sendTextMessage(from, text);
@@ -157,9 +194,12 @@ async function sendHelpMenu(from: string, session: WhatsAppSession, link: PhoneL
   await addToHistory(from, "assistant", "Sent church help menu");
 }
 
-async function handleHelpButton(from: string, buttonId: string): Promise<boolean> {
-  const guides: Record<string, string> = {
-    help_give: [
+// Typed-example guides behind the help buttons. Each ends with a way forward:
+// a member gets a button that starts the module (plus Main menu); a guest gets
+// "Connect my church", since none of these work before connecting.
+const HELP_GUIDES: Record<string, { text: string; start?: { id: string; title: string } }> = {
+  help_give: {
+    text: [
       "*Giving* 🙏",
       "",
       "Just tell me the amount and type, e.g.:",
@@ -167,7 +207,10 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "I'll send you a secure link to complete it, and record it once it's done.",
     ].join("\n"),
-    help_prayer: [
+    start: { id: "menu:give", title: "💰 Give now" },
+  },
+  help_prayer: {
+    text: [
       "*Prayer requests* 🕊️",
       "",
       "Tell me what to pray about, e.g.:",
@@ -175,15 +218,21 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "Say it's anonymous if you'd rather not share your name.",
     ].join("\n"),
-    help_checkin: [
+    start: { id: "menu:prayer", title: "🕊️ Ask for prayer" },
+  },
+  help_checkin: {
+    text: [
       "*Children's check-in* 👶",
       "",
-      "Tell me the child's details, e.g.:",
-      "\"Check in my son Timmy, age 5, allergic to peanuts\"",
+      "Register your child once, then check them in each Sunday:",
+      "\"Check in my son Timmy\"",
       "",
       "You'll get a pickup code to show at collection.",
     ].join("\n"),
-    help_firsttimer: [
+    start: { id: "menu:checkin", title: "👶 Check in a child" },
+  },
+  help_firsttimer: {
+    text: [
       "*First time at church?* 👋",
       "",
       "Welcome! Tell me about yourself, e.g.:",
@@ -191,7 +240,9 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "I'll let the pastoral team know so they can follow up with you.",
     ].join("\n"),
-    help_join: [
+  },
+  help_join: {
+    text: [
       "*Join a ministry or department* 🤝",
       "",
       "Tell me which group you'd like to join, e.g.:",
@@ -199,7 +250,10 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "I'll send your request to the department leader for approval.",
     ].join("\n"),
-    help_event: [
+    start: { id: "menu:join_dept", title: "🤝 Join a ministry" },
+  },
+  help_event: {
+    text: [
       "*Events & Programmes* 📅",
       "",
       "Ask me what's coming up or register for something:",
@@ -208,7 +262,10 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "I'll confirm your spot and send you the details.",
     ].join("\n"),
-    help_service: [
+    start: { id: "menu:events", title: "📅 See events" },
+  },
+  help_service: {
+    text: [
       "*Record a service* 📝",
       "",
       "After service, tell me the numbers — leaders and pastors can log:",
@@ -216,19 +273,26 @@ async function handleHelpButton(from: string, buttonId: string): Promise<boolean
       "",
       "You can also note the sermon title, first-timers, and salvations.",
     ].join("\n"),
-  };
-  const guide = guides[buttonId];
+    start: { id: "menu:record_service", title: "📝 Record service" },
+  },
+};
+
+async function handleHelpButton(from: string, buttonId: string, link: PhoneLink | null): Promise<boolean> {
+  const guide = HELP_GUIDES[buttonId];
   if (guide) {
-    await sendTextMessage(from, guide);
-    await addToHistory(from, "assistant", guide);
+    const out: FlowOutput = link
+      ? withWayBack({ type: "buttons", text: guide.text, buttons: guide.start ? [guide.start] : [] })
+      : { type: "buttons", text: `${guide.text}\n\n*First:* connect to your church — it takes about a minute.`, buttons: [GUEST_HELP_BUTTONS[0]] };
+    await sendFlowOutput(from, out);
+    await addToHistory(from, "assistant", guide.text);
     return true;
   }
-  // "More help" — re-send the full help menu with buttons
+  // "More help" / "How it works" — re-send the full help menu with buttons
   if (buttonId === "help_more") {
     const session = await getSession(from);
     // resolve link for role-aware help (best-effort; fallback to guest context)
-    const { link } = await resolveActiveLinks(from, session.activeWorkspaceId);
-    await sendHelpMenu(from, session, link);
+    const { link: resolved } = await resolveActiveLinks(from, session.activeWorkspaceId);
+    await sendHelpMenu(from, session, resolved);
     return true;
   }
   return false;
@@ -312,9 +376,9 @@ async function sendConsentGate(from: string): Promise<void> {
 
 async function sendGuestWelcome(from: string): Promise<void> {
   const text = [
-    "👋 Hi! I'm *Chertt* — I help churches run everything right here on WhatsApp.",
+    "👋 Hi! I'm *Chertt* — your church on WhatsApp: give, ask for prayer, check kids in, join a ministry, see events and more.",
     "",
-    "So I point you the right way — who are you? Tap below, or just tell me in your own words 👇",
+    "First I'll connect you to your church. So I point you the right way — who are you? Tap below 👇",
     "",
     "_Type *privacy* for how we use your data, or *stop* to opt out._",
   ].join("\n");
@@ -331,32 +395,51 @@ async function sendGuestWelcome(from: string): Promise<void> {
 
 // The main menu as a WhatsApp interactive list — role-aware (WS-menu): the rows
 // offered are exactly the tools this caller is allowed to use, derived from the
-// same permission machinery that guards execution. Page 2 holds the overflow.
-async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1): Promise<void> {
+// same permission machinery that guards execution.
+//
+// Direction rail: one screen that names the church, lists every section this
+// role can use (each row says what's inside), ends with "How it works", and
+// reminds them "menu" always brings them back. `lead` prefixes a greeting /
+// confirmation (e.g. "You're connected to …") so it arrives as ONE message.
+async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1, lead?: string): Promise<void> {
   if (!link) { await sendGuestWelcome(from); return; }
-  // Top level: a short list of GROUPS (children / giving / care / belong / ops).
-  // Tapping one opens its items (buttons if ≤3, else a list) — see handleButtonReply.
-  const groups = menuGroupsForRole(link.userRole ?? "member");
+  const role = link.userRole ?? "member";
+  const first = link.userName ? link.userName.split(" ")[0] : "";
+  const text = [
+    ...(lead ? [lead, ""] : []),
+    `📋 *Main menu — ${link.workspaceName}*`,
+    `Here's everything I can do for you${first ? ", " + first : ""}. Pick a section to see its options 👇`,
+    "",
+    "_Type *menu* anytime to come back here._",
+  ].join("\n");
   try {
-    await sendInteractiveList(from, "What do you need? 👇", "Open menu", groups, "Menu");
+    await sendInteractiveList(from, text, "Open menu", mainMenuRows(role), "Menu");
   } catch {
-    await sendTextMessage(from, "Try: give ₦5,000 tithe · ask for prayer · check in a child · giving this month · I'm new here · join a ministry · events");
+    await sendTextMessage(from, (lead ? lead + "\n\n" : "") + menuDirectory(role));
   }
 }
 
 // A group's sub-menu: buttons when ≤3 items (one tap, no modal), else a list.
+// Every option shows its one-line "what it does", and there's always a way back.
 async function sendGroupMenu(from: string, role: string, group: string, page = 1): Promise<void> {
   const { asButtons, header, items, hasMore } = menuItemsForGroup(role, group, page);
-  if (!items.length) { await sendTextMessage(from, "Nothing here for you right now."); return; }
+  if (!items.length) { await sendFlowOutput(from, withWayBack({ type: "text", text: "Nothing in this section for you right now." })); return; }
   if (asButtons) {
-    try { await sendInteractiveButtons(from, `${header} — tap one 👇`, items.map((i) => ({ id: i.id, title: i.title })), header); }
-    catch { await sendTextMessage(from, `${header}: ` + items.map((i) => i.title).join(", ")); }
+    const body = `*${header}*\n\n${items.map((i) => `${i.title} — ${i.description}`).join("\n")}\n\nTap one 👇`;
+    const buttons = items.map((i) => ({ id: i.id, title: i.title }));
+    if (buttons.length < 3) buttons.push({ id: "main_menu", title: "⬅️ Back to menu" });
+    try { await sendInteractiveButtons(from, body, buttons, header); }
+    catch { await sendTextMessage(from, `${body}\n\n_Type *menu* to go back._`); }
     return;
   }
-  const rows = items.map((i) => ({ id: i.id, title: i.title, description: i.description ?? "" }));
-  if (hasMore) rows.push({ id: `grp:${group}:${page + 1}`, title: "More →", description: "The rest of this section" });
-  try { await sendInteractiveList(from, `${header} 👇`, "Choose", rows, header); }
-  catch { await sendTextMessage(from, `${header}: ` + rows.map((r) => r.title).join(", ")); }
+  const rows = items.map((i) => ({ id: i.id, title: i.title, description: i.description }));
+  // ≤ 9 items + one nav row = WhatsApp's 10-row cap. The last page leads back.
+  rows.push(hasMore
+    ? { id: `grp:${group}:${page + 1}`, title: "More →", description: "The rest of this section" }
+    : { id: "main_menu", title: "⬅️ Back to menu", description: "All sections" });
+  const body = `*${header}* — tap *Choose* to see each option and what it does 👇\n\n_Type *menu* to go back._`;
+  try { await sendInteractiveList(from, body, "Choose", rows, header); }
+  catch { await sendTextMessage(from, `${header}:\n` + items.map((i) => `• ${i.title} — ${i.description}`).join("\n")); }
 }
 
 // Proactive, role-aware welcome. A first-time member shouldn't have to ask
@@ -387,7 +470,7 @@ function buildWorkspaceWelcome(link: PhoneLink): string {
     "Here are a few things I can do for you:",
     ...ideas,
     "",
-    "Tap a button below to start, or just tell me what you need — you can type or send a voice note. 👇",
+    "Tap a button below — *📋 Full menu* shows everything. Or just tell me what you need (type or voice note). 👇",
   ].join("\n");
 }
 
@@ -400,7 +483,7 @@ async function sendWorkspaceWelcome(from: string, link: PhoneLink): Promise<void
     await sendInteractiveButtons(from, text, [
       { id: "help_give", title: "Give" },
       { id: "help_prayer", title: "Prayer" },
-      { id: "help_checkin", title: "Check in a child" },
+      { id: "main_menu", title: "📋 Full menu" },
     ], "Welcome 🙏");
   } catch {
     await sendTextMessage(from, text);
@@ -674,6 +757,9 @@ async function handleDepartmentDecision(from: string, requestId: string, decisio
 // fallback used by the report/menu helpers — a Meta error never strands the
 // conversation.
 async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
+  // Direction rail: a flow's last message (done / cancel) always offers the
+  // next step or the way back — never a dead-end.
+  if (out.final) out = withWayBack(out);
   if (out.type === "buttons") {
     try { await sendInteractiveButtons(from, out.text, out.buttons, out.header); return; }
     catch { await sendTextMessage(from, out.text); return; }
@@ -689,6 +775,12 @@ async function sendFlowOutput(from: string, out: FlowOutput): Promise<void> {
   await sendTextMessage(from, out.text);
 }
 
+// A one-off reply that must not dead-end (a read, a refusal, a cancel): the text
+// plus "🏠 Main menu" (or a "type menu" line when it's too long for buttons).
+async function sendWithWayBack(from: string, text: string): Promise<void> {
+  await sendFlowOutput(from, withWayBack({ type: "text", text }));
+}
+
 // Start child check-in the right way: only the guardian's OWN registered
 // children can be checked in (client feedback 2026-09-12 — a free-text name let
 // you check in a child who was never registered). If they have none, prompt to
@@ -697,7 +789,7 @@ async function startChildCheckin(from: string, link: PhoneLink | null, personId:
   const kids = link && personId ? await listGuardianChildren(link.workspaceId, personId) : [];
   if (!kids.length) {
     try {
-      await sendInteractiveButtons(from, "You haven't registered any children yet. Let's add one first — then you can check them in. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }]);
+      await sendInteractiveButtons(from, "You haven't registered any children yet. Let's add one first — then you can check them in. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }, MENU_BUTTON]);
     } catch { await sendTextMessage(from, "You haven't registered any children yet. Reply *register my child* to add one, then check them in."); }
     return;
   }
@@ -712,7 +804,7 @@ async function startHoldSeat(from: string, link: PhoneLink | null, personId: str
   const kids = link && personId ? await listGuardianChildren(link.workspaceId, personId) : [];
   if (!kids.length) {
     try {
-      await sendInteractiveButtons(from, "You haven't registered any children yet. Let's add one first — then you can reserve a seat. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }]);
+      await sendInteractiveButtons(from, "You haven't registered any children yet. Let's add one first — then you can reserve a seat. 👶", [{ id: "menu:register_child", title: "🧒 Register a child" }, MENU_BUTTON]);
     } catch { await sendTextMessage(from, "You haven't registered any children yet. Reply *register my child* to add one, then reserve a seat."); }
     return;
   }
@@ -725,10 +817,10 @@ async function startHoldSeat(from: string, link: PhoneLink | null, personId: str
 // flow seeded (was a plain-text numbered list).
 async function startAssignRole(from: string, link: PhoneLink, session: WhatsAppSession): Promise<void> {
   const roleOptions = assignableRoles("church").filter((r) => canAssignRole(link.userRole, r));
-  if (!roleOptions.length) { await sendTextMessage(from, "You don't have permission to change roles here."); return; }
+  if (!roleOptions.length) { await sendWithWayBack(from, "You don't have permission to change roles here."); return; }
   const members = await listBranchMembers(link.workspaceId);
   const candidates = members.filter((m) => roleRank(m.role) <= roleRank(link.userRole));
-  if (!candidates.length) { await sendTextMessage(from, "There's no one here whose role you can change yet."); return; }
+  if (!candidates.length) { await sendWithWayBack(from, "There's no one here whose role you can change yet."); return; }
   const out = await startFlow("assign_role", { phone: from, link, personId: undefined, session }, (patch) => updateSession(from, patch), { candidates, roleOptions });
   if (out) await sendFlowOutput(from, out);
 }
@@ -742,9 +834,9 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     const out = await startFlow(HELP_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
   }
-  if (await handleHelpButton(from, buttonId)) return;
+  if (await handleHelpButton(from, buttonId, link)) return;
   if (buttonId === "confirm") { await handleConfirm(from, session, link); return; }
-  if (buttonId === "cancel") { await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
+  if (buttonId === "cancel") { await clearPending(from); await sendWithWayBack(from, "Cancelled — nothing was saved. 🙏"); return; }
 
   // ── Consent gate (must agree before anything is stored/used) ──
   if (buttonId === "guest_consent") {
@@ -825,7 +917,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     const target = links.find((l) => l.workspaceId === wsId);
     if (!target) { await sendTextMessage(from, "Couldn't switch just now — send the church's code to connect."); return; }
     await updateSession(from, { activeWorkspaceId: wsId });
-    await sendTextMessage(from, `✅ You're now in *${target.workspaceName}*. What do you need?`);
+    await sendMainMenu(from, target, 1, `✅ You're now in *${target.workspaceName}*.`);
     return;
   }
 
@@ -868,7 +960,12 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
         const out = await startFlow("child_register", { phone: from, link: childLink, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
         if (out) { await sendFlowOutput(from, out); return; }
       }
-      await sendTextMessage(from, `🎉 You're connected to *${pj.name}*! What can I help you with today?`);
+      const joined: PhoneLink = {
+        phoneNumber: from, userId: null,
+        workspaceId: pj.workspaceId, workspaceSlug: pj.slug, workspaceName: pj.name,
+        userName: session.userName ?? "", userRole: "member",
+      };
+      await sendMainMenu(from, joined, 1, `🎉 You're connected to *${pj.name}*!`);
     } else {
       await sendTextMessage(from, "Send your church's 8-character code and I'll connect you.");
     }
@@ -922,6 +1019,8 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   };
   if (link && buttonId === "menu:checkin") { await startChildCheckin(from, link, personId, session); return; }
   if (link && buttonId === "menu:hold_seat") { await startHoldSeat(from, link, personId, session); return; }
+  if (link && buttonId === "menu:assign_role") { await startAssignRole(from, link, session); return; }
+  if (link && buttonId === "menu:overview") { buttonId = "rpt:overview"; }
   if (link && MENU_FLOW[buttonId]) {
     const out = await startFlow(MENU_FLOW[buttonId], { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
     if (out) { await sendFlowOutput(from, out); return; }
@@ -929,7 +1028,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   // Direct reads — tapping a read row calls the tool and formats it, no agent.
   if (link) {
     const readReply = await runMenuRead(buttonId, agentCtx(link, from, personId ?? undefined));
-    if (readReply !== null) { await addToHistory(from, "user", `[tap] ${buttonId}`); await sendTextMessage(from, readReply); return; }
+    if (readReply !== null) { await addToHistory(from, "user", `[tap] ${buttonId}`); await sendWithWayBack(from, readReply); return; }
   }
   if (buttonId.startsWith("menu:")) {
     const prompt = menuPromptFor(buttonId.slice(5));
@@ -1020,7 +1119,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     await clearPending(from); return;
   }
 
-  await sendTextMessage(from, "I did not recognize that action. Please try again.");
+  await sendWithWayBack(from, "I didn't recognise that button — it may be from an older message. Here's the way back. 👇");
 }
 
 // ─── Voice & Receipt ──────────────────────────────────────────────────────────
@@ -1184,12 +1283,14 @@ function parseServiceReport(t: string): Record<string, unknown> | undefined {
 // "#give" jumps straight to giving, no picker. Documented in the handoff README.
 type HashRoute =
   | { kind: "menu" }
+  | { kind: "shortcuts" }
   | { kind: "checkin" }
   | { kind: "flow"; flow: string }
   | { kind: "read"; buttonId: string };
 const HASHTAG_ROUTES: Record<string, HashRoute> = {
   menu: { kind: "menu" },
   help: { kind: "menu" },
+  shortcuts: { kind: "shortcuts" },
   give: { kind: "flow", flow: "give" },
   gift: { kind: "flow", flow: "give" },
   checkin: { kind: "checkin" },
@@ -1219,6 +1320,8 @@ function hashtagHelp(): string {
     "*#giving* — your giving this month",
     "*#qr* — your personal QR code",
     "*#reset* — start over and clear our chat",
+    "",
+    "_Type *menu* anytime to see everything else._",
   ].join("\n");
 }
 
@@ -1474,7 +1577,10 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     session.activeFlow || session.pendingAgentAction || session.pendingConfirmation || session.pendingApproval
       || session.onboarding,
   );
-  if (!message.buttonReplyId && trimmed && ESCAPE_RE.test(trimmed) && hasStickyState) {
+  // The "🏠 Main menu" button (offered at the end of every flow and in every
+  // sub-menu) is the same escape when tapped from an older message mid-flow.
+  const tappedMenu = message.buttonReplyId === "main_menu";
+  if (hasStickyState && (tappedMenu || (!message.buttonReplyId && trimmed && ESCAPE_RE.test(trimmed)))) {
     await updateSession(from, {
       activeFlow: undefined,
       pendingAgentAction: undefined,
@@ -1482,12 +1588,12 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       pendingApproval: undefined,
       onboarding: undefined,
     });
-    await addToHistory(from, "user", trimmed);
-    if (/^(menu|start over)$/i.test(trimmed)) {
+    await addToHistory(from, "user", tappedMenu ? "[tap] main_menu" : trimmed);
+    if (tappedMenu || /^(menu|start over)$/i.test(trimmed)) {
       if (link) await sendMainMenu(from, link);
       else await sendGuestWelcome(from);
     } else {
-      await sendTextMessage(from, "Cancelled. What else can I help you with?");
+      await sendWithWayBack(from, "Cancelled — nothing was saved. 🙏");
     }
     return;
   }
@@ -1501,17 +1607,18 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     if (route) {
       if (session.activeFlow || session.onboarding) await updateSession(from, { activeFlow: undefined, onboarding: undefined });
       if (route.kind === "menu") { if (link) await sendMainMenu(from, link); else await sendGuestWelcome(from); return; }
+      if (route.kind === "shortcuts") { await sendTextMessage(from, hashtagHelp()); return; }
       if (!link) { await sendGuestWelcome(from); return; } // member actions need a church link
       if (route.kind === "checkin") { await startChildCheckin(from, link, personId, session); return; }
       if (route.kind === "read") {
         const reply = await runMenuRead(route.buttonId, agentCtx(link, from, personId ?? undefined));
-        if (reply) { await sendTextMessage(from, reply); return; }
+        if (reply) { await sendWithWayBack(from, reply); return; }
       }
       if (route.kind === "flow") {
         const gateTool = FLOW_GATE_TOOL[route.flow] ? getAgentTool(FLOW_GATE_TOOL[route.flow]) : null;
         if (gateTool) {
           const denied = toolAccessError(gateTool, { workspaceId: link.workspaceId, role: link.userRole as Role });
-          if (denied) { await sendTextMessage(from, denied); return; }
+          if (denied) { await sendWithWayBack(from, denied); return; }
         }
         const out = await startFlow(route.flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch));
         if (out) { await sendFlowOutput(from, out); return; }
@@ -1654,7 +1761,12 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
             workspaceName: workspace.name,
             role: "member",
           });
-          await sendTextMessage(from, `Welcome to *${workspace.name}*! You're in. Just tell me what you need — give, ask for prayer, or anything else.`);
+          const joined: PhoneLink = {
+            phoneNumber: from, userId: null,
+            workspaceId: workspace.id, workspaceSlug: workspace.slug, workspaceName: workspace.name,
+            userName: session.userName ?? "", userRole: "member",
+          };
+          await sendMainMenu(from, joined, 1, `🎉 Welcome to *${workspace.name}* — you're in!`);
           return;
         }
         // P0-2 — a bare code is never linked silently: reflect the church
@@ -1697,7 +1809,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       if (workspace) {
         const claimed = await claimBranchAdmin(workspace.id, from, session.userName ?? "");
         if (claimed) {
-          await sendTextMessage(from, `Welcome to *${claimed.workspaceName}* — you're set up as the admin. Just tell me what you need: giving reports, member updates, anything else.`);
+          await sendTextMessage(from, `Welcome to *${claimed.workspaceName}* — you're set up as the admin. Type *menu* to see everything you can run from here, or just tell me what you need.`);
           return;
         }
         await sendTextMessage(from, "That branch already has an admin. If that's wrong, contact support@chertt.app.");
@@ -1736,6 +1848,17 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
+  // P0-3 + direction rail — a returning linked member saying hi is greeted
+  // per-church and handed the menu in the same message (never re-asked for a
+  // code, never left at an open "what can I help you with?").
+  if (link && GREETING_ONLY_RE.test(trimmed)) {
+    const name = link.userName ? `, ${link.userName}` : "";
+    // A fresh start: drop any stale YES/NO proposal so a later stray "yes" can't fire it.
+    if (session.pendingAgentAction) await updateSession(from, { pendingAgentAction: undefined });
+    await addToHistory(from, "user", trimmed);
+    await sendMainMenu(from, link, 1, `Welcome back${name} 🙏 You're at *${link.workspaceName}*.`);
+    return;
+  }
   // Typed consent (for guests who type instead of tapping the gate button).
   if (!link && /^(i\s*)?agree\b.*$|^(yes,?\s*)?i\s*agree$/i.test(trimmed)) {
     if (personId) recordConsent({ personId, source: "whatsapp_first_contact" }).catch(() => {});
@@ -1794,19 +1917,19 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     }
     if (/^(no|n|cancel)$/i.test(trimmed)) {
       await updateSession(from, { pendingAgentAction: undefined });
-      await sendTextMessage(from, "No problem — cancelled. What else can I help you with?");
+      await sendWithWayBack(from, "No problem — cancelled. Nothing was done. 🙏");
       return;
     }
   }
 
   if (/^cancel$/i.test(trimmed)) {
-    if (session.onboarding) { await cancelOnboardingFlow(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return; }
-    await clearPending(from); await sendTextMessage(from, "Cancelled. What else can I help you with?"); return;
+    if (session.onboarding) { await cancelOnboardingFlow(from); await sendWithWayBack(from, "Cancelled — nothing was saved. 🙏"); return; }
+    await clearPending(from); await sendWithWayBack(from, "Cancelled — nothing was saved. 🙏"); return;
   }
   if (/^(confirm|yes)$/i.test(trimmed) && session.pendingConfirmation) { await handleConfirm(from, session, link); return; }
   if (/^no$/i.test(trimmed)) {
-    if (session.pendingConfirmation) { await clearPending(from); await sendTextMessage(from, "No problem — cancelled. What else can I help you with?"); }
-    else { await sendTextMessage(from, "Got it. What would you like to do instead?"); }
+    if (session.pendingConfirmation) { await clearPending(from); await sendWithWayBack(from, "No problem — cancelled. Nothing was done. 🙏"); }
+    else { await sendWithWayBack(from, "Got it. Pick something else from the menu, or just tell me. 🙏"); }
     return;
   }
 
@@ -1828,7 +1951,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     if (canAssignRole(link.userRole, "member")) {
       await startAssignRole(from, link, session);
     } else {
-      await sendTextMessage(from, "Only branch admins can change roles.");
+      await sendWithWayBack(from, "Only branch admins can change roles.");
     }
     return;
   }
@@ -2044,7 +2167,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       const gateTool = FLOW_GATE_TOOL[flow] ? getAgentTool(FLOW_GATE_TOOL[flow]) : null;
       if (gateTool) {
         const denied = toolAccessError(gateTool, { workspaceId: link.workspaceId, role: link.userRole as Role });
-        if (denied) { await sendTextMessage(from, denied); return; }
+        if (denied) { await sendWithWayBack(from, denied); return; }
       }
       const out = await startFlow(flow, { phone: from, link, personId: personId ?? undefined, session }, (patch) => updateSession(from, patch), seed, startStep);
       if (out) { await sendFlowOutput(from, out); return; }
@@ -2130,13 +2253,6 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   }
 
   if (trimmed) {
-    // P0-3 — a returning linked member is greeted per-church, never re-asked
-    // for a code; pure greetings get a short welcome-back, not a wall of text.
-    if (link && GREETING_ONLY_RE.test(trimmed)) {
-      const name = link.userName ? `, ${link.userName}` : "";
-      await sendTextMessage(from, `Welcome back${name} 🙏 You're at *${link.workspaceName}* — what can I help you with today?`);
-      return;
-    }
     // Unlinked / guest: a clear CHURCH action or connect intent (prayer, giving,
     // joining a ministry, "connect me", registering a child...) only works once
     // they're linked to a church — so, when it isn't phrased as a question, it's

@@ -9,6 +9,7 @@ const KIND_BUTTONS = [{ id: "lf_lost", title: "I lost something" }, { id: "lf_fo
 
 export const lostFoundFlow: FlowDefinition = {
   name: "lost_found",
+  intro: "*🔎 Lost & found* — report something lost or found at church.",
   firstStep: "kind",
   steps: {
     kind: {

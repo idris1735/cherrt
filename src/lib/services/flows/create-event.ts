@@ -10,6 +10,7 @@ const confirmBtns = [{ id: "ev_go", title: "✅ Create" }, { id: "ev_cancel", ti
 
 export const createEventFlow: FlowDefinition = {
   name: "create_event",
+  intro: "*➕ Create an event* — add a programme to the church calendar.",
   firstStep: "title",
   steps: {
     title: {

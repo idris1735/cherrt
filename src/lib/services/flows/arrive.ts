@@ -22,6 +22,7 @@ async function arrive(seat: HeldSeat, ctx: FlowRunContext): Promise<Transition> 
 
 export const arriveFlow: FlowDefinition = {
   name: "arrive",
+  intro: "*🙋 I've arrived* — turn your reserved seat into a check-in with a pickup code.",
   firstStep: "start",
   steps: {
     start: {
@@ -29,7 +30,15 @@ export const arriveFlow: FlowDefinition = {
       onInput: async (_input: FlowInput, _data, ctx): Promise<Transition> => {
         if (!ctx.link) return { done: { type: "text", text: "Please connect to your church first." } };
         const held = await listHeldForGuardian(ctx.link.workspaceId, ctx.personId ?? "");
-        if (!held.length) return { done: { type: "text", text: "You don't have any reserved seats. Use *Check in a child* from the Menu for a walk-in. 🙏" } };
+        if (!held.length) {
+          return {
+            done: {
+              type: "buttons",
+              text: "You don't have any reserved seats. Walking in? Check your child in now. 🙏",
+              buttons: [{ id: "menu:checkin", title: "👶 Check in a child" }],
+            },
+          };
+        }
         if (held.length === 1) return arrive(held[0], ctx); // auto-convert the only one
         return { to: "pick", patch: { held } };
       },

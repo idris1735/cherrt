@@ -18,6 +18,7 @@ const formRows = () => FORMS.map((f) => ({ id: `pf_${f.formType}`, title: f.labe
 
 export const pastoralFormFlow: FlowDefinition = {
   name: "pastoral_form",
+  intro: "*📜 Pastoral forms* — book a baby dedication, child naming, pre-marital counselling and more.",
   firstStep: "form_type",
   steps: {
     form_type: {

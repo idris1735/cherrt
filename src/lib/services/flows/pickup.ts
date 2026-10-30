@@ -9,10 +9,11 @@ const confirmBtns = [{ id: "pu_go", title: "✅ Release to me" }, { id: "pu_canc
 
 export const pickupFlow: FlowDefinition = {
   name: "pickup",
+  intro: "*🎫 Pick up a child* — collect your child with the pickup code from their pass.",
   firstStep: "code",
   steps: {
     code: {
-      render: () => ({ type: "text", text: "🎫 Collecting a child? Send their *pickup code* (the digits on the pass)." }),
+      render: () => ({ type: "text", text: "Send the child's *pickup code* (the digits on the pass)." }),
       onInput: (input: FlowInput): Transition => {
         const code = input.text.trim();
         if (!/^\d{4,8}$/.test(code)) return { stay: { type: "text", text: "Send the pickup code — just the digits." } };

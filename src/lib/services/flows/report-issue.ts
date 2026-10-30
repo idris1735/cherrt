@@ -12,6 +12,7 @@ const SEV_BUTTONS = [
 
 export const reportIssueFlow: FlowDefinition = {
   name: "issue",
+  intro: "*🛠️ Report an issue* — tell the facilities team what's broken and where.",
   firstStep: "title",
   steps: {
     title: {

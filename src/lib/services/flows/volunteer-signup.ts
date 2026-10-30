@@ -7,10 +7,11 @@ import type { Role } from "@/lib/types";
 
 export const volunteerSignupFlow: FlowDefinition = {
   name: "volunteer_signup",
+  intro: "*🙋 Volunteer* — offer to serve where your church needs help.",
   firstStep: "what",
   steps: {
     what: {
-      render: () => ({ type: "text", text: "🙋 Wonderful! What would you like to serve in? Type a team or role — e.g. choir, ushering, media, children's ministry." }),
+      render: () => ({ type: "text", text: "What would you like to serve in? Type a team or role — e.g. choir, ushering, media, children's ministry." }),
       onInput: async (input: FlowInput, _data, ctx): Promise<Transition> => {
         const title = input.text.trim();
         if (title.length < 2) return { stay: { type: "text", text: "Tell me which team or role you'd like to serve in." } };

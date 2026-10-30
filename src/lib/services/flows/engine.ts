@@ -9,13 +9,18 @@
 // keeps every transition unit-testable without a Meta round trip.
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { PhoneLink } from "@/lib/services/whatsapp-workspace";
+import { withIntro } from "@/lib/services/flows/direction";
 
-// What the engine tells the processor to send for a step.
-export type FlowOutput =
+// What the engine tells the processor to send for a step. `final` marks the
+// output that ENDS a flow (done or cancel) — the processor then adds the
+// direction rail's way back (see direction.ts withWayBack) so no flow ever ends
+// on a dead-end.
+export type FlowOutput = (
   | { type: "text"; text: string }
   | { type: "buttons"; text: string; header?: string; buttons: Array<{ id: string; title: string }> }
   | { type: "list"; text: string; header?: string; buttonLabel: string; rows: Array<{ id: string; title: string; description?: string }> }
-  | { type: "urlButton"; text: string; url: string; buttonLabel: string }; // leader → web-onboarding link
+  | { type: "urlButton"; text: string; url: string; buttonLabel: string } // leader → web-onboarding link
+) & { final?: boolean };
 
 // Normalized user input for a turn.
 export type FlowInput = { text: string; buttonId?: string };
@@ -43,6 +48,9 @@ export type FlowStep = {
 
 export type FlowDefinition = {
   name: string;
+  // Direction rail: the one-line module header shown when the flow opens —
+  // what this module does, e.g. "*💰 Give* — tithe, offering or seed…".
+  intro?: string;
   firstStep: string;
   initialData?: (ctx: FlowRunContext) => FlowData;
   steps: Record<string, FlowStep>;
@@ -56,6 +64,11 @@ export function registerFlow(def: FlowDefinition): void {
 
 export function getFlow(name: string): FlowDefinition | undefined {
   return REGISTRY.get(name);
+}
+
+/** Names of every registered flow (used to assert each module has a header). */
+export function registeredFlowNames(): string[] {
+  return [...REGISTRY.keys()];
 }
 
 // Words that leave any flow politely, at any step. Note: "stop"/"unsubscribe"
@@ -80,7 +93,8 @@ export async function startFlow(
   const step = startStep && def.steps[startStep] ? startStep : def.firstStep;
   const data = { ...(def.initialData ? def.initialData(ctx) : {}), ...(seed ?? {}) };
   await update({ activeFlow: { name, step, data } });
-  return def.steps[step].render(data, ctx);
+  // Direction rail: open every module with its header (what it does + how to leave).
+  return withIntro(def.intro, await def.steps[step].render(data, ctx));
 }
 
 // Advance the active flow by one turn. Returns the output to send, or null if
@@ -106,7 +120,7 @@ export async function advanceFlow(
   // Global polite exit from any step.
   if (CANCEL_RE.test(input.text.trim())) {
     await update({ activeFlow: undefined });
-    return { type: "text", text: "No problem — I've stopped that. Tap *Menu* whenever you're ready. 🙏" };
+    return { type: "text", text: "No problem — I've stopped that. Nothing was saved. 🙏", final: true };
   }
 
   const t = await step.onInput(input, state.data, ctx);
@@ -115,7 +129,7 @@ export async function advanceFlow(
   }
   if ("done" in t) {
     await update({ activeFlow: undefined });
-    return t.done;
+    return { ...t.done, final: true };
   }
   // advance
   const nextData = { ...state.data, ...(t.patch ?? {}) };

@@ -15,6 +15,7 @@ const CATEGORIES: Array<{ id: string; label: string }> = [
 
 export const pastoralFlow: FlowDefinition = {
   name: "pastoral",
+  intro: "*🤲 See a pastor* — ask for counselling, a visit or support. A pastor will reach out to you.",
   firstStep: "category",
   steps: {
     category: {

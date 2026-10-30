@@ -12,6 +12,7 @@ const typeRows = () => GIVING_TYPES.map((t) => ({ id: `rg_${t.toLowerCase()}`, t
 
 export const recordGivingFlow: FlowDefinition = {
   name: "record_giving",
+  intro: "*🧾 Record giving* — log cash or a transfer the church received.",
   firstStep: "amount",
   steps: {
     amount: {
@@ -52,7 +53,7 @@ export const recordGivingFlow: FlowDefinition = {
         buttons: [{ id: "rg_go", title: "✅ Record" }, { id: "rg_cancel", title: "❌ Cancel" }],
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
-        if (input.buttonId === "rg_cancel") return { done: { type: "text", text: "No problem — nothing recorded. Tap *Menu* anytime. 🙏" } };
+        if (input.buttonId === "rg_cancel") return { done: { type: "text", text: "No problem — nothing recorded. 🙏" } };
         if (input.buttonId !== "rg_go" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return { stay: { type: "buttons", header: "Confirm giving", text: "Tap *Record* to log it, or *Cancel*.", buttons: [{ id: "rg_go", title: "✅ Record" }, { id: "rg_cancel", title: "❌ Cancel" }] } };
         }

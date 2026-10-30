@@ -38,7 +38,8 @@ describe("hold_seat flow", () => {
   it("no classrooms → pick child → confirm → reserves bound to the child's person id", async () => {
     const { out, session } = await drive([{ buttonId: "pc_0" }, { buttonId: "hs_go" }]);
     expect(handlerMock).toHaveBeenCalledWith({ childName: "Timmy Obi", childPersonId: "k1", classroomId: undefined }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text" });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("*Next:*"), final: true });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:arrive"]);
     expect(session.activeFlow).toBeUndefined();
   });
   it("with classrooms → pick child → pick room → confirm → reserve with classroomId + person id", async () => {
@@ -59,7 +60,8 @@ describe("hold_seat flow", () => {
   });
   it("'a different child' dead-ends to registration, never a free-text reservation", async () => {
     const { out, session } = await drive([{ buttonId: "pc_new" }]);
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("register my child") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("register them first") });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:register_child"]);
     expect(session.activeFlow).toBeUndefined();
     expect(handlerMock).not.toHaveBeenCalled();
   });

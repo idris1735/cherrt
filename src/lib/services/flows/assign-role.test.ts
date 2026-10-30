@@ -45,7 +45,7 @@ describe("assign_role flow", () => {
   it("cancel at confirm makes no change", async () => {
     const { out, session } = await drive([{ buttonId: "am_1" }, { buttonId: "ar_0" }, { buttonId: "ar_cancel" }]);
     expect(setRoleMock).not.toHaveBeenCalled();
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("No change") });
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("no change made"), final: true });
     expect(session.activeFlow).toBeUndefined();
   });
 

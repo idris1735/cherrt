@@ -6,6 +6,7 @@ import type { Role } from "@/lib/types";
 
 export const joinFlow: FlowDefinition = {
   name: "join",
+  intro: "*🤝 Join a ministry* — ask to join a team or department; its leader approves.",
   firstStep: "department",
   steps: {
     department: {

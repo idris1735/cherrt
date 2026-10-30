@@ -22,6 +22,7 @@ const roleRows = () => ROLES.map((r) => ({ id: r.id, title: r.title }));
 
 export const addMemberFlow: FlowDefinition = {
   name: "add_member",
+  intro: "*➕ Add a member* — put someone new on the church roster.",
   firstStep: "name",
   steps: {
     name: {

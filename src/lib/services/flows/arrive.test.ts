@@ -44,7 +44,9 @@ describe("arrive flow", () => {
   it("no held seats → points to walk-in check-in", async () => {
     heldMock.mockResolvedValue([]);
     const { out } = await drive([{ buttonId: "arrive_go" }]);
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("Check in a child") });
+    // Direction rail: not a dead-end — one tap to the walk-in check-in.
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Check your child in"), final: true });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
     expect(arriveMock).not.toHaveBeenCalled();
   });
 });

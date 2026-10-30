@@ -15,6 +15,7 @@ function pickRows(pending: PendingArrival[]) {
 
 export const acceptArrivalsFlow: FlowDefinition = {
   name: "accept_arrivals",
+  intro: "*🙌 Accept arrivals* — mark checked-in children as arrived in class.",
   firstStep: "start",
   steps: {
     // Neutral prompt first — no PII until we've confirmed the caller is allowed.

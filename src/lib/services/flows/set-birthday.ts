@@ -21,6 +21,7 @@ export function parseBirthday(s: string): { day: number; month: number } | null 
 
 export const setBirthdayFlow: FlowDefinition = {
   name: "set_birthday",
+  intro: "*🎂 My birthday* — save it so your church can celebrate you.",
   firstStep: "date",
   steps: {
     date: {

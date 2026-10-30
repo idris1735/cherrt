@@ -7,6 +7,7 @@ import type { Role } from "@/lib/types";
 
 export const createClassroomFlow: FlowDefinition = {
   name: "create_classroom",
+  intro: "*🏫 Add a classroom* — set up a children's room and its capacity.",
   firstStep: "name",
   steps: {
     name: {

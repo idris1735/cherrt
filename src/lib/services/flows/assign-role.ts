@@ -16,6 +16,7 @@ const roleRows = (roles: string[]) => roles.map((r, i) => ({ id: `ar_${i}`, titl
 
 export const assignRoleFlow: FlowDefinition = {
   name: "assign_role",
+  intro: "*🎖️ Change a role* — set what someone can do in your church.",
   firstStep: "pick_member",
   steps: {
     pick_member: {
@@ -58,7 +59,7 @@ export const assignRoleFlow: FlowDefinition = {
         buttons: [{ id: "ar_go", title: "✅ Set role" }, { id: "ar_cancel", title: "❌ Cancel" }],
       }),
       onInput: async (input, data: FlowData, ctx): Promise<Transition> => {
-        if (input.buttonId === "ar_cancel") return { done: { type: "text", text: "No change made. What else can I help you with?" } };
+        if (input.buttonId === "ar_cancel") return { done: { type: "text", text: "No problem — no change made. 🙏" } };
         if (input.buttonId !== "ar_go" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return { stay: { type: "buttons", header: "Confirm role change", text: "Tap *Set role* to confirm, or *Cancel*.", buttons: [{ id: "ar_go", title: "✅ Set role" }, { id: "ar_cancel", title: "❌ Cancel" }] } };
         }

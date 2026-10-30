@@ -29,6 +29,7 @@ type MyChild = { personId: string; name: string };
 
 export const childCheckinFlow: FlowDefinition = {
   name: "child_checkin",
+  intro: "*👶 Check in a child* — drop your child at children's church. You'll get a pickup code + QR pass.",
   firstStep: "pick_child",
   steps: {
     // Started via startChildCheckin (processor), which seeds `myChildren` with
@@ -51,7 +52,13 @@ export const childCheckinFlow: FlowDefinition = {
       onInput: (input: FlowInput, data: FlowData): Transition => {
         const kids = (data.myChildren as MyChild[]) ?? [];
         if (input.buttonId === "pc_new") {
-          return { done: { type: "text", text: "No problem — reply *register my child* to add them first, then check them in. 🙏" } };
+          return {
+            done: {
+              type: "buttons",
+              text: "No problem — register them first (it takes a minute), then check them in. 🙏",
+              buttons: [{ id: "menu:register_child", title: "🧒 Register a child" }],
+            },
+          };
         }
         const m = /^pc_(\d+)$/.exec(input.buttonId ?? "");
         const chosen = m ? kids[Number(m[1])] : undefined;
@@ -157,7 +164,16 @@ export const childCheckinFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't complete the check-in: ${res.error}` } };
-        return { done: { type: "text", text: `${res.message ?? "Done."}\n\nTap *Menu* if there's anything else. 🙏` } };
+        // Direction rail: say what happens at collection, and offer the related
+        // next step (letting someone else collect).
+        return {
+          done: {
+            type: "buttons",
+            header: "Checked in",
+            text: `${res.message ?? "Done."}\n\n*Next:* show the pickup code or QR when you collect ${String(data.childName)}. Someone else collecting? Tap *Authorise pickup*.`,
+            buttons: [{ id: "menu:add_guardian", title: "🤝 Authorise pickup" }],
+          },
+        };
       },
     },
   },

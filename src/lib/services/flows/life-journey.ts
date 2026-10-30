@@ -53,6 +53,7 @@ async function commit(journeyType: JourneyType, detail: string, ctx: FlowRunCont
 
 export const lifeJourneyFlow: FlowDefinition = {
   name: "life_journey",
+  intro: "*🌱 Life journeys* — baptism, new-believer classes or bereavement support. The care team walks with you.",
   firstStep: "journey_type",
   steps: {
     journey_type: {

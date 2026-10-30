@@ -6,6 +6,7 @@ import type { Role } from "@/lib/types";
 
 export const eventRegisterFlow: FlowDefinition = {
   name: "event_register",
+  intro: "*🎟️ Event registration* — save your spot at an upcoming event.",
   firstStep: "event_name",
   steps: {
     event_name: {

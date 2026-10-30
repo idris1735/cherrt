@@ -56,7 +56,9 @@ describe("child_register flow", () => {
       { childName: "Timmy Obi", guardianConsent: true, age: 5, allergies: "peanuts" },
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("Registered") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Registered"), final: true });
+    // Direction rail: the next step after registering is checking the child in.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
     expect(session.activeFlow).toBeUndefined();
   });
 

@@ -25,6 +25,7 @@ async function commit(data: FlowData, ctx: FlowRunContext): Promise<Transition> 
 
 export const firstTimerFlow: FlowDefinition = {
   name: "first_timer",
+  intro: "*👋 First-timer* — log a visitor so the follow-up team can welcome them.",
   firstStep: "visitor_name",
   steps: {
     visitor_name: {

@@ -12,6 +12,7 @@ const DEMO_NOTE = () => (paystackConfigured() ? "" : " _(demo — no real charge
 
 export const giveFlow: FlowDefinition = {
   name: "give",
+  intro: "*💰 Give* — tithe, offering or seed. I'll send a secure payment link; nothing is charged until you pay.",
   firstStep: "amount",
   steps: {
     amount: {
@@ -59,7 +60,7 @@ export const giveFlow: FlowDefinition = {
         buttons: [{ id: "give_go", title: "✅ Send link" }, { id: "give_cancel", title: "❌ Cancel" }],
       }),
       onInput: async (input, data, ctx): Promise<Transition> => {
-        if (input.buttonId === "give_cancel") return { done: { type: "text", text: "No problem — nothing was charged. Tap *Menu* anytime. 🙏" } };
+        if (input.buttonId === "give_cancel") return { done: { type: "text", text: "No problem — nothing was charged. 🙏" } };
         if (input.buttonId !== "give_go" && !/^(yes|y|confirm)$/i.test(input.text.trim())) {
           return { stay: { type: "buttons", header: "Confirm giving", text: `Tap *Send link* to give ₦${Number(data.amount).toLocaleString("en-NG")} (${String(data.givingType)}), or *Cancel*.`, buttons: [{ id: "give_go", title: "✅ Send link" }, { id: "give_cancel", title: "❌ Cancel" }] } };
         }

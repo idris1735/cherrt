@@ -29,25 +29,40 @@ async function commitHold(data: FlowData, ctx: FlowRunContext): Promise<Transiti
     { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
   )) as { message?: string; error?: string };
   if (res.error) return { done: { type: "text", text: `Couldn't reserve the seat: ${res.error}` } };
-  return { done: { type: "text", text: res.message ?? "✅ Seat reserved." } };
+  // Direction rail: on the day, the next step is "I've arrived".
+  return {
+    done: {
+      type: "buttons",
+      header: "Seat reserved",
+      text: `${res.message ?? "✅ Seat reserved."}\n\n*Next:* when you get to church, tap *I've arrived* to check ${String(data.childName)} in.`,
+      buttons: [{ id: "menu:arrive", title: "🙋 I've arrived" }],
+    },
+  };
 }
 
 export const holdSeatFlow: FlowDefinition = {
   name: "hold_seat",
+  intro: "*🪑 Reserve a seat* — hold your child's spot before Sunday. On the day, tap *I've arrived*.",
   firstStep: "pick_child",
   steps: {
     pick_child: {
       render: (data) => ({
         type: "list",
         header: "Reserve a seat",
-        text: "Let's reserve a spot ahead of Sunday. 🪑\n\nWhich of your children is this for?",
+        text: "Which of your children is this for?",
         buttonLabel: "Choose",
         rows: childRows((data.myChildren as MyChild[]) ?? []),
       }),
       onInput: async (input: FlowInput, data, ctx): Promise<Transition> => {
         const kids = (data.myChildren as MyChild[]) ?? [];
         if (input.buttonId === "pc_new") {
-          return { done: { type: "text", text: "No problem — reply *register my child* to add them first, then reserve a seat. 🙏" } };
+          return {
+            done: {
+              type: "buttons",
+              text: "No problem — register them first (it takes a minute), then reserve a seat. 🙏",
+              buttons: [{ id: "menu:register_child", title: "🧒 Register a child" }],
+            },
+          };
         }
         const m = /^pc_(\d+)$/.exec(input.buttonId ?? "");
         const chosen = m ? kids[Number(m[1])] : undefined;

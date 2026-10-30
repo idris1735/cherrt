@@ -10,6 +10,7 @@ const confirmBtns = [{ id: "rv_go", title: "✅ Post" }, { id: "rv_cancel", titl
 
 export const requestVolunteersFlow: FlowDefinition = {
   name: "request_volunteers",
+  intro: "*📣 Request volunteers* — put out a call for people to serve.",
   firstStep: "title",
   steps: {
     title: {

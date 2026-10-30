@@ -10,6 +10,7 @@ const confirmButtons = [{ id: "ann_go", title: "📢 Send to all" }, { id: "ann_
 
 export const announceFlow: FlowDefinition = {
   name: "announce",
+  intro: "*📣 Announcement* — send a message to the whole church.",
   firstStep: "title",
   steps: {
     title: {

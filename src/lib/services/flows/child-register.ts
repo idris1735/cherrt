@@ -23,12 +23,13 @@ function summary(data: FlowData): string {
 
 export const childRegisterFlow: FlowDefinition = {
   name: "child_register",
+  intro: "*🧒 Register a child* — add your child once; after that, Sunday check-in takes seconds.",
   firstStep: "child_name",
   steps: {
     child_name: {
       render: () => ({
         type: "text",
-        text: "Let's register your child in the children's ministry. 🧒\n\nWhat's the child's *full name*?",
+        text: "What's your child's *full name*?",
       }),
       onInput: (input: FlowInput): Transition => {
         const name = input.text.trim().replace(/\s+/g, " ");
@@ -90,7 +91,7 @@ export const childRegisterFlow: FlowDefinition = {
       }),
       onInput: (input, data): Transition => {
         if (input.buttonId === "consent_no") {
-          return { done: { type: "text", text: "No problem — nothing was saved. Tap *Menu* anytime. 🙏" } };
+          return { done: { type: "text", text: "No problem — nothing was saved. 🙏" } };
         }
         if (input.buttonId !== "consent_yes" && !/^(yes|y|i confirm|confirm)$/i.test(input.text.trim())) {
           return {
@@ -153,7 +154,15 @@ export const childRegisterFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't complete the registration: ${res.error}` } };
-        return { done: { type: "text", text: `${res.message ?? "Done."}\n\nYou can check ${String(data.childName)} in on a Sunday from the *Menu*. 🙏` } };
+        // Direction rail: the natural next step is checking the child in.
+        return {
+          done: {
+            type: "buttons",
+            header: "Child registered",
+            text: `${res.message ?? "Done."}\n\n*Next:* when you arrive on Sunday, tap *Check in now* to drop ${String(data.childName)} off. 🙏`,
+            buttons: [{ id: "menu:checkin", title: "👶 Check in now" }],
+          },
+        };
       },
     },
   },

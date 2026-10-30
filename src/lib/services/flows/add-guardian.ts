@@ -13,6 +13,7 @@ const confirmButtons = [
 
 export const addGuardianFlow: FlowDefinition = {
   name: "add_guardian",
+  intro: "*🧑‍🤝‍🧑 Authorise pickup* — let a co-parent, grandparent or nanny collect your child.",
   firstStep: "child",
   steps: {
     child: {

@@ -15,6 +15,7 @@ const rows = () => KINDS.map((k) => ({ id: k.id, title: k.title }));
 
 export const qrFlow: FlowDefinition = {
   name: "qr",
+  intro: "*🔗 QR codes* — get your church's QR codes for joining, giving, kids' check-in and more.",
   firstStep: "kind",
   steps: {
     kind: {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { registerFlow, getFlow, startFlow, advanceFlow } from "@/lib/services/flows/engine";
+import { registerFlow, getFlow, startFlow, advanceFlow, registeredFlowNames } from "@/lib/services/flows/engine";
 import type { FlowDefinition, FlowOutput, FlowRunContext, Transition } from "@/lib/services/flows/engine";
 import type { WhatsAppSession } from "@/lib/services/whatsapp-session";
 import type { PhoneLink } from "@/lib/services/whatsapp-workspace";
@@ -112,4 +112,52 @@ describe("flow engine", () => {
     expect(getFlow("test_counting")).toBeDefined();
     expect(getFlow("missing")).toBeUndefined();
   });
+});
+
+describe("flow engine — direction rail", () => {
+  const withIntro: FlowDefinition = { ...counting, name: "test_intro", intro: "*🧪 Test module* — does a test thing." };
+
+  it("startFlow opens with the module header + exit hint, then the first question", async () => {
+    registerFlow(withIntro);
+    const { ctx, update } = harness();
+    const out = (await startFlow("test_intro", ctx, update)) as FlowOutput;
+    expect(out.type).toBe("text");
+    expect(out.text.startsWith("*🧪 Test module* — does a test thing.")).toBe(true);
+    expect(out.text).toContain("Type *menu* anytime to stop.");
+    expect(out.text).toContain("Step one");
+  });
+
+  it("the header shows only when the module opens — not on later steps or re-prompts", async () => {
+    registerFlow(withIntro);
+    const { ctx, update, session } = harness();
+    session.activeFlow = { name: "test_intro", step: "one", data: {} };
+    const stay = (await advanceFlow({ text: "abc" }, ctx, update)) as FlowOutput;
+    expect(stay.text).not.toContain("Test module");
+    const next = (await advanceFlow({ text: "3" }, ctx, update)) as FlowOutput;
+    expect(next.text).not.toContain("Test module");
+  });
+
+  it("a finished flow's output is marked final (so the processor adds the way back)", async () => {
+    const { ctx, update, session } = harness();
+    session.activeFlow = { name: "test_counting", step: "two", data: { n: 5 } };
+    const out = (await advanceFlow({ text: "x" }, ctx, update)) as FlowOutput;
+    expect(out.final).toBe(true);
+  });
+
+  it("a cancel is marked final too, and mid-flow outputs are not", async () => {
+    const { ctx, update, session } = harness();
+    session.activeFlow = { name: "test_counting", step: "one", data: {} };
+    const mid = (await advanceFlow({ text: "2" }, ctx, update)) as FlowOutput;
+    expect(mid.final).toBeUndefined();
+    const cancelled = (await advanceFlow({ text: "cancel" }, ctx, update)) as FlowOutput;
+    expect(cancelled.final).toBe(true);
+  });
+
+  it("every registered module has a one-line header", async () => {
+    await import("@/lib/services/flows");
+    const names = registeredFlowNames().filter((n) => !n.startsWith("test_"));
+    expect(names.length).toBeGreaterThanOrEqual(31);
+    const missing = names.filter((n) => !getFlow(n)?.intro?.trim());
+    expect(missing).toEqual([]);
+  }, 60_000); // first import of every flow module is slow on a cold worker
 });

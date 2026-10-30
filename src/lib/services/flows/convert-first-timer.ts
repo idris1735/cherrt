@@ -7,6 +7,7 @@ import type { Role } from "@/lib/types";
 
 export const convertFirstTimerFlow: FlowDefinition = {
   name: "convert_first_timer",
+  intro: "*✅ Convert first-timer* — turn a logged visitor into a church member.",
   firstStep: "name",
   steps: {
     name: {
@@ -24,7 +25,7 @@ export const convertFirstTimerFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         // Not-found / already-member come back as an error — keep them on the rail to retry the name.
-        if (res.error) return { stay: { type: "text", text: `${res.error}\n\nTry the name again, or reply *menu*.` } };
+        if (res.error) return { stay: { type: "text", text: `${res.error}\n\nTry the name again, or type *menu* to stop.` } };
         return { done: { type: "text", text: res.message ?? "✅ Converted to a member." } };
       },
     },

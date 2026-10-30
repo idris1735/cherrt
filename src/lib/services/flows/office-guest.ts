@@ -9,6 +9,7 @@ const skip = [{ id: "flow_skip", title: "Skip" }];
 
 export const officeGuestFlow: FlowDefinition = {
   name: "office_guest",
+  intro: "*🪪 Office visitor* — sign in someone visiting the church office.",
   firstStep: "name",
   steps: {
     name: {

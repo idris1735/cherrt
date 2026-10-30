@@ -1,7 +1,7 @@
 // Role-aware menu: the tappable menu must honestly reflect what each role is
 // allowed to do — same permission machinery as execution.
 import { describe, it, expect } from "vitest";
-import { menuForRole, menuPromptFor, menuGroupsForRole, menuItemsForGroup } from "@/lib/services/agent/menu";
+import { menuForRole, menuPromptFor, menuGroupsForRole, menuItemsForGroup, mainMenuRows, menuDirectory } from "@/lib/services/agent/menu";
 
 const ids = (role: string, pages = 5) =>
   Array.from({ length: pages }, (_, i) => i + 1).flatMap((p) => menuForRole(role, p).map((r) => r.id));
@@ -107,5 +107,63 @@ describe("two-level menu (groups + sub-menus)", () => {
     const ids = menuItemsForGroup("member", "care").items.map((i) => i.id);
     expect(ids).toContain("menu:prayer");
     expect(ids).not.toContain("menu:prayer_list"); // pastoral-only read
+  });
+});
+
+describe("direction rail — the main menu lists every module with what it does", () => {
+  it("main menu = the role's sections + 'How it works', on one screen", () => {
+    for (const role of ["member", "finance", "pastor", "creator", "it_technical"]) {
+      const rows = mainMenuRows(role);
+      expect(rows.length).toBeLessThanOrEqual(6);
+      expect(rows[rows.length - 1].id).toBe("help_more");
+      expect(rows.slice(0, -1).every((r) => r.id.startsWith("grp:"))).toBe(true);
+      // WhatsApp list limits: title ≤ 24, description ≤ 72
+      for (const r of rows) {
+        expect(r.title.length).toBeLessThanOrEqual(24);
+        expect(r.description.length).toBeGreaterThan(0);
+        expect(r.description.length).toBeLessThanOrEqual(72);
+      }
+    }
+  });
+
+  it("each section's one-liner names what THIS role can do in it (honest per role)", () => {
+    const memberGive = menuGroupsForRole("member").find((g) => g.id === "grp:give");
+    expect(memberGive?.description).toBe("Give");
+    const financeGive = menuGroupsForRole("finance").find((g) => g.id === "grp:give");
+    expect(financeGive?.description).toContain("Record giving");
+  });
+
+  it("every sub-menu item carries a one-line description, buttons or list", () => {
+    for (const role of ["member", "creator"]) {
+      for (const g of ["children", "give", "care", "belong", "ops"]) {
+        for (const item of menuItemsForGroup(role, g).items) expect(item.description.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("the full directory lists every visible module with its one-liner", () => {
+    const dir = menuDirectory("member");
+    expect(dir).toContain("Everything I can do for you");
+    expect(dir).toContain("• Give — ");
+    expect(dir).toContain("• Check in a child — ");
+    expect(dir).toContain("• Ask for prayer — ");
+    expect(dir).not.toContain("Record giving"); // finance-only
+    expect(dir).toContain("Type *menu*");
+  });
+
+  it("modules that used to be type-only are now in the menu, gated by role", () => {
+    const pastor = ids("pastor");
+    expect(pastor).toContain("menu:assign_role"); // pastor can assign roles
+    expect(pastor).toContain("menu:approvals");
+    expect(pastor).toContain("menu:overview");
+    const member = ids("member");
+    expect(member).not.toContain("menu:assign_role");
+    expect(member).not.toContain("menu:approvals");
+    expect(member).not.toContain("menu:overview");
+    // finance can see reports but cannot assign roles
+    expect(ids("finance")).toContain("menu:overview");
+    expect(ids("finance")).not.toContain("menu:assign_role");
+    // IT/technical never sees data reads
+    expect(ids("it_technical")).not.toContain("menu:overview");
   });
 });

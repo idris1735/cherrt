@@ -6,6 +6,7 @@ import type { Role } from "@/lib/types";
 
 export const prayerFlow: FlowDefinition = {
   name: "prayer",
+  intro: "*🕊️ Prayer request* — share what's on your heart. Only the prayer team sees it, and you can stay anonymous.",
   firstStep: "request",
   steps: {
     request: {
