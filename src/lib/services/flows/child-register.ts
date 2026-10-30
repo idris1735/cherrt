@@ -41,24 +41,16 @@ export const childRegisterFlow: FlowDefinition = {
     },
 
     age: {
+      // Age is REQUIRED — it decides which class the child is placed in at
+      // check-in. Captured here so it's recorded once, at registration.
       render: (data) => ({
-        type: "buttons",
-        header: "Register a child",
-        text: `How old is ${String(data.childName)}? Type a number, or tap *Skip*.`,
-        buttons: [{ id: "flow_skip", title: "Skip" }],
+        type: "text",
+        text: `How old is ${String(data.childName)}? Send a number (0–18).`,
       }),
       onInput: (input): Transition => {
-        if (input.buttonId === "flow_skip") return { to: "allergies", patch: { age: null } };
         const n = Number(input.text.trim());
         if (!Number.isFinite(n) || n < 0 || n > 18) {
-          return {
-            stay: {
-              type: "buttons",
-              header: "Register a child",
-              text: "Please send an age between 0 and 18, or tap *Skip*.",
-              buttons: [{ id: "flow_skip", title: "Skip" }],
-            },
-          };
+          return { stay: { type: "text", text: "Please send an age between 0 and 18." } };
         }
         return { to: "allergies", patch: { age: Math.floor(n) } };
       },

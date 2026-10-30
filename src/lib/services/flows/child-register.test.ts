@@ -64,7 +64,7 @@ describe("child_register flow", () => {
 
   it("SAFETY: cancelling consent ends the flow and never registers", async () => {
     const { out, session } = await drive([
-      { text: "Timmy Obi" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }, { buttonId: "consent_no" },
+      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "flow_none" }, { buttonId: "consent_no" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("nothing was saved") });
     expect(session.activeFlow).toBeUndefined();
@@ -73,17 +73,23 @@ describe("child_register flow", () => {
 
   it("SAFETY: an ambiguous reply at consent re-asks — never proceeds without a clear confirm", async () => {
     const { out, session } = await drive([
-      { text: "Timmy Obi" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }, { text: "ok maybe" },
+      { text: "Timmy Obi" }, { text: "5" }, { buttonId: "flow_none" }, { text: "ok maybe" },
     ]);
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("parent/guardian") });
     expect(session.activeFlow).toMatchObject({ step: "consent" });
     expect(handlerMock).not.toHaveBeenCalled();
   });
 
-  it("skip age + none allergies still reaches consent", async () => {
-    const { out, session } = await drive([{ text: "Zoe Ade" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }]);
+  it("age is required: a non-number re-asks and does not advance", async () => {
+    const { out, session } = await drive([{ text: "Zoe Ade" }, { text: "skip" }]);
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("between 0 and 18") });
+    expect(session.activeFlow).toMatchObject({ step: "age", data: { childName: "Zoe Ade" } });
+  });
+
+  it("age + none allergies reaches consent and records the age", async () => {
+    const { out, session } = await drive([{ text: "Zoe Ade" }, { text: "6" }, { buttonId: "flow_none" }]);
     expect(out).toMatchObject({ type: "buttons", header: "Guardian consent" });
-    expect(session.activeFlow).toMatchObject({ step: "consent", data: { childName: "Zoe Ade", age: null, allergies: null } });
+    expect(session.activeFlow).toMatchObject({ step: "consent", data: { childName: "Zoe Ade", age: 6, allergies: null } });
   });
 
   it("start over at confirm clears data (including consent) back to child_name", async () => {
@@ -98,7 +104,7 @@ describe("child_register flow", () => {
   it("tool error surfaces and clears the flow", async () => {
     handlerMock.mockResolvedValue({ error: "storage unavailable" });
     const { out, session } = await drive([
-      { text: "Zoe Ade" }, { buttonId: "flow_skip" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_commit" },
+      { text: "Zoe Ade" }, { text: "5" }, { buttonId: "flow_none" }, { buttonId: "consent_yes" }, { buttonId: "flow_commit" },
     ]);
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("storage unavailable") });
     expect(session.activeFlow).toBeUndefined();
