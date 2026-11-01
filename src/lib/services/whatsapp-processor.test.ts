@@ -146,21 +146,22 @@ describe("processWhatsAppMessage", () => {
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
-    // Consent-first: the very first message is the privacy consent gate.
-    expect(buttons.some((b) => b.title.includes("I agree"))).toBe(true);
+    // Owner decision 2026-11: no blocking agreement — first contact is the
+    // welcome / who-are-you front door.
+    expect(buttons.some((b) => b.id === "guest_member")).toBe(true);
     mockButtons.mockClear();
     mockSend.mockClear();
   });
 
-  it("shows the consent gate before processing a guest's first message", async () => {
+  it("a guest's first message shows the welcome front door, not the agent", async () => {
     mockRun.mockResolvedValue({ reply: "Request captured." });
 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "Request ₦85,000 for diesel" });
 
-    // Consent-first: the gate is shown and nothing is processed until they agree.
+    // The welcome is shown and nothing is processed on first contact.
     expect(mockButtons).toHaveBeenCalledOnce();
-    const [, , gate] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(gate.some((b) => b.title.includes("I agree"))).toBe(true);
+    const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
+    expect(buttons.some((b) => b.id === "guest_member")).toBe(true);
     expect(mockRun).not.toHaveBeenCalled();
   });
 
@@ -653,12 +654,12 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("an unlinked phone gets the consent gate (tappable) on first contact", async () => {
+  it("an unlinked phone gets the welcome front door (tappable) on first contact", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
     expect(mockButtons).toHaveBeenCalledOnce();
     const [, bodyText, buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
     expect(bodyText).toContain("Chertt");
-    expect(buttons.some((b) => b.title.includes("I agree"))).toBe(true);
+    expect(buttons.some((b) => b.id === "guest_member")).toBe(true);
   });
 
   it("tapping “I agree” on the consent gate opens the who-are-you menu", async () => {
@@ -669,15 +670,16 @@ describe("processWhatsAppMessage", () => {
     expect(buttons.some((b) => b.title.includes("I lead a church"))).toBe(true);
   });
 
-  it("privacy — a guest who declined consent is re-shown the gate on return, never silently processed", async () => {
-    // QA defect "bypassing privacy agreement": after "No thanks", saying "hi"
-    // slipped past the gate straight to the agent. Now it re-shows the gate.
+  it("privacy — a guest who previously said no isn't locked out; 'hi' brings back the welcome", async () => {
+    // Owner decision 2026-11 (CHQ-001 "Unable to access platform after saying no"):
+    // no agreement gate. After "No thanks", saying "hi" re-opens them and shows the
+    // welcome front door instead of a dead end.
     await updateSession(PHONE, { welcomed: true, consentDeclined: true });
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "hi" });
     expect(runGuestAgent).not.toHaveBeenCalled();
     expect(mockRun).not.toHaveBeenCalled();
     const [, , buttons] = mockButtons.mock.calls[0] as [string, string, Array<{ id: string; title: string }>];
-    expect(buttons.some((b) => b.id === "guest_consent")).toBe(true);
+    expect(buttons.some((b) => b.id === "guest_member")).toBe(true);
   });
 
   it("privacy — tapping 'No thanks' records the decline on the session", async () => {
@@ -1638,9 +1640,9 @@ describe("direction rail — every module opens with what it does and ends with 
     expect(buttonBodies()).toContain("Full menu");
   });
 
-  it("the NDPR consent gate still comes first for a brand-new guest", async () => {
+  it("a brand-new guest gets the welcome front door first (no blocking agreement)", async () => {
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "menu" });
-    expect(buttonIds()).toEqual(["guest_consent", "guest_privacy", "guest_optout"]);
+    expect(buttonIds()).toEqual(["guest_member", "guest_child", "guest_leader"]);
     expect(mockList).not.toHaveBeenCalled();
   });
 });

@@ -348,32 +348,6 @@ async function extractReceiptInfo(buffer: Buffer, mimeType: string): Promise<Rec
 
 // ─── Welcome Messages ────────────────────────────────────────────────────────
 
-// Consent-first: the very first thing a new number sees is an explicit privacy
-// consent ask. We record data only after they agree. NDPR/NDPA: consent should
-// be a clear affirmative action, not buried fine print.
-async function sendConsentGate(from: string): Promise<void> {
-  // CHQ-001 (Welcome Messages): lead with warmth and what Chertt does, keep the
-  // privacy ask to one short line. We can't defer or drop the consent itself —
-  // NDPR needs a clear affirmative yes before we store a phone number or message
-  // — but it no longer reads as a wall of policy before any welcome.
-  const text = [
-    "👋 Welcome to *Chertt* — your church, right here on WhatsApp: giving, prayer, events, kids' check-in and more.",
-    "",
-    "Quick bit before we start: we keep what you share *only* to help your church serve you — never sold, and *stop* opts you out anytime.",
-    "",
-    "Tap *I agree* and let's go 👇",
-  ].join("\n");
-  try {
-    await sendInteractiveButtons(from, text, [
-      { id: "guest_consent", title: "✅ I agree" },
-      { id: "guest_privacy", title: "📄 Privacy policy" },
-      { id: "guest_optout", title: "🚫 No thanks" },
-    ], "Your privacy");
-  } catch {
-    await sendTextMessage(from, text + "\n\nReply *agree* to continue, *privacy* to read our policy, or *stop* to opt out.");
-  }
-}
-
 async function sendGuestWelcome(from: string): Promise<void> {
   const text = [
     "👋 Hi! I'm *Chertt* — your church on WhatsApp: give, ask for prayer, check kids in, join a ministry, see events and more.",
@@ -1429,23 +1403,15 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
   let link = resolvedLink;
   const trimmed = (message.text ?? "").trim();
 
-  // A linked member messaging in is a clear re-engagement → opt them back in, so
-  // our replies aren't suppressed. A guest's opt-out is NOT silently reversed:
-  // it's cleared only when they explicitly agree again (see the consent gate).
-  if (link) await clearOptOut(from).catch(() => null);
-
-  // Consent gate — a guest who previously declined ("No thanks" / "stop") sees it
-  // again on every return, and is never silently processed. A consent response
-  // itself (I agree / privacy / No thanks / stop) is let through to its handler.
-  const isConsentResponse =
-    message.buttonReplyId === "guest_consent" ||
-    message.buttonReplyId === "guest_privacy" ||
+  // Any inbound that isn't itself a STOP is re-engagement → opt them back in so
+  // our reply isn't suppressed (every outbound to an opted-out number is dropped).
+  // CHQ-001 (owner decision 2026-11): there's no blocking agreement any more — a
+  // guest who once tapped "No thanks" is never locked out; saying "hi" brings the
+  // welcome back. *stop* still opts out of proactive messages.
+  const isStopCommand =
     message.buttonReplyId === "guest_optout" ||
-    (!!trimmed && /^((i\s*)?agree\b|(yes,?\s*)?i\s*agree|privacy|stop|unsubscribe|remove me)/i.test(trimmed));
-  if (!link && session.consentDeclined && !isConsentResponse) {
-    await sendConsentGate(from);
-    return;
-  }
+    /^(stop|unsubscribe|remove me)$/i.test(trimmed);
+  if (!isStopCommand) await clearOptOut(from).catch(() => null);
 
   if (!session.welcomed) {
     await updateSession(from, { welcomed: true });
@@ -1453,8 +1419,11 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
       await sendWorkspaceWelcome(from, link);
       if (shouldStopAfterWelcome(message, trimmed)) return;
     } else {
-      // Guests must consent to our privacy terms BEFORE anything else.
-      await sendConsentGate(from);
+      // CHQ-001 (owner decision 2026-11): no blocking agreement — first contact
+      // goes straight to the welcome / who-are-you front door. The welcome keeps
+      // a one-line privacy notice and *stop*; continuing is the NDPR consent,
+      // recorded when they pick who they are.
+      await sendGuestWelcome(from);
       return;
     }
   }
@@ -1861,6 +1830,9 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     await sendGuestWelcome(from);
     return;
   }
+  // A welcomed guest saying hi / hello goes straight to the welcome front door
+  // (owner decision 2026-11 — "hi gets you straight to welcome and the menu").
+  if (!link && GREETING_ONLY_RE.test(trimmed)) { await sendGuestWelcome(from); return; }
 
   if (HELP_RE.test(trimmed)) { await sendHelpMenu(from, session, link); return; }
   // P0-3 + direction rail — a returning linked member saying hi is greeted
