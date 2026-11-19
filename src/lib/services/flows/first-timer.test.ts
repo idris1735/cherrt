@@ -50,7 +50,9 @@ describe("first_timer flow", () => {
       { name: "Sam Doe", phone: undefined, invitedBy: undefined },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada", personId: "p1" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("noted your details") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("noted your details"), final: true });
+    // Direction rail: log another visitor, or jump to the follow-ups list.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:first_timer", "menu:first_timers_list"]);
     expect(session.activeFlow).toBeUndefined();
   });
 

@@ -50,7 +50,12 @@ describe("join flow", () => {
       { department: "choir" },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada", phone: "2348012345678" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("leader will review") });
+    // Success now offers volunteering as the next step.
+    expect(out).toMatchObject({
+      type: "buttons",
+      text: expect.stringContaining("leader will review"),
+      buttons: [{ id: "menu:volunteer", title: "🙋 Volunteer" }],
+    });
     expect(session.activeFlow).toBeUndefined();
   });
 

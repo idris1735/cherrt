@@ -49,7 +49,16 @@ export const prayerFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "🙏 Thank you for sharing this — the prayer team will be praying for you this week." } };
+        // Direction rail: after prayer, the natural next step is a pastor who can
+        // walk with them through it.
+        return {
+          done: {
+            type: "buttons",
+            header: "Prayer received",
+            text: `${res.message ?? "🙏 Thank you for sharing this — the prayer team will be praying for you this week."}\n\n*Next:* if you'd like someone to walk with you through this, a pastor can reach out.`,
+            buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }],
+          },
+        };
       },
     },
   },

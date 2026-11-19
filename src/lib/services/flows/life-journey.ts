@@ -48,7 +48,15 @@ async function commit(journeyType: JourneyType, detail: string, ctx: FlowRunCont
     { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
   )) as { message?: string; error?: string };
   if (res.error) return { done: { type: "text", text: `Couldn't do that: ${res.error}` } };
-  return { done: { type: "text", text: res.message ?? "Done — a pastor will follow up. 🙏" } };
+  // Direction rail: a life-journey always pairs with a pastor who walks it with you.
+  return {
+    done: {
+      type: "buttons",
+      header: "We've got it",
+      text: `${res.message ?? "Done — a pastor will follow up. 🙏"}\n\n*Next:* if you'd like to talk it through, a pastor can reach out to you.`,
+      buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }],
+    },
+  };
 }
 
 export const lifeJourneyFlow: FlowDefinition = {

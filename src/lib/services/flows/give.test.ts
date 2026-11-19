@@ -55,6 +55,8 @@ describe("give flow", () => {
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
     expect(out).toMatchObject({ type: "text", text: expect.stringContaining("tap here") });
+    // Success stays text (it carries a payment link) but closes with a warm *Next:* line.
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("*Next:*") });
     expect(session.activeFlow).toBeUndefined();
   });
 

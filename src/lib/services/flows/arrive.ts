@@ -12,10 +12,14 @@ async function arrive(seat: HeldSeat, ctx: FlowRunContext): Promise<Transition> 
   if (!ctx.link) return { done: { type: "text", text: "Please connect to your church first." } };
   const res = await arriveHeld(ctx.link.workspaceId, seat.id);
   if (!res.ok) return { done: { type: "text", text: "That reservation is no longer held — it may already be checked in." } };
+  // Direction rail: arriving is itself a check-in, so the natural next step is
+  // checking in another child.
   return {
     done: {
-      type: "text",
-      text: `✅ ${res.childName ?? seat.childName} is checked in. Pickup code: *${res.pickupCode ?? seat.pickupCode}*.\n🖨️ Print a name label: ${appUrl()}/label/${seat.id}`,
+      type: "buttons",
+      header: "Checked in",
+      text: `✅ ${res.childName ?? seat.childName} is checked in. Pickup code: *${res.pickupCode ?? seat.pickupCode}*.\n🖨️ Print a name label: ${appUrl()}/label/${seat.id}\n\n*Next:* got another child to check in? Tap below.`,
+      buttons: [{ id: "menu:checkin", title: "👶 Check in another" }],
     },
   };
 }

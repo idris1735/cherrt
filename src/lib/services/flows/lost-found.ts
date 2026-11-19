@@ -42,7 +42,15 @@ export const lostFoundFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't log it: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "✅ Logged — thank you." } };
+        // Direction rail: more than one item? Report the next one.
+        return {
+          done: {
+            type: "buttons",
+            header: "Logged",
+            text: `${res.message ?? "✅ Logged — thank you."}\n\n*Next:* lost or found something else? Report it below.`,
+            buttons: [{ id: "menu:lost_found", title: "🔎 Report another" }],
+          },
+        };
       },
     },
   },

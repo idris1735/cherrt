@@ -50,7 +50,12 @@ describe("pastoral flow", () => {
       { category: "marriage", details: undefined },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("pastor will reach out") });
+    // Success now offers prayer as the companion next step.
+    expect(out).toMatchObject({
+      type: "buttons",
+      text: expect.stringContaining("pastor will reach out"),
+      buttons: [{ id: "menu:prayer", title: "🕊️ Ask for prayer" }],
+    });
     expect(session.activeFlow).toBeUndefined();
   });
 

@@ -32,7 +32,9 @@ describe("issue flow", () => {
   it("title → skip area → severity commits with high", async () => {
     const { out, session } = await drive([{ text: "Toilet not flushing" }, { buttonId: "flow_skip" }, { buttonId: "sev_high" }]);
     expect(handlerMock).toHaveBeenCalledWith({ title: "Toilet not flushing", area: undefined, severity: "high" }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("Logged") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Logged"), final: true });
+    // Direction rail: offer to report another issue.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:issue"]);
     expect(session.activeFlow).toBeUndefined();
   });
   it("typed area is passed through", async () => {

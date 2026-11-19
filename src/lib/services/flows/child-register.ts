@@ -191,13 +191,17 @@ export const childRegisterFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't complete the registration: ${res.error}` } };
-        // Direction rail: the natural next step is checking the child in.
+        // Direction rail: the natural next steps are checking the child in, or
+        // letting a co-parent/grandparent collect them.
         return {
           done: {
             type: "buttons",
             header: "Child registered",
-            text: `${res.message ?? "Done."}\n\n*Next:* when you arrive on Sunday, tap *Check in now* to drop ${String(data.childName)} off. 🙏`,
-            buttons: [{ id: "menu:checkin", title: "👶 Check in now" }],
+            text: `${res.message ?? "Done."}\n\n*Next:* on Sunday, tap *Check in a child* to drop ${String(data.childName)} off — or authorise someone else to collect them.`,
+            buttons: [
+              { id: "menu:checkin", title: "👶 Check in a child" },
+              { id: "menu:add_guardian", title: "🤝 Authorise pickup" },
+            ],
           },
         };
       },

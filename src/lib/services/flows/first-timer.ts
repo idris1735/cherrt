@@ -20,7 +20,18 @@ async function commit(data: FlowData, ctx: FlowRunContext): Promise<Transition> 
     { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
   )) as { message?: string; error?: string };
   if (res.error) return { done: { type: "text", text: `Couldn't save that: ${res.error}` } };
-  return { done: { type: "text", text: res.message ?? "Noted — someone will reach out. 🙏" } };
+  // Direction rail: log the next visitor, or review who's due a follow-up.
+  return {
+    done: {
+      type: "buttons",
+      header: "First-timer logged",
+      text: `${res.message ?? "Noted — someone will reach out. 🙏"}\n\n*Next:* got another visitor to log, or want to see who's due a follow-up?`,
+      buttons: [
+        { id: "menu:first_timer", title: "👋 Log another" },
+        { id: "menu:first_timers_list", title: "📋 Follow-ups" },
+      ],
+    },
+  };
 }
 
 export const firstTimerFlow: FlowDefinition = {

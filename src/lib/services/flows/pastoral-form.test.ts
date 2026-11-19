@@ -56,7 +56,12 @@ describe("pastoral_form flow", () => {
       { formType: "baby_dedication", details: "Name: Baby Ada Obi; Date: 28 September" },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("follow up") });
+    // Success now offers a pastor as the next step.
+    expect(out).toMatchObject({
+      type: "buttons",
+      text: expect.stringContaining("follow up"),
+      buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }],
+    });
     expect(session.activeFlow).toBeUndefined();
   });
 

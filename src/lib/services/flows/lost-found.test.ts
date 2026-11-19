@@ -27,7 +27,9 @@ describe("lost_found flow", () => {
   it("lost → describe → skip location commits kind=lost", async () => {
     const { out, session } = await drive([{ buttonId: "lf_lost" }, { text: "black umbrella" }, { buttonId: "flow_skip" }]);
     expect(handlerMock).toHaveBeenCalledWith({ description: "black umbrella", location: undefined, kind: "lost" }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text" });
+    expect(out).toMatchObject({ type: "buttons", final: true });
+    // Direction rail: offer to report another lost/found item.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:lost_found"]);
     expect(session.activeFlow).toBeUndefined();
   });
   it("found → describe → typed location commits kind=found", async () => {

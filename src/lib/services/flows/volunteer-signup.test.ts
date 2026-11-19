@@ -27,7 +27,8 @@ describe("volunteer_signup flow", () => {
   it("passes the typed team/role to volunteer_signup", async () => {
     const { out, session } = await drive([{ text: "choir" }]);
     expect(handlerMock).toHaveBeenCalledWith({ title: "choir" }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text" });
+    // Success now leads on to joining a ministry.
+    expect(out).toMatchObject({ type: "buttons", buttons: [{ id: "menu:join_dept", title: "🤝 Join a ministry" }] });
     expect(session.activeFlow).toBeUndefined();
   });
   it("reprompts on empty input", async () => {

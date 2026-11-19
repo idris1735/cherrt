@@ -33,7 +33,12 @@ describe("event_register flow", () => {
     handlerMock.mockResolvedValue({ ok: true, message: "✅ You're registered for Youth Camp!" });
     const { out, session } = await drive([{ text: "Youth Camp" }]);
     expect(handlerMock).toHaveBeenCalledWith({ eventTitle: "Youth Camp" }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("registered") });
+    // Success now offers more events as the next step.
+    expect(out).toMatchObject({
+      type: "buttons",
+      text: expect.stringContaining("registered"),
+      buttons: [{ id: "menu:events", title: "📅 More events" }],
+    });
     expect(session.activeFlow).toBeUndefined();
   });
   it("stays on the rail when the event isn't found (found:false)", async () => {

@@ -26,7 +26,18 @@ export const convertFirstTimerFlow: FlowDefinition = {
         )) as { message?: string; error?: string };
         // Not-found / already-member come back as an error — keep them on the rail to retry the name.
         if (res.error) return { stay: { type: "text", text: `${res.error}\n\nTry the name again, or type *menu* to stop.` } };
-        return { done: { type: "text", text: res.message ?? "✅ Converted to a member." } };
+        // Direction rail: carry on with follow-ups, or add another member.
+        return {
+          done: {
+            type: "buttons",
+            header: "Now a member",
+            text: `${res.message ?? "✅ Converted to a member."}\n\n*Next:* work through the rest of your follow-ups, or add another member.`,
+            buttons: [
+              { id: "menu:first_timers_list", title: "📋 Follow-ups" },
+              { id: "menu:add_member", title: "➕ Add a member" },
+            ],
+          },
+        };
       },
     },
   },

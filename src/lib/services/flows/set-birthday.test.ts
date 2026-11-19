@@ -38,7 +38,8 @@ describe("set_birthday flow", () => {
   it("parses '12 May' and commits day+month", async () => {
     const { out, session } = await drive([{ text: "12 May" }]);
     expect(handlerMock).toHaveBeenCalledWith({ day: 12, month: 5 }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text" });
+    // Success now points on to upcoming events.
+    expect(out).toMatchObject({ type: "buttons", buttons: [{ id: "menu:events", title: "📅 Events" }] });
     expect(session.activeFlow).toBeUndefined();
   });
   it("reprompts on an unparseable date", async () => {

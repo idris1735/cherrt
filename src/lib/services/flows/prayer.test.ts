@@ -50,7 +50,12 @@ describe("prayer flow", () => {
       { request: "Please pray for my mum", anonymous: false },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada", phone: "2348012345678" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("prayer team") });
+    // Success now leads on to a pastor as the next step.
+    expect(out).toMatchObject({
+      type: "buttons",
+      text: expect.stringContaining("prayer team"),
+      buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }],
+    });
     expect(session.activeFlow).toBeUndefined();
   });
 
@@ -60,7 +65,7 @@ describe("prayer flow", () => {
       { request: "for my exams", anonymous: true },
       expect.objectContaining({ workspaceId: "ws1" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("prayer team") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("prayer team") });
   });
 
   it("an empty request reprompts", async () => {

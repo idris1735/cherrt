@@ -72,7 +72,14 @@ export const giveFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't start the giving: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "Done." } };
+        // Success is a payment link in the tool's message — we can't add reply
+        // buttons alongside it, so just close with one warm, forward line.
+        return {
+          done: {
+            type: "text",
+            text: `${res.message ?? "Done."}\n\n*Next:* thank you for your generosity 🙏 Nothing is charged until you tap the link above. Type *menu* any time to ask for prayer or see what's coming up.`,
+          },
+        };
       },
     },
   },

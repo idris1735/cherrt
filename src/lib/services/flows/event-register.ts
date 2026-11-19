@@ -27,7 +27,15 @@ export const eventRegisterFlow: FlowDefinition = {
         if (res.error) return { done: { type: "text", text: `Couldn't register: ${res.error}` } };
         // Tool reports found:false when no event matches — keep them on the rail to retry.
         if (res.found === false) return { stay: { type: "text", text: res.message ?? "I couldn't find that event — check the name, or tap *Menu → Events*." } };
-        return { done: { type: "text", text: res.message ?? "✅ You're registered! 🎟️" } };
+        // Direction rail: one registration often leads to another — offer more events.
+        return {
+          done: {
+            type: "buttons",
+            header: "You're registered",
+            text: `${res.message ?? "✅ You're registered! 🎟️"}\n\n*Next:* want to register for anything else that's coming up?`,
+            buttons: [{ id: "menu:events", title: "📅 More events" }],
+          },
+        };
       },
     },
   },

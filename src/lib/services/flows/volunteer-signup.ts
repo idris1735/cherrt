@@ -25,7 +25,15 @@ export const volunteerSignupFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't sign you up: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "🙌 You're signed up — thank you for serving!" } };
+        // Direction rail: volunteering → joining a ministry is the natural step up.
+        return {
+          done: {
+            type: "buttons",
+            header: "You're signed up",
+            text: `${res.message ?? "🙌 You're signed up — thank you for serving!"}\n\n*Next:* want to make it official? You can join the ministry as a member too.`,
+            buttons: [{ id: "menu:join_dept", title: "🤝 Join a ministry" }],
+          },
+        };
       },
     },
   },

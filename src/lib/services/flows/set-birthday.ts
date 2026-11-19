@@ -39,7 +39,15 @@ export const setBirthdayFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't save that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "🎂 Saved — we'll remember your birthday!" } };
+        // Direction rail: point to what's coming up so the moment leads somewhere.
+        return {
+          done: {
+            type: "buttons",
+            header: "Birthday saved",
+            text: `${res.message ?? "🎂 Saved — we'll remember your birthday!"}\n\n*Next:* see what else is coming up at church.`,
+            buttons: [{ id: "menu:events", title: "📅 Events" }],
+          },
+        };
       },
     },
   },

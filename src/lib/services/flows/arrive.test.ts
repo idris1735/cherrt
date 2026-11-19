@@ -28,7 +28,9 @@ describe("arrive flow", () => {
     arriveMock.mockResolvedValue({ ok: true, childName: "Timmy", pickupCode: "111111" });
     const { out, session } = await drive([{ buttonId: "arrive_go" }]);
     expect(arriveMock).toHaveBeenCalledWith("ws1", "c1");
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("111111") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("111111"), final: true });
+    // Direction rail: arriving is a check-in, so offer to check in another.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
     expect(session.activeFlow).toBeUndefined();
   });
   it("with several held seats, offers a pick then converts the chosen one", async () => {
@@ -39,7 +41,8 @@ describe("arrive flow", () => {
     arriveMock.mockResolvedValue({ ok: true, childName: "Zoe", pickupCode: "222222" });
     const { out } = await drive([{ buttonId: "arrive_go" }, { buttonId: "arr_1" }]);
     expect(arriveMock).toHaveBeenCalledWith("ws1", "c2");
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("222222") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("222222"), final: true });
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
   });
   it("no held seats → points to walk-in check-in", async () => {
     heldMock.mockResolvedValue([]);

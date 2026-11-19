@@ -62,7 +62,8 @@ describe("life_journey flow", () => {
   it("bereavement + Skip → start_bereavement_support with no notes", async () => {
     const { out } = await drive([{ buttonId: "lj_bereavement" }, { buttonId: "flow_skip" }]);
     expect(handlerMock).toHaveBeenCalledWith("start_bereavement_support", { notes: undefined }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text" });
+    // Success now offers a pastor as the next step.
+    expect(out).toMatchObject({ type: "buttons", buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }] });
   });
 
   it("the detail prompt is tailored to the chosen type", async () => {

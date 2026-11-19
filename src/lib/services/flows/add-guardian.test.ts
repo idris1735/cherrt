@@ -48,7 +48,9 @@ describe("add_guardian flow", () => {
       { childName: "Timmy Obi", guardianName: "John Obi", guardianPhone: "08033334444" },
       expect.objectContaining({ workspaceId: "ws1", personId: "p1" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("collect") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("collect"), final: true });
+    // Direction rail: after authorising pickup, offer to check the child in.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
     expect(session.activeFlow).toBeUndefined();
   });
 

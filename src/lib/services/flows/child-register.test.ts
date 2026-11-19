@@ -59,8 +59,9 @@ describe("child_register flow", () => {
       expect.objectContaining({ workspaceId: "ws1", role: "member", userName: "Ada", phone: "2348012345678", personId: "p1" }),
     );
     expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("Registered"), final: true });
-    // Direction rail: the next step after registering is checking the child in.
-    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin"]);
+    // Direction rail: the next steps after registering are checking the child in
+    // or authorising someone else to collect them.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:checkin", "menu:add_guardian"]);
     expect(session.activeFlow).toBeUndefined();
   });
 

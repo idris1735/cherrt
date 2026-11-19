@@ -27,7 +27,9 @@ describe("convert_first_timer flow", () => {
   it("name → convert", async () => {
     const { out, session } = await drive([{ text: "Ada Obi" }]);
     expect(handlerMock).toHaveBeenCalledWith({ name: "Ada Obi" }, expect.objectContaining({ workspaceId: "ws1" }));
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("member") });
+    expect(out).toMatchObject({ type: "buttons", text: expect.stringContaining("member"), final: true });
+    // Direction rail: continue follow-ups, or add another member.
+    expect((out?.type === "buttons" ? out.buttons.map((b) => b.id) : [])).toEqual(["menu:first_timers_list", "menu:add_member"]);
     expect(session.activeFlow).toBeUndefined();
   });
   it("not-found keeps them on the rail to retry", async () => {

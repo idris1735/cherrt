@@ -103,7 +103,16 @@ export const addGuardianFlow: FlowDefinition = {
         if (res.error) {
           return { stay: { type: "buttons", header: "Authorise pickup", text: `${res.error}\n\nWant to try again?`, buttons: retryButtons } };
         }
-        return { done: { type: "text", text: res.message ?? "✅ Guardian authorised." } };
+        // Direction rail: once pickup is authorised, the natural next step is
+        // checking the child in.
+        return {
+          done: {
+            type: "buttons",
+            header: "Pickup authorised",
+            text: `${res.message ?? "✅ Guardian authorised."}\n\n*Next:* ready to drop ${String(data.childName)} off? Tap below to check in.`,
+            buttons: [{ id: "menu:checkin", title: "👶 Check in a child" }],
+          },
+        };
       },
     },
   },

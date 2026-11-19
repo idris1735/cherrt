@@ -58,7 +58,16 @@ export const joinFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit the application: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "Application sent — a leader will review it. 🙏" } };
+        // Direction rail: while the leader reviews, offer to volunteer — a way to
+        // start serving straight away.
+        return {
+          done: {
+            type: "buttons",
+            header: "Application sent",
+            text: `${res.message ?? "Application sent — a leader will review it. 🙏"}\n\n*Next:* want to start serving while you wait? You can offer to volunteer too.`,
+            buttons: [{ id: "menu:volunteer", title: "🙋 Volunteer" }],
+          },
+        };
       },
     },
   },

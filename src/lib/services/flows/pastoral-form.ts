@@ -91,7 +91,16 @@ export const pastoralFormFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? `🙏 Thank you — a pastor will follow up with you about your ${String(data.formLabel ?? "form")} soon.` } };
+        // Direction rail: offer a pastor for anything they'd rather talk through
+        // before the follow-up.
+        return {
+          done: {
+            type: "buttons",
+            header: "Form received",
+            text: `${res.message ?? `🙏 Thank you — a pastor will follow up with you about your ${String(data.formLabel ?? "form")} soon.`}\n\n*Next:* need to talk something through sooner? You can ask to see a pastor.`,
+            buttons: [{ id: "menu:pastoral", title: "🤲 See a pastor" }],
+          },
+        };
       },
     },
   },
