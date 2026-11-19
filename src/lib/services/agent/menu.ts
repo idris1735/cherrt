@@ -130,19 +130,38 @@ function groupDescription(role: string, group: MenuItem["group"]): string {
   return out;
 }
 
-/** Top-level menu: the groups this role has at least one visible item in. */
-export function menuGroupsForRole(role: string): Array<{ id: string; title: string; description: string }> {
+// What we know about who's messaging, used only to ORDER the sections — never
+// to hide them. Kept tiny on purpose.
+export type MenuSignals = { isParent?: boolean };
+
+// Rank the top-level sections for who's actually messaging (direction rail —
+// the menu should feel ordered for you, not one flat list for everyone):
+//  • a parent (has a registered child) gets Children first;
+//  • a non-parent has Children pushed down — it isn't for them — so Give/Care lead;
+//  • a leader (rank ≥ 2) gets Church ops surfaced from the bottom.
+// Visibility is unchanged; only the order moves, and Help always stays last.
+function groupPriority(role: string, group: MenuItem["group"], signals?: MenuSignals): number {
+  if (group === "children") return signals?.isParent ? 100 : -100;
+  if (group === "ops") return roleRank(role) >= 2 ? 50 : 0;
+  return 0;
+}
+
+/** Top-level menu: the groups this role can use, ordered for who's messaging. */
+export function menuGroupsForRole(role: string, signals?: MenuSignals): Array<{ id: string; title: string; description: string }> {
   return MENU_GROUPS
     .filter((g) => visibleItems(role, g.id).length > 0)
-    .map((g) => ({ id: `grp:${g.id}`, title: g.title, description: groupDescription(role, g.id) || g.description }));
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => groupPriority(role, b.g.id, signals) - groupPriority(role, a.g.id, signals) || a.i - b.i)
+    .map(({ g }) => ({ id: `grp:${g.id}`, title: g.title, description: groupDescription(role, g.id) || g.description }));
 }
 
 /**
  * The main menu rows: every section this role can use (each with a one-line
- * summary of what's inside), then "How it works". ≤ 6 rows — one screen.
+ * summary of what's inside), ordered for who's messaging, then "How it works".
+ * ≤ 6 rows — one screen.
  */
-export function mainMenuRows(role: string): Array<{ id: string; title: string; description: string }> {
-  return [...menuGroupsForRole(role), { ...HELP_ROW }];
+export function mainMenuRows(role: string, signals?: MenuSignals): Array<{ id: string; title: string; description: string }> {
+  return [...menuGroupsForRole(role, signals), { ...HELP_ROW }];
 }
 
 /**

@@ -375,10 +375,16 @@ async function sendGuestWelcome(from: string): Promise<void> {
 // role can use (each row says what's inside), ends with "How it works", and
 // reminds them "menu" always brings them back. `lead` prefixes a greeting /
 // confirmation (e.g. "You're connected to …") so it arrives as ONE message.
-async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1, lead?: string): Promise<void> {
+async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1, lead?: string, personId?: string | null): Promise<void> {
   if (!link) { await sendGuestWelcome(from); return; }
   const role = link.userRole ?? "member";
   const first = link.userName ? link.userName.split(" ")[0] : "";
+  // Order the sections for who's messaging — a parent sees Children first, a
+  // leader sees Church ops surfaced. Best-effort: never block the menu on it.
+  let isParent = false;
+  if (personId) {
+    try { isParent = (await listGuardianChildren(link.workspaceId, personId)).length > 0; } catch { /* non-fatal — fall back to role-only order */ }
+  }
   const text = [
     ...(lead ? [lead, ""] : []),
     `📋 *Main menu — ${link.workspaceName}*`,
@@ -387,7 +393,7 @@ async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1, lea
     "_Type *menu* anytime to come back here._",
   ].join("\n");
   try {
-    await sendInteractiveList(from, text, "Open menu", mainMenuRows(role), "Menu");
+    await sendInteractiveList(from, text, "Open menu", mainMenuRows(role, { isParent }), "Menu");
   } catch {
     await sendTextMessage(from, (lead ? lead + "\n\n" : "") + menuDirectory(role));
   }
@@ -906,12 +912,12 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
     const target = links.find((l) => l.workspaceId === wsId);
     if (!target) { await sendTextMessage(from, "Couldn't switch just now — send the church's code to connect."); return; }
     await updateSession(from, { activeWorkspaceId: wsId });
-    await sendMainMenu(from, target, 1, `✅ You're now in *${target.workspaceName}*.`);
+    await sendMainMenu(from, target, 1, `✅ You're now in *${target.workspaceName}*.`, personId);
     return;
   }
 
   // ── Menu button — available to any linked member ──
-  if (buttonId === "main_menu") { await sendMainMenu(from, link); return; }
+  if (buttonId === "main_menu") { await sendMainMenu(from, link, 1, undefined, personId); return; }
 
   // ── Group sub-menu (two-level menu): grp:<group>[:<page>] ──
   if (buttonId.startsWith("grp:")) {
@@ -954,7 +960,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
         workspaceId: pj.workspaceId, workspaceSlug: pj.slug, workspaceName: pj.name,
         userName: session.userName ?? "", userRole: "member",
       };
-      await sendMainMenu(from, joined, 1, `🎉 You're connected to *${pj.name}*!`);
+      await sendMainMenu(from, joined, 1, `🎉 You're connected to *${pj.name}*!`, personId);
     } else {
       await sendTextMessage(from, "Send your church's 8-character code and I'll connect you.");
     }
@@ -972,7 +978,7 @@ async function handleButtonReply(from: string, buttonId: string, session: WhatsA
   }
   if (buttonId === "menu_more" || buttonId.startsWith("menu_more:")) {
     const page = Number(buttonId.split(":")[1]) || 2;
-    await sendMainMenu(from, link, page);
+    await sendMainMenu(from, link, page, undefined, personId);
     return;
   }
   // Menu rows that map to a deterministic flow start the flow, not the agent.
@@ -1574,7 +1580,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     });
     await addToHistory(from, "user", tappedMenu ? "[tap] main_menu" : trimmed);
     if (tappedMenu || /^(menu|start over)$/i.test(trimmed)) {
-      if (link) await sendMainMenu(from, link);
+      if (link) await sendMainMenu(from, link, 1, undefined, personId);
       else await sendGuestWelcome(from);
     } else {
       await sendWithWayBack(from, "Cancelled — nothing was saved. 🙏");
@@ -1590,7 +1596,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     const route = HASHTAG_ROUTES[key];
     if (route) {
       if (session.activeFlow || session.onboarding) await updateSession(from, { activeFlow: undefined, onboarding: undefined });
-      if (route.kind === "menu") { if (link) await sendMainMenu(from, link); else await sendGuestWelcome(from); return; }
+      if (route.kind === "menu") { if (link) await sendMainMenu(from, link, 1, undefined, personId); else await sendGuestWelcome(from); return; }
       if (route.kind === "shortcuts") { await sendTextMessage(from, hashtagHelp()); return; }
       if (!link) { await sendGuestWelcome(from); return; } // member actions need a church link
       if (route.kind === "checkin") { await startChildCheckin(from, link, personId, session); return; }
@@ -1821,7 +1827,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
 
   // ── Menu / lost — any linked member gets the tappable menu, no typing a
   // command out. Placed before HELP_RE so the richer list wins. ──
-  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, link); return; }
+  if (link && MENU_RE.test(trimmed)) { await sendMainMenu(from, link, 1, undefined, personId); return; }
   // Guests get the tappable guest front-door rail for any menu / "how does
   // this work" / options intent — never a "we don't have a menu" text reply.
   if (!link && (MENU_RE.test(trimmed) || GUEST_LOST_RE.test(trimmed))) {
@@ -1843,7 +1849,7 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     // A fresh start: drop any stale YES/NO proposal so a later stray "yes" can't fire it.
     if (session.pendingAgentAction) await updateSession(from, { pendingAgentAction: undefined });
     await addToHistory(from, "user", trimmed);
-    await sendMainMenu(from, link, 1, `Welcome back${name} 🙏 You're at *${link.workspaceName}*.`);
+    await sendMainMenu(from, link, 1, `Welcome back${name} 🙏 You're at *${link.workspaceName}*.`, personId);
     return;
   }
   // Typed consent (for guests who type instead of tapping the gate button).

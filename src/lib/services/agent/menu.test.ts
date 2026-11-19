@@ -126,6 +126,23 @@ describe("direction rail — the main menu lists every module with what it does"
     }
   });
 
+  it("orders the sections for who's messaging — a parent sees Children first", () => {
+    const parent = mainMenuRows("member", { isParent: true });
+    expect(parent[0].id).toBe("grp:children");
+    const nonParent = mainMenuRows("member", { isParent: false });
+    expect(nonParent[0].id).not.toBe("grp:children");
+    // Children is pushed to the end (just before "How it works") for a non-parent.
+    const ids = nonParent.map((r) => r.id);
+    expect(ids.indexOf("grp:children")).toBe(ids.length - 2);
+    // Order never hides a section — same set, just re-sorted.
+    expect(new Set(ids)).toEqual(new Set(mainMenuRows("member").map((r) => r.id)));
+  });
+
+  it("a leader (rank ≥ 2) sees Church ops surfaced to the top", () => {
+    const leader = mainMenuRows("pastor", { isParent: false });
+    expect(leader[0].id).toBe("grp:ops");
+  });
+
   it("each section's one-liner names what THIS role can do in it (honest per role)", () => {
     const memberGive = menuGroupsForRole("member").find((g) => g.id === "grp:give");
     expect(memberGive?.description).toBe("Give");
