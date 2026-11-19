@@ -40,7 +40,7 @@ async function drive(turns: Array<{ text?: string; buttonId?: string }>) {
 beforeEach(() => {
   vi.clearAllMocks();
   registerFlow(pastoralFormFlow);
-  handlerMock.mockResolvedValue({ message: "✅ Your Baby Dedication form has been submitted. A pastor will follow up." });
+  handlerMock.mockResolvedValue({ message: "🙏 Thank you — your Baby Dedication request is in. A pastor will follow up with you soon." });
 });
 
 describe("pastoral_form flow", () => {
@@ -56,7 +56,7 @@ describe("pastoral_form flow", () => {
       { formType: "baby_dedication", details: "Name: Baby Ada Obi; Date: 28 September" },
       expect.objectContaining({ workspaceId: "ws1", userName: "Ada" }),
     );
-    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("submitted") });
+    expect(out).toMatchObject({ type: "text", text: expect.stringContaining("follow up") });
     expect(session.activeFlow).toBeUndefined();
   });
 

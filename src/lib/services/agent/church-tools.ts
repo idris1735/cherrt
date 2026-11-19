@@ -116,7 +116,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
         message: `🙏 New prayer request from ${anonymous ? "someone (anonymous)" : ctx.userName ?? "a member"}. Reply here to follow up.`,
       }).catch(() => {});
       // Fixed referral confirmation — never generated spiritual content
-      return { ok: true, message: "🙏 Your prayer request has been sent to the prayer team." };
+      return { ok: true, message: "🙏 Thank you for sharing this. The prayer team will be praying for you this week. If you'd like a pastor to reach out personally, just reply here and we'll arrange it." };
     },
   },
   {
@@ -164,7 +164,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
       // Slice E: someone else's phone → transparency notice + rights
       const phoneRaw = typeof args.phone === "string" ? args.phone.trim() : "";
       if (phoneRaw && !(ctx.phone && phoneRaw.replace(/\D/g, "") === ctx.phone.replace(/\D/g, ""))) {
-        sendTextMessage(phoneRaw, `Your church added you to Chertt as a first-time guest, ${name}. Reply *privacy* to learn how your data is handled, or *stop* to opt out / be removed.`).catch(() => {});
+        sendTextMessage(phoneRaw, `Hi ${name}, your church has added you as a first-time guest so they can welcome you. Reply *privacy* to learn how your data is handled, or *stop* to opt out / be removed.`).catch(() => {});
       }
       return { ok: true, message: `Welcome ${name}! We've noted your details and someone will reach out.` };
     },
@@ -286,7 +286,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
         message: `🕊️ New pastoral-care request (${category}) from ${ctx.userName ?? "a member"}. Reply here to follow up.`,
       }).catch(() => {});
       // Fixed referral confirmation — never generated spiritual content
-      return { ok: true, message: "A pastor will reach out to you soon. 🙏" };
+      return { ok: true, message: "🙏 Thank you for letting us know. A pastor will reach out to you within the next few days — and if it's urgent, just reply here and we'll have someone call you sooner." };
     },
   },
   {
@@ -617,7 +617,7 @@ export const CHURCH_TOOLS: AgentTool[] = [
         message: `📋 New ${label} form submitted by ${ctx.userName ?? "a member"}. Reply here to follow up.`,
       }).catch(() => {});
 
-      return { ok: true, message: `✅ Your ${label} form has been submitted. A pastor will follow up.` };
+      return { ok: true, message: `🙏 Thank you — your ${label} request is in. A pastor will follow up with you soon.` };
     },
   },
   {

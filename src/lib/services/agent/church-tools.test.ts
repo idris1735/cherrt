@@ -99,7 +99,7 @@ describe("capture_prayer_request", () => {
     const out = (await tool("capture_prayer_request").handler({ request: "healing for my mum" }, ctx)) as { ok: boolean; message: string };
     // Enforce Kola's rule: the reply must be exactly the fixed referral string.
     // No "I'll pray for you," no "God bless," no variable comfort text.
-    expect(out.message).toBe("🙏 Your prayer request has been sent to the prayer team.");
+    expect(out.message).toBe("🙏 Thank you for sharing this. The prayer team will be praying for you this week. If you'd like a pastor to reach out personally, just reply here and we'll arrange it.");
     expect(out.message).not.toContain("pray for");
     expect(out.message).not.toContain("God");
     expect(out.message).not.toContain("Lord");

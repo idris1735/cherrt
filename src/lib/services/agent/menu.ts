@@ -204,7 +204,7 @@ export function menuForRole(role: string, page = 1): Array<{ id: string; title: 
   rows.push(
     hasMore
       ? { id: `menu_more:${page + 1}`, title: "💡 More actions →", description: "See the rest of what you can do" }
-      : { id: "help_more", title: "💡 Help & guides", description: "Everything else Chertt can do" },
+      : { id: "help_more", title: "💡 Help & guides", description: "Everything else your church offers" },
   );
   return rows;
 }

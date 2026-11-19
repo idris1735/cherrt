@@ -1597,7 +1597,7 @@ describe("direction rail — every module opens with what it does and ends with 
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "help" });
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("Everything I can do for you"));
     expect(mockSend).toHaveBeenCalledWith(PHONE, expect.stringContaining("• Check in a child — "));
-    expect(buttonBodies()).toContain("How Chertt works");
+    expect(buttonBodies()).toContain("How this works");
     expect(buttonIds()).toContain("main_menu");
   });
 

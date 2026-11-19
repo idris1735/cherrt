@@ -40,7 +40,7 @@ async function drive(turns: Array<{ text?: string; buttonId?: string }>) {
 beforeEach(() => {
   vi.clearAllMocks();
   registerFlow(prayerFlow);
-  handlerMock.mockResolvedValue({ message: "Received — the prayer team is on it. 🙏" });
+  handlerMock.mockResolvedValue({ message: "🙏 Thank you for sharing this. The prayer team will be praying for you this week. If you'd like a pastor to reach out personally, just reply here and we'll arrange it." });
 });
 
 describe("prayer flow", () => {

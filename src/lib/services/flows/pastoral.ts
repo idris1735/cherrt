@@ -53,7 +53,7 @@ export const pastoralFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "A pastor will reach out to you soon. 🙏" } };
+        return { done: { type: "text", text: res.message ?? "🙏 A pastor will reach out to you within the next few days. If it's urgent, just reply here and we'll have someone call you sooner." } };
       },
     },
   },

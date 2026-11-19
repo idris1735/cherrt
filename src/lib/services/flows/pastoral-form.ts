@@ -91,7 +91,7 @@ export const pastoralFormFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "Submitted — a pastor will follow up. 🙏" } };
+        return { done: { type: "text", text: res.message ?? `🙏 Thank you — a pastor will follow up with you about your ${String(data.formLabel ?? "form")} soon.` } };
       },
     },
   },

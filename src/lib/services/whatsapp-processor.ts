@@ -132,7 +132,7 @@ function buildHelpText(link: PhoneLink, session: WhatsAppSession): string {
   const name = link.userName || session.userName;
   const leader = roleRank(link.userRole) >= 2;
   return [
-    name ? "💡 *How Chertt works, " + name.split(" ")[0] + "*" : "💡 *How Chertt works*",
+    name ? "💡 *How this works, " + name.split(" ")[0] + "*" : "💡 *How this works*",
     "",
     "1️⃣ Type *menu* (or tap *Open menu*) — pick a section, then what you need.",
     "2️⃣ I guide you one step at a time — just tap or reply.",

@@ -49,7 +49,7 @@ export const prayerFlow: FlowDefinition = {
           { workspaceId: ctx.link.workspaceId, role: ctx.link.userRole as Role, userName: ctx.link.userName, phone: ctx.phone, personId: ctx.personId },
         )) as { message?: string; error?: string };
         if (res.error) return { done: { type: "text", text: `Couldn't submit that: ${res.error}` } };
-        return { done: { type: "text", text: res.message ?? "Received — the prayer team is on it. 🙏" } };
+        return { done: { type: "text", text: res.message ?? "🙏 Thank you for sharing this — the prayer team will be praying for you this week." } };
       },
     },
   },

@@ -15,7 +15,7 @@ import type { FlowOutput } from "@/lib/services/flows/engine";
 // (role-aware menu) and guests (the connect front door) alike, and it also
 // works as an escape mid-flow.
 export const MENU_BUTTON = { id: "main_menu", title: "🏠 Main menu" } as const;
-export const MENU_ROW = { id: "main_menu", title: "🏠 Main menu", description: "Everything Chertt can do for you" } as const;
+export const MENU_ROW = { id: "main_menu", title: "🏠 Main menu", description: "Everything your church can do here" } as const;
 
 // Shown under every module header.
 export const EXIT_HINT = "_Type *menu* anytime to stop._";

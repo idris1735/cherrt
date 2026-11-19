@@ -40,7 +40,7 @@ async function drive(turns: Array<{ text?: string; buttonId?: string }>) {
 beforeEach(() => {
   vi.clearAllMocks();
   registerFlow(pastoralFlow);
-  handlerMock.mockResolvedValue({ message: "A pastor will reach out to you soon. 🙏" });
+  handlerMock.mockResolvedValue({ message: "🙏 Thank you for letting us know. A pastor will reach out to you within the next few days — and if it's urgent, just reply here and we'll have someone call you sooner." });
 });
 
 describe("pastoral flow", () => {
