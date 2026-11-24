@@ -40,7 +40,7 @@ import { resolveIdentityByPhone, pickActiveMembership } from "@/lib/services/ide
 import { isAssignRoleTrigger } from "@/lib/services/identity/assign-role-flow";
 import { canAssignRole, roleRank, assignableRoles } from "@/lib/services/identity/role-catalog";
 import { roleLabel } from "@/lib/services/agent/persona";
-import { runAgentQuery, runGuestAgent, getAgentTool, type MediaPart } from "@/lib/services/agent/runtime";
+import { runAgentQuery, runGuestAgent, getAgentTool, looksLikeQuestion as textIsQuestion, looksLikeAgentAction, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { menuPromptFor, mainMenuRows, menuItemsForGroup, menuDirectory } from "@/lib/services/agent/menu";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
@@ -1360,6 +1360,18 @@ function formatServiceReport(s: any): string {
 // Runs the agent and handles its outcome (text answer or a pending confirmation
 // proposal). Returns true if it handled the message, false to fall through to
 // the single-shot creator. Optional media makes it multimodal.
+// n8n-first gate: the LLM is the LAST resort, never the default handler for a
+// linked member's free text. By the time we reach it, every deterministic rail
+// above (menu taps, buttons, hashtags, the typed-intent router) has already had
+// its chance. We consult the agent only for a genuine QUESTION it can answer
+// ("how many members do we have") or a recognizable ACTION it has a tool for
+// ("log ₦15k expense", "draft a letter"). Anything else is a miss, not an AI
+// prompt — the caller shows the menu instead, so the bot answers command→
+// response and never free-associates (the old "praise God" → "Amen 🙏" wander).
+function shouldConsultAgent(text: string): boolean {
+  return textIsQuestion(text) || looksLikeAgentAction(text);
+}
+
 async function dispatchToAgent(from: string, prompt: string, ctx: AgentContext, media?: MediaPart[]): Promise<boolean> {
   const outcome = await runAgentQuery(prompt, ctx, media);
   if (!outcome) return false;
@@ -2168,15 +2180,21 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     }
   }
 
-  // ── Agent: primary handler for all linked-user free text ──
-  // The tool-calling agent (read + write + church tools, role-gated) handles
-  // any text a linked member sends — the LLM decides what to do, so we no
-  // longer rely on English-only regex to decide agent-eligibility. Falls
-  // through to the single-shot creator only when the agent is unavailable (no
-  // Gemini key) or produces no answer; media (image/voice/doc) still goes to
-  // the creator below until the agent gets multimodal tools.
+  // ── Agent: the LAST resort for a linked member's free text (not the default) ──
+  // n8n-first: the deterministic rails above own every church action. What's
+  // left is free text that matched none of them. We only hand it to the LLM
+  // when it's a genuine question or a recognizable action (shouldConsultAgent);
+  // otherwise the bot doesn't wander — it answers command→response with a crisp
+  // menu of what it actually does. A consulted-but-unanswered question (e.g. no
+  // Gemini key) still falls through to the single-shot creator below; media
+  // (image/voice/doc) always reaches the agent in its own branch.
   if (trimmed && link) {
-    if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
+    if (shouldConsultAgent(trimmed)) {
+      if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
+    } else {
+      await sendMainMenu(from, link, 1, "I didn't quite catch that — here's what I can help you with. Tap one 👇", personId);
+      return;
+    }
   }
 
   if (type === "audio") {

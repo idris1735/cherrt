@@ -541,19 +541,37 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("routes ANY linked-member free text to the agent (not just matched phrasings)", async () => {
+  it("n8n-first: an unrecognized statement (no question, no action) gets the menu, not a wandering AI reply", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
     ]);
-    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "Amen! 🙏" });
 
     await skipWelcome();
-    // Not a question and no action verb — previously this went to the creator.
+    // Not a question and not a recognizable action — the old bot handed this to
+    // the LLM, which free-associated ("Amen! 🙏"). Now the rails own direction:
+    // the LLM is never consulted, and the member gets a crisp menu instead.
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "praise God, what a service today" });
 
-    expect(runAgentQuery).toHaveBeenCalledOnce();
-    expect(mockSend).toHaveBeenCalledWith(PHONE, "Amen! 🙏");
+    expect(runAgentQuery).not.toHaveBeenCalled();
     expect(mockRun).not.toHaveBeenCalled();
+    expect(mockList).toHaveBeenCalledOnce();
+    expect(listBodies()).toMatch(/didn't quite catch that/i);
+  });
+
+  it("n8n-first: a real action still reaches the agent (log expense is kept, not menu'd)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "owner" },
+    ]);
+    vi.mocked(runAgentQuery).mockResolvedValueOnce({ kind: "text", text: "🧾 Logged ₦15,000 for diesel." });
+
+    await skipWelcome();
+    // "log ... expense" is a recognizable action (not a question) — it must still
+    // reach the agent's tools, NOT get demoted to the menu.
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "log ₦15k expense for diesel" });
+
+    expect(runAgentQuery).toHaveBeenCalledOnce();
+    expect(mockSend).toHaveBeenCalledWith(PHONE, "🧾 Logged ₦15,000 for diesel.");
+    expect(mockList).not.toHaveBeenCalled();
   });
 
   it("routes a safe action (log expense) to the agent", async () => {
