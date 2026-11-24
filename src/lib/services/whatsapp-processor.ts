@@ -43,6 +43,7 @@ import { roleLabel } from "@/lib/services/agent/persona";
 import { runAgentQuery, runGuestAgent, getAgentTool, looksLikeQuestion as textIsQuestion, looksLikeAgentAction, type MediaPart } from "@/lib/services/agent/runtime";
 import { toolAccessError } from "@/lib/services/agent/access";
 import { menuPromptFor, mainMenuRows, menuItemsForGroup, menuDirectory } from "@/lib/services/agent/menu";
+import { matchSocialAck } from "@/lib/services/social-ack";
 import { decideDepartmentRequest } from "@/lib/services/approvals/department";
 import { resetSenderData } from "@/lib/services/demo-reset";
 import { resetSession } from "@/lib/services/whatsapp-session";
@@ -397,6 +398,16 @@ async function sendMainMenu(from: string, link: PhoneLink | null, _page = 1, lea
   } catch {
     await sendTextMessage(from, (lead ? lead + "\n\n" : "") + menuDirectory(role));
   }
+}
+
+// Smart AND direct: answer a warm, relational message in kind, then OFFER the
+// menu (one tap) rather than dumping it — the turn stays human but never dead-
+// ends. We only offer here; a reply that already has its own next step (a flow
+// closing) never reaches this.
+async function sendSocialAck(from: string, ack: string): Promise<void> {
+  const body = `${ack}\n\nIs there anything I can help you with?`;
+  try { await sendInteractiveButtons(from, body, [{ id: "main_menu", title: "📋 Menu" }]); }
+  catch { await sendTextMessage(from, `${body}\n\n_Type *menu* to see what I can do._`); }
 }
 
 // A group's sub-menu: buttons when ≤3 items (one tap, no modal), else a list.
@@ -2192,6 +2203,10 @@ async function processWhatsAppMessageInner(message: IncomingMessage): Promise<vo
     if (shouldConsultAgent(trimmed)) {
       if (await dispatchToAgent(from, trimmed, agentCtx(link, from, personId))) return;
     } else {
+      // Relational, not a task — answer the moment warmly, then offer the menu.
+      const ack = matchSocialAck(trimmed);
+      if (ack) { await sendSocialAck(from, ack); return; }
+      // A task-shaped attempt we couldn't place → show the menu directly.
       await sendMainMenu(from, link, 1, "I didn't quite catch that — here's what I can help you with. Tap one 👇", personId);
       return;
     }

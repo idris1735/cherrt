@@ -541,16 +541,33 @@ describe("processWhatsAppMessage", () => {
     expect(mockRun).not.toHaveBeenCalled();
   });
 
-  it("n8n-first: an unrecognized statement (no question, no action) gets the menu, not a wandering AI reply", async () => {
+  it("smart AND direct: a relational message gets a warm ack + a menu offer, never a wandering LLM reply", async () => {
     vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
       { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
     ]);
 
     await skipWelcome();
-    // Not a question and not a recognizable action — the old bot handed this to
-    // the LLM, which free-associated ("Amen! 🙏"). Now the rails own direction:
-    // the LLM is never consulted, and the member gets a crisp menu instead.
+    // Praise, not a task — the bot answers the human moment (deterministically,
+    // no LLM) and THEN offers the menu, so the turn is warm but still directed.
     await processWhatsAppMessage({ from: PHONE, type: "text", text: "praise God, what a service today" });
+
+    expect(runAgentQuery).not.toHaveBeenCalled();
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(mockButtons).toHaveBeenCalledOnce();
+    expect(buttonBodies()).toMatch(/glory|amen/i);          // the warm ack
+    expect(buttonBodies()).toMatch(/anything i can help/i); // the offer
+    expect(buttonIds()).toContain("main_menu");             // one-tap into the menu
+  });
+
+  it("n8n-first: a task-shaped statement we can't place gets the menu directly (not a wandering LLM reply)", async () => {
+    vi.mocked(lookupAllPhoneLinks).mockResolvedValueOnce([
+      { phoneNumber: PHONE, userId: null, workspaceId: "ws1", workspaceSlug: "grace", workspaceName: "Grace", userName: "Ruth", userRole: "member" },
+    ]);
+
+    await skipWelcome();
+    // Neither a question, a known action, nor relational — the LLM is never
+    // consulted; the member gets a crisp menu instead of a free-form AI reply.
+    await processWhatsAppMessage({ from: PHONE, type: "text", text: "the generator situation at the back gate" });
 
     expect(runAgentQuery).not.toHaveBeenCalled();
     expect(mockRun).not.toHaveBeenCalled();
